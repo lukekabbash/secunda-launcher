@@ -24,7 +24,7 @@ Secunda never bundles, copies, or redistributes CrossOver. It uses that app's ow
 
 The third-party source drop in `sources/` is intentionally excluded from Git. It remains local build input and carries its own component licenses.
 
-## Package a local app
+## Package for local testing
 
 Build the free runtime from the included source drop once:
 
@@ -41,13 +41,50 @@ Verify the actual Windows and DirectX 11 path on the current Mac:
 ./scripts/smoke-test-runtime.sh
 ```
 
-Then package the launcher and fallback runtime:
+Then package a local app. The default package is deliberately thin: it connects to
+a separately installed CrossOver app and does not copy it into Secunda.
 
 ```sh
 ./scripts/package-app.sh
 ```
 
-The resulting `dist/Secunda Launcher.app` is ad-hoc signed for local testing. It detects a separately installed CrossOver app at launch and never embeds it in the package. Public sharing still requires Developer ID signing and notarization. Wine source and license obligations remain applicable; DXMT v0.80 is included under its MIT license.
+Set `SECUNDA_BUNDLE_RUNTIME=1` only for local technical experiments with the
+source-built fallback. That fallback is intentionally excluded from the share path:
+the proven player path is a separately installed CrossOver app.
+
+## Create a shareable DMG
+
+The share DMG contains the launcher, an Applications shortcut, and a short setup
+guide. It excludes CrossOver, Steam, Skyrim, bottles, saves, logs, installers, and
+account data.
+
+```sh
+./scripts/package-share-dmg.sh
+```
+
+It produces these two files in `dist/`:
+
+- `Secunda Launcher-<version>.dmg`
+- `Secunda Launcher-<version>.dmg.sha256`
+
+The recipient installs their own CrossOver app from the [official download
+page](https://www.codeweavers.com/crossover/download-now), then signs in to their
+own Steam account inside Steam. This is important: the CrossOver EULA is for one
+person at a time and restricts redistributing the app, while its official trial is
+fully functional for 14 days. [CrossOver EULA](https://www.codeweavers.com/crossover/eula)
+
+For a polished, warning-free handoff, sign and notarize with the publisher's Apple
+Developer credentials:
+
+```sh
+SECUNDA_SIGNING_IDENTITY='Developer ID Application: Your Name (TEAMID)' \
+SECUNDA_NOTARY_PROFILE='secunda-notary' \
+./scripts/package-share-dmg.sh
+```
+
+Without those credentials the script still makes an ad-hoc-signed testing DMG, but
+macOS may show an extra first-open warning. Never ask a recipient to disable system
+security for the app.
 
 ## Verify launcher contracts
 

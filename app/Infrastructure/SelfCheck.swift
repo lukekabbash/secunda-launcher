@@ -48,6 +48,12 @@ enum SelfCheck {
             failures: &failures
         )
         expect(SkyrimService.steamAppID == "489830", "Steam app identifier", failures: &failures)
+        expect(PrimaryAction.locateRuntime.title == "Get CrossOver", "runtime handoff action", failures: &failures)
+        expect(
+            SecundaLinks.crossOverDownload.host == "www.codeweavers.com",
+            "official runtime download host",
+            failures: &failures
+        )
         expect(
             SteamService.compatibilityArguments.contains("-system-composer")
                 && SteamService.compatibilityArguments.contains("-cef-allow-browser-underlays")
@@ -98,7 +104,7 @@ enum SelfCheck {
         expect(profile.contains("[Audio]"), "profile preservation", failures: &failures)
 
         if failures.isEmpty {
-            print("Secunda self-check: 20 contracts passed")
+            print("Secunda self-check: 22 contracts passed")
             return 0
         }
 

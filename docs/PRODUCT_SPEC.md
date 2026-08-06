@@ -8,6 +8,8 @@ Secunda Launcher makes one legally owned Steam copy of Skyrim Special Edition fe
 
 Secunda owns one isolated bottle, its runtime configuration, local backups, and diagnostic logs. It may coordinate with a separately installed compatibility engine but never copies or redistributes that engine. Steam owns authentication, entitlement, download, verification, and cloud sync. Bethesda and Valve game/client files are never bundled or redistributed.
 
+A recipient handoff contains only Secunda, setup instructions, and an Applications shortcut. It never transfers another person's bottle, Steam session, game content, saves, compatibility-engine license, or diagnostic data.
+
 ## Primary experience
 
 1. Confirm the Mac and runtime are ready.

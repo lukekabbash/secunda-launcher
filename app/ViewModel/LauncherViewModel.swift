@@ -70,7 +70,7 @@ final class LauncherViewModel: ObservableObject {
         self.settings = settingsStore.load()
         self.snapshot = .empty(paths: paths)
         self.isBusy = true
-        self.progressLabel = "Checking the bundled runtime"
+        self.progressLabel = "Checking the game engine"
 
         Task {
             await refresh()
@@ -102,7 +102,7 @@ final class LauncherViewModel: ObservableObject {
     var supportingText: String {
         switch primaryAction {
         case .locateRuntime:
-            "Secunda could not find a compatible Apple-silicon game engine. Install CrossOver, or rebuild the bundled runtime from this repository."
+            "Install CrossOver separately in Applications, then return here and choose Refresh. Secunda never packages its game engine with your account or saves."
         case .createBottle:
             "Secunda keeps Steam, Skyrim, settings, and logs inside one isolated managed bottle."
         case .installSteam:
@@ -148,7 +148,7 @@ final class LauncherViewModel: ObservableObject {
     func performPrimaryAction() {
         switch primaryAction {
         case .locateRuntime:
-            presentedError = "Secunda could not find CrossOver or a complete bundled runtime. Install CrossOver, or rebuild and package this repository's runtime."
+            openCrossOverDownload()
         case .createBottle:
             runTask(
                 label: "Preparing the Skyrim bottle",
@@ -235,6 +235,11 @@ final class LauncherViewModel: ObservableObject {
     func revealLogs() {
         try? paths.prepareManagedDirectories()
         NSWorkspace.shared.activateFileViewerSelecting([paths.logsDirectory])
+    }
+
+    func openCrossOverDownload() {
+        NSWorkspace.shared.open(SecundaLinks.crossOverDownload)
+        addActivity("Opened the official CrossOver download page.", kind: .info)
     }
 
     var diagnosticReport: String {

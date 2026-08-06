@@ -74,7 +74,7 @@ enum PrimaryAction: Equatable {
 
     var title: String {
         switch self {
-        case .locateRuntime: "Repair Runtime"
+        case .locateRuntime: "Get CrossOver"
         case .createBottle: "Prepare Secunda"
         case .installSteam: "Install Steam"
         case .openSteam: "Open Steam"
@@ -85,7 +85,7 @@ enum PrimaryAction: Equatable {
 
     var symbol: String {
         switch self {
-        case .locateRuntime: "wrench.and.screwdriver"
+        case .locateRuntime: "arrow.down.app.fill"
         case .createBottle: "sparkles"
         case .installSteam: "arrow.down.circle.fill"
         case .openSteam: "person.crop.circle"

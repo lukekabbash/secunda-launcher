@@ -1,0 +1,28 @@
+SECUNDA LAUNCHER — START HERE
+
+This package contains only Secunda Launcher. It does not contain another person's
+Steam account, game files, saves, compatibility engine, or license.
+
+YOU NEED
+• An Apple-silicon Mac running macOS 14 or newer.
+• Your own Steam account with Skyrim Special Edition.
+• Your own CrossOver license, or the official 14-day CrossOver trial.
+
+SETUP
+1. Drag Secunda Launcher to Applications.
+2. Download CrossOver from https://www.codeweavers.com/crossover/download-now
+3. Move CrossOver.app to Applications and open it once.
+4. Open Secunda Launcher. Select Get CrossOver if it is not detected, then Refresh.
+5. Choose Prepare Secunda, then Install Steam. Sign in only in Steam's own window.
+6. Install Skyrim Special Edition through Steam, return to Secunda, and choose Play Skyrim.
+
+PRIVACY
+Secunda creates its own local bottle under:
+~/Library/Application Support/Secunda Launcher
+
+Do not copy someone else's bottle. It can contain account session data and personal saves.
+
+MACOS SECURITY
+This test build may be ad-hoc signed until its publisher provides a notarized release.
+Only open it if it came directly from someone you trust. A notarized release avoids
+the extra first-open warning.

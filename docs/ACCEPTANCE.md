@@ -35,3 +35,11 @@
 - Steam file verification opens for app 489830.
 - Logs identify runtime, bottle, Steam, and game launch failures.
 - Removing Secunda data, when implemented, cannot target anything outside Secunda's managed root.
+
+## Recipient handoff pass
+
+- The share DMG contains only Secunda Launcher, an Applications shortcut, and the setup guide.
+- The share build contains no fallback runtime, CrossOver app, Steam client, game files, bottle, logs, saves, or account data.
+- The DMG passes `hdiutil verify`, and its SHA-256 companion file matches.
+- A recipient with their own Apple-silicon Mac, CrossOver installation, Steam account, and game ownership can complete first-run setup without a runtime picker.
+- A production handoff uses Developer ID signing plus Apple notarization; an ad-hoc build is labeled as a testing artifact.
