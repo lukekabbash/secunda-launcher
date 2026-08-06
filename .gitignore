@@ -1,0 +1,14 @@
+.DS_Store
+.build/
+build/
+.swiftpm/
+dist/
+Runtime/
+*.xcuserstate
+
+# CodeWeavers compliance source drop. Kept locally as build input, not vendored
+# into the launcher repository.
+sources/
+
+# Managed bottles, downloaded installers, logs, and user data never belong in Git.
+Secunda Data/

@@ -1,0 +1,12 @@
+--- a/dlls/winemac.drv/event.c
++++ b/dlls/winemac.drv/event.c
+@@ -400,7 +400,9 @@
+         macdrv_app_quit_requested(event);
+         break;
+     case CLIENT_SURFACE_PRESENTED:    /* CW HACK 22435 */
++#if defined(__x86_64__)
+	macdrv_client_surface_presented(event);
++#endif
+	break;
+     case DISPLAYS_CHANGED:
+         macdrv_displays_changed(event);
