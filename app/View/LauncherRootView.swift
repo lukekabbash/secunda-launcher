@@ -68,7 +68,7 @@ struct LauncherRootView: View {
                 ForEach(GameDescriptor.supported) { descriptor in
                     SidebarRow(
                         title: descriptor.shortTitle,
-                        subtitle: model.snapshot.game(descriptor).state.isReady ? nil : "Not installed",
+                        subtitle: sidebarSubtitle(for: descriptor),
                         isSelected: model.selection == .game(descriptor.id),
                         icon: { SidebarGameThumb(descriptor: descriptor) }
                     ) {
@@ -110,6 +110,14 @@ struct LauncherRootView: View {
         .padding(.top, 34)
         .frame(width: 236)
         .background(Color.black.opacity(0.16))
+    }
+
+    private func sidebarSubtitle(for descriptor: GameDescriptor) -> String? {
+        switch model.snapshot.game(descriptor).state {
+        case .ready: nil
+        case .working: nil
+        default: "Not installed"
+        }
     }
 
     private func select(_ item: SidebarItem) {

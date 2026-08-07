@@ -182,6 +182,11 @@ final class LauncherViewModel: ObservableObject {
             )
             rejected.runtime = .failed("Unsafe test game-space name rejected")
             rejected.bottle = .failed("No fallback game space was opened")
+            for descriptor in GameDescriptor.supported {
+                var gameSnapshot = GameSnapshot()
+                gameSnapshot.state = .missing("Game space unavailable")
+                rejected.games[descriptor.id] = gameSnapshot
+            }
             snapshot = rejected
             return
         }
@@ -223,6 +228,9 @@ final class LauncherViewModel: ObservableObject {
                     anyGameMissing = true
                 }
             } else {
+                // Confirmed: without Steam in the game space, nothing is
+                // installed — this is a real determination, not a guess.
+                gameSnapshot.state = .missing("Install through Steam")
                 anyGameMissing = true
             }
             let bottleRoot = locatedRuntime?.bottleRoot ?? paths.bottleRoot

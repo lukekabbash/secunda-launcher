@@ -37,9 +37,11 @@ enum ComponentState: Equatable, Sendable {
     }
 }
 
-/// Per-game portion of the launcher snapshot.
+/// Per-game portion of the launcher snapshot. Until a probe has actually
+/// run, the state is "checking" — the UI must never claim "not installed"
+/// before confirming it.
 struct GameSnapshot: Equatable, Sendable {
-    var state: ComponentState = .missing("Install through Steam")
+    var state: ComponentState = .working("Checking")
     var path: String?
     var saveCount = 0
     var backupCount = 0

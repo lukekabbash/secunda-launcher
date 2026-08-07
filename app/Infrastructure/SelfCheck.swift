@@ -78,6 +78,12 @@ enum SelfCheck {
             failures: &failures
         )
         expect(
+            GameSnapshot().state == .working("Checking"),
+            "unprobed game state is checking, not missing",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
             PrimaryAction.locateRuntime.title(for: .skyrimSE) == "Open Setup Help",
             "truthful source runtime recovery action",
             passes: &passes,
