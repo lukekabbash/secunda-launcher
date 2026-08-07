@@ -14,10 +14,18 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading, spacing: 20) {
                     SectionHeading(title: "Display", detail: "Applied at launch")
-                    Toggle("Launch in a window", isOn: setting(\.launchInWindow))
-                    Text(model.settings.launchInWindow
-                        ? "Windowed mode is useful for setup. Fullscreen is recommended for the smoothest play and macOS Game Mode eligibility."
-                        : "Fullscreen is selected so macOS can prioritize the game when Game Mode is available.")
+                    HStack {
+                        Text("Mode")
+                        Spacer()
+                        Picker("Mode", selection: setting(\.displayMode)) {
+                            Text("Borderless Fullscreen").tag(DisplayMode.borderlessFullscreen)
+                            Text("Exclusive Fullscreen").tag(DisplayMode.exclusiveFullscreen)
+                            Text("Windowed").tag(DisplayMode.windowed)
+                        }
+                        .labelsHidden()
+                        .frame(width: 200)
+                    }
+                    Text(displayModeCaption)
                         .font(.caption)
                         .foregroundStyle(SecundaTheme.secondaryText)
 
@@ -33,6 +41,13 @@ struct SettingsView: View {
                         .labelsHidden()
                         .frame(width: 170)
                     }
+
+                    Toggle("Vertical sync", isOn: setting(\.verticalSync))
+                    Text(model.settings.verticalSync
+                        ? "VSync caps the frame rate to your display for smooth, tear-free play."
+                        : "Uncapped frame rate can cause screen tearing and physics glitches in Skyrim's engine.")
+                        .font(.caption)
+                        .foregroundStyle(SecundaTheme.secondaryText)
                 }
                 .secundaPanel()
 
@@ -92,6 +107,17 @@ struct SettingsView: View {
             }
             .padding(42)
             .frame(maxWidth: 860, alignment: .leading)
+        }
+    }
+
+    private var displayModeCaption: String {
+        switch model.settings.displayMode {
+        case .borderlessFullscreen:
+            return "Fills the screen as a borderless window, so switching apps with Cmd-Tab works reliably. Recommended."
+        case .exclusiveFullscreen:
+            return "Classic fullscreen. Switching away can leave the game unable to regain the screen; use only if borderless causes problems."
+        case .windowed:
+            return "A regular window at the selected resolution. Useful for setup and troubleshooting."
         }
     }
 

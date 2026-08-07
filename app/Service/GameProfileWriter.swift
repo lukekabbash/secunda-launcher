@@ -30,13 +30,27 @@ struct GameProfileWriter {
         in contents: String,
         settings: LauncherSettings
     ) -> String {
-        let fullscreen = settings.launchInWindow ? "0" : "1"
-        let borderless = settings.launchInWindow ? "0" : "1"
+        // Borderless windowed is the default: exclusive fullscreen through
+        // Wine's Mac driver cannot reliably regain the display after Cmd-Tab.
+        let fullscreen: String
+        let borderless: String
+        switch settings.displayMode {
+        case .borderlessFullscreen:
+            fullscreen = "0"
+            borderless = "1"
+        case .exclusiveFullscreen:
+            fullscreen = "1"
+            borderless = "0"
+        case .windowed:
+            fullscreen = "0"
+            borderless = "0"
+        }
         let values = [
             "bBorderless": borderless,
             "bFull Screen": fullscreen,
             "iSize H": String(settings.height),
-            "iSize W": String(settings.width)
+            "iSize W": String(settings.width),
+            "iVSyncPresentInterval": settings.verticalSync ? "1" : "0"
         ]
 
         var lines = contents.components(separatedBy: .newlines)

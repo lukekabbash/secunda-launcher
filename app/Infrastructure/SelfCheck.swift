@@ -235,7 +235,8 @@ enum SelfCheck {
         )
 
         let settings = LauncherSettings()
-        expect(!settings.launchInWindow, "display defaults", passes: &passes, failures: &failures)
+        expect(settings.displayMode == .borderlessFullscreen, "display defaults", passes: &passes, failures: &failures)
+        expect(settings.verticalSync, "vsync defaults", passes: &passes, failures: &failures)
         expect(!settings.enableDiagnostics, "diagnostic defaults", passes: &passes, failures: &failures)
         expect(settings.width == 1920 && settings.height == 1080, "resolution defaults", passes: &passes, failures: &failures)
 
@@ -266,12 +267,30 @@ enum SelfCheck {
         )
 
         let profile = GameProfileWriter.updatingDisplaySection(
-            in: "[Display]\r\nbFull Screen=0\r\n[Audio]\r\nfMusicDuckingSeconds=6.0\r\n",
+            in: "[Display]\r\nbFull Screen=1\r\n[Audio]\r\nfMusicDuckingSeconds=6.0\r\n",
             settings: settings
         )
-        expect(profile.contains("bFull Screen=1"), "fullscreen profile", passes: &passes, failures: &failures)
+        expect(profile.contains("bFull Screen=0"), "borderless profile disables exclusive fullscreen", passes: &passes, failures: &failures)
+        expect(profile.contains("bBorderless=1"), "borderless profile", passes: &passes, failures: &failures)
+        expect(profile.contains("iVSyncPresentInterval=1"), "vsync profile", passes: &passes, failures: &failures)
         expect(profile.contains("iSize W=1920"), "profile width", passes: &passes, failures: &failures)
         expect(profile.contains("[Audio]"), "profile preservation", passes: &passes, failures: &failures)
+
+        var exclusiveSettings = LauncherSettings()
+        exclusiveSettings.displayMode = .exclusiveFullscreen
+        let exclusiveProfile = GameProfileWriter.updatingDisplaySection(
+            in: "[Display]\r\n",
+            settings: exclusiveSettings
+        )
+        expect(exclusiveProfile.contains("bFull Screen=1"), "exclusive fullscreen profile", passes: &passes, failures: &failures)
+        expect(exclusiveProfile.contains("bBorderless=0"), "exclusive borderless off", passes: &passes, failures: &failures)
+
+        let legacySettings = try? JSONDecoder().decode(
+            LauncherSettings.self,
+            from: Data(#"{"launchInWindow":true,"width":1280,"height":800,"enableDiagnostics":false}"#.utf8)
+        )
+        expect(legacySettings?.displayMode == .windowed, "legacy windowed migration", passes: &passes, failures: &failures)
+        expect(legacySettings?.verticalSync == true, "legacy vsync default", passes: &passes, failures: &failures)
 
         if failures.isEmpty {
             print("Secunda self-check: \(passes) contracts passed")
