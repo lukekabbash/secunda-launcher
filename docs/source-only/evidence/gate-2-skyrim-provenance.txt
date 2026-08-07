@@ -1,0 +1,8 @@
+SECUNDA_SOURCE_ONLY=1
+PROVENANCE_FORMAT=1
+CHECKED_AT_UTC=2026-08-07T04:59:30Z
+ENV_WINEPREFIX=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone
+ENV_SECUNDA_RUNTIME_ROOT=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine
+ENV_SECUNDA_RUNTIME_EXECUTABLE=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/bin/wine
+RUNTIME_EXECUTABLE=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/bin/wine
+PROCESS pid=34522 executable=C:Program Files (x86)Steamsteamapps

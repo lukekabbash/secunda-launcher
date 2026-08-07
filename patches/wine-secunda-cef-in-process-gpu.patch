@@ -1,0 +1,102 @@
+--- a/dlls/ntdll/unix/process.c
++++ b/dlls/ntdll/unix/process.c
+@@ -1168,7 +1168,74 @@
+ 
+     return STATUS_SUCCESS;
+ }
++
++static BOOL unicode_string_contains( const UNICODE_STRING *string, const WCHAR *needle, SIZE_T needle_len )
++{
++    SIZE_T i, string_len = string->Length / sizeof(WCHAR);
+ 
++    if (!string->Buffer || string->Length % sizeof(WCHAR)) return FALSE;
++    if (string_len < needle_len) return FALSE;
++    for (i = 0; i <= string_len - needle_len; ++i)
++        if (!wcsncmp( string->Buffer + i, needle, needle_len )) return TRUE;
++    return FALSE;
++}
++
++static BOOL unicode_string_has_basename( const UNICODE_STRING *path, const WCHAR *name, SIZE_T name_len )
++{
++    SIZE_T basename = 0, i, path_len = path->Length / sizeof(WCHAR);
++
++    if (!path->Buffer || path->Length % sizeof(WCHAR)) return FALSE;
++    for (i = 0; i < path_len; ++i)
++        if (path->Buffer[i] == '\\' || path->Buffer[i] == '/') basename = i + 1;
++
++    return path_len - basename == name_len && !wcsnicmp( path->Buffer + basename, name, name_len );
++}
++
++static NTSTATUS enable_secunda_in_process_gpu( const UNICODE_STRING *image_path,
++                                               RTL_USER_PROCESS_PARAMETERS **params,
++                                               RTL_USER_PROCESS_PARAMETERS *patched_params,
++                                               WCHAR **patched_cmdline )
++{
++    static const WCHAR helper_name[] = {'s','t','e','a','m','w','e','b','h','e','l','p','e','r','.','e','x','e'};
++    static const WCHAR process_type[] = {'-','-','t','y','p','e','='};
++    static const WCHAR in_process_gpu[] = {'-','-','i','n','-','p','r','o','c','e','s','s','-','g','p','u'};
++    static const WCHAR suffix[] = {' ','-','-','i','n','-','p','r','o','c','e','s','s','-','g','p','u',0};
++    RTL_USER_PROCESS_PARAMETERS *original = *params;
++    const char *enabled = getenv( "SECUNDA_CEF_IN_PROCESS_GPU" );
++    SIZE_T suffix_size = sizeof(suffix) - sizeof(WCHAR);
++    SIZE_T buffer_size;
++    WCHAR *buffer;
++
++    *patched_cmdline = NULL;
++    if (!enabled || strcmp( enabled, "1" )) return STATUS_SUCCESS;
++    if (!unicode_string_has_basename( image_path, helper_name, ARRAY_SIZE(helper_name) ))
++        return STATUS_SUCCESS;
++    if (!(original->Flags & PROCESS_PARAMS_FLAG_NORMALIZED) ||
++        !original->CommandLine.Buffer ||
++        original->CommandLine.Length % sizeof(WCHAR) ||
++        original->CommandLine.Length > original->CommandLine.MaximumLength)
++        return STATUS_INVALID_PARAMETER;
++    if (unicode_string_contains( &original->CommandLine, process_type, ARRAY_SIZE(process_type) ))
++        return STATUS_SUCCESS;
++    if (unicode_string_contains( &original->CommandLine, in_process_gpu, ARRAY_SIZE(in_process_gpu) ))
++        return STATUS_SUCCESS;
++
++    buffer_size = original->CommandLine.Length + suffix_size + sizeof(WCHAR);
++    if (buffer_size > MAXWORD) return STATUS_NAME_TOO_LONG;
++    if (!(buffer = malloc( buffer_size ))) return STATUS_NO_MEMORY;
++
++    memcpy( buffer, original->CommandLine.Buffer, original->CommandLine.Length );
++    memcpy( (char *)buffer + original->CommandLine.Length, suffix, sizeof(suffix) );
++    *patched_params = *original;
++    patched_params->CommandLine.Buffer = buffer;
++    patched_params->CommandLine.Length = (USHORT)(buffer_size - sizeof(WCHAR));
++    patched_params->CommandLine.MaximumLength = (USHORT)buffer_size;
++    *params = patched_params;
++    *patched_cmdline = buffer;
++    TRACE( "enabled in-process GPU composition for embedded browser helper\n" );
++    return STATUS_SUCCESS;
++}
++
+ /**********************************************************************
+  *           NtCreateUserProcess  (NTDLL.@)
+  */
+@@ -1199,6 +1266,8 @@
+     const PS_ATTRIBUTE *handles_attr = NULL, *jobs_attr = NULL;
+     data_size_t handles_size, jobs_size;
+     obj_handle_t *handles, *jobs;
++    RTL_USER_PROCESS_PARAMETERS patched_params;
++    WCHAR *patched_cmdline = NULL;
+ 
+     if (thread_flags & THREAD_CREATE_FLAGS_HIDE_FROM_DEBUGGER)
+     {
+@@ -1269,6 +1338,7 @@
+         if (is_arm64ec() && pe_info.is_hybrid && machine == IMAGE_FILE_MACHINE_ARM64)
+             machine = main_image_info.Machine;
+     }
++    if ((status = enable_secunda_in_process_gpu( &path, &params, &patched_params, &patched_cmdline ))) goto done;
+     if (!(startup_info = create_startup_info( attr.ObjectName, process_flags, params, &pe_info, &startup_info_size )))
+         goto done;
+     env_size = get_env_size( params, &winedebug );
+@@ -1438,6 +1508,7 @@
+     status = STATUS_SUCCESS;
+ 
+ done:
++    free( patched_cmdline );
+     if (file_handle) NtClose( file_handle );
+     if (process_info) NtClose( process_info );
+     if (process_handle) NtClose( process_handle );

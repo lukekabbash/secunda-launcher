@@ -1,0 +1,325 @@
+SECUNDA_OBSERVABILITY_FORMAT=1
+CHECKED_AT_UTC=2026-08-07T05:17:34Z
+SECUNDA_SOURCE_ONLY=1
+RUNTIME_EXECUTABLE=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/bin/wine
+SAMPLE_COUNT=10
+SAMPLE_INTERVAL_SECONDS=1
+PROCESS pid=56706 parent_pid=1 name=SkyrimSE.exe executable=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/wine
+PROCESS pid=22962 parent_pid=975 name=steam.exe executable=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/wine
+PROCESS pid=22965 parent_pid=1 name=wineserver executable=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/bin/wineserver
+WINDOW id=195 owner_pid=22962 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=607 width=500 height=500
+WINDOW id=197 owner_pid=22962 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=0 width=1710 height=34
+WINDOW id=198 owner_pid=22962 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=0 width=1710 height=34
+WINDOW id=199 owner_pid=22962 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=0 width=1710 height=34
+WINDOW id=200 owner_pid=22962 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=0 width=1710 height=34
+WINDOW id=313 owner_pid=56706 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=607 width=500 height=500
+WINDOW id=314 owner_pid=56706 owner=wine title_class=skyrim title_present=1 onscreen=1 layer=0 alpha=1.000 x=0 y=35 width=1716 height=1112
+WINDOW id=315 owner_pid=56706 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=0 width=1710 height=34
+WINDOW id=316 owner_pid=56706 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=0 width=1710 height=34
+WINDOW id=317 owner_pid=56706 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=0 width=1710 height=34
+WINDOW id=318 owner_pid=56706 owner=wine title_class=absent title_present=0 onscreen=0 layer=0 alpha=1.000 x=0 y=0 width=1710 height=34
+WINDOW_NONE pid=22965
+LOADED_PATH pid=56706 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/Assets.car
+LOADED_PATH pid=56706 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/DictationManager.loctable
+LOADED_PATH pid=56706 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/InputManager.loctable
+LOADED_PATH pid=56706 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/MenuCommands.loctable
+LOADED_PATH pid=56706 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/Menus.loctable
+LOADED_PATH pid=56706 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/WritingTools.loctable
+LOADED_PATH pid=56706 path=/System/Library/PrivateFrameworks/SFSymbols.framework/Versions/A/Resources/CoreGlyphs.bundle/Contents/Resources/Assets.car
+LOADED_PATH pid=56706 path=/System/Library/PrivateFrameworks/SFSymbols.framework/Versions/A/Resources/CoreGlyphsPrivate.bundle/Contents/Resources/Assets.car
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libfreetype.6.20.2.dylib
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libgmp.10.dylib
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libgnutls.30.dylib
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libhogweed.6.9.dylib
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libnettle.8.9.dylib
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/bcrypt.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/crypt32.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/dnsapi.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/msv1_0.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/netapi32.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/ntdll.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/secur32.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/win32u.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/wine
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/winecoreaudio.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/winemac.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/winemetal.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/ws2_32.so
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/advapi32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/apisetschema.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/bcrypt.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/cfgmgr32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/combase.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/comctl32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/coml2.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/concrt140.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/crypt32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/cryptbase.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/d3d11.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dinput8.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dnsapi.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dsound.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dxgi.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/gdi32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/hid.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/imagehlp.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/imm32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/iphlpapi.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/jsproxy.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/kernel32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/kernelbase.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/mfplat.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/mfreadwrite.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/mmdevapi.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msacm32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msdmo.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msv1_0.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msvcp140.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msvcrt.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/mswsock.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/netapi32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/netutils.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/nsi.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ntdll.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ole32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/oleaut32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/propsys.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/psapi.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/rpcrt4.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/rtworkq.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/schannel.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/sechost.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/secur32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/setupapi.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/shcore.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/shell32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/shlwapi.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ucrtbase.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/user32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/uxtheme.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/vcruntime140.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/version.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/win32u.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/winemetal.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/winhttp.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/winmm.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/wmadmod.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ws2_32.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/x3daudio1_7.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/xaudio2_7.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/xinput1_3.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/GameOverlayRenderer64.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/SkyrimSE.exe
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/bink2w64.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/steam_api64.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/steamclient64.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/tier0_s64.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/vstdlib_s64.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/windows/system32/d3dx9_42.dll
+LOADED_PATH pid=56706 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/windows/system32/winegstreamer.dll
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/2ce9f9c55a2e0dfb2461053eeda25057eec8c6265a8416dd8b0cfa7ef25192d3/msv1_0.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/2d1804ffb5dde9b6716e342378f0640e534d0ea6602b71ba059015aa851c150e/libnettle.8.9.dylib.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/335f7ede70af562b5028ebb644bf6bfa964263840d42337e8e5dd1945e0b5ebb/CoreAudio.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/3633f95dbc85dc2fcb37595febded6a24632a41a7bb8ddf59252ef7bb9f04af4/winemac.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/4623b62bdc5daa898b7abb9b6c5f1412838969ccb1e005823f0c24a41cf751c4/libgnutls.30.dylib.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/4aa0a6ab0dd6b600ab0130bcd762d7ce6eae8b6e61cad9f9b7e38a69465cb1e9/crypt32.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/4d9770a1af99bdf84d0d41150bf4ef1f802e216184279ebbbc23908e7b73c47c/winemetal.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/53a37d08c6b036a92b852121e66c430f1c0d43c199aeb6d2f8b5c833facae8e5/dnsapi.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/59c86eec8ed6ab5bc313fb6d96ade57a08a940ea7bac9714e7f98f4d498f20e1/ntdll.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/5cce348b9d99277972c2f52381e6568fc0c76d57d6439848989aa347f5460239/win32u.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/793d854b4d01bf37122c5968ae326090ef15f602f0182e912624d73236155a03/dyld.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/8345e9386805915f2a195ed283b5374c24eeec0b30a15d728bf8a5573bf56737/libgmp.10.dylib.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/87950fc684e52e095810194fa4a05c4bb30397727fdde871daba08a82aaaa94c/ws2_32.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/98999ee0e78f955d29066d190f6c6bf78ff9b453433d0d6098464f6663cc7f50/bcrypt.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/98ed39bc22af13945f9f7916cd3e50e00d4fecd009544bac6a75d0eb230c38c8/libhogweed.6.9.dylib.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/bb92df94b4cdcd33a434196604a907d77cb362cfcb5c9de80fd079eb2c9544c0/libfreetype.6.20.2.dylib.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/d744f935a2eed25237aaa3cb4da501b71194ef5bac6b45e5f50e57997e1b9419/winecoreaudio.so.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/e2f3de06e8fc9a31ce331e79e71778bd7c6f4df9b47e863e9eef3ec2c0efb261/AGXMetalG17G.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/f2f903a99d16c7272e0cfb9fff0cdef30ef16f11c244f504878daee3f101be0f/libobjc-trampolines.dylib.aot
+LOADED_PATH pid=56706 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/f9d10dfa0bca149aae7839cb6b8872eeb4bdf4128ff6392789e8f270da58a724/secur32.so.aot
+LOADED_PATH pid=56706 path=/usr/lib/libobjc-trampolines.dylib
+LOADED_PATH pid=56706 path=/usr/libexec/rosetta/runtime
+LOADED_PATH pid=22962 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/Assets.car
+LOADED_PATH pid=22962 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/Common.loctable
+LOADED_PATH pid=22962 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/DictationManager.loctable
+LOADED_PATH pid=22962 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/InputManager.loctable
+LOADED_PATH pid=22962 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/MenuCommands.loctable
+LOADED_PATH pid=22962 path=/System/Library/Frameworks/AppKit.framework/Versions/C/Resources/WritingTools.loctable
+LOADED_PATH pid=22962 path=/System/Library/PrivateFrameworks/DesignLibrary.framework/Versions/A/Resources/Assets.car
+LOADED_PATH pid=22962 path=/System/Library/PrivateFrameworks/SFSymbols.framework/Versions/A/Resources/CoreGlyphs.bundle/Contents/Resources/Assets.car
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libfreetype.6.20.2.dylib
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libgmp.10.dylib
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libgnutls.30.dylib
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libhogweed.6.9.dylib
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/libnettle.8.9.dylib
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/bcrypt.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/crypt32.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/dnsapi.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/dwrite.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/msv1_0.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/netapi32.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/ntdll.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/opengl32.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/secur32.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/win32u.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/wine
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/winecoreaudio.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/winemac.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/winemetal.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/winspool.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-unix/ws2_32.so
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/actxprxy.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/advapi32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/apisetschema.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/bcrypt.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/cfgmgr32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/combase.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/comctl32_v6.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/comdlg32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/coml2.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/compstui.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/crypt32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/cryptbase.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dhcpcsvc.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dinput8.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dnsapi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dsound.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dwmapi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dwrite.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/dxgi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/explorerframe.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/gameinput.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/gdi32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/hid.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/imagehlp.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/imm32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/iphlpapi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/jsproxy.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/kernel32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/kernelbase.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/mmdevapi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/mpr.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msacm32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msimg32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msv1_0.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/msvcrt.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/mswsock.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ncrypt.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/netapi32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/netutils.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/nsi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ntdll.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ole32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/oleaut32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/opengl32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/psapi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/rpcrt4.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/rsaenh.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/sechost.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/secur32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/setupapi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/shcore.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/shell32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/shlwapi.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ucrtbase.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/user32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/uxtheme.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/version.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/wbemprox.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/win32u.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/winemetal.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/winhttp.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/wininet.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/winmm.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/winusb.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/ws2_32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/wsock32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/wtsapi32.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/lib/wine/x86_64-windows/xinput1_4.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/SDL3.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/SteamUI.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/bin/audio64.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/bin/chromehtml.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/bin/filesystem_stdio.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/bin/friendsui.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/bin/vgui2_s.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/crashhandler64.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/libavcodec-62.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/libavfilter-11.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/libavformat-62.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/libavutil-60.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/libswresample-6.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/libswscale-9.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/libusb-1.0.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/openvr_api.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/steam.exe
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/steamclient64.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/tier0_s64.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/video64.dll
+LOADED_PATH pid=22962 path=/Users/lukekabbash/Library/Application Support/Secunda Launcher/Bottles/SkyrimSE-SourceClone/drive_c/Program Files (x86)/Steam/vstdlib_s64.dll
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/1972f86af2441440c47e82186bd22a8cce36cebaac921ea115aff95cf71de68f/dwrite.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/2ce9f9c55a2e0dfb2461053eeda25057eec8c6265a8416dd8b0cfa7ef25192d3/msv1_0.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/2d1804ffb5dde9b6716e342378f0640e534d0ea6602b71ba059015aa851c150e/libnettle.8.9.dylib.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/329dde217bd5482d8e4afa089987869c7183b0ff410ddd8cab75af1522dede05/opengl32.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/335f7ede70af562b5028ebb644bf6bfa964263840d42337e8e5dd1945e0b5ebb/CoreAudio.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/3633f95dbc85dc2fcb37595febded6a24632a41a7bb8ddf59252ef7bb9f04af4/winemac.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/4553f2c183691da9e497a1ca6cea59da505573d7652b0e75369cbf188f5048d1/winspool.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/4623b62bdc5daa898b7abb9b6c5f1412838969ccb1e005823f0c24a41cf751c4/libgnutls.30.dylib.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/4aa0a6ab0dd6b600ab0130bcd762d7ce6eae8b6e61cad9f9b7e38a69465cb1e9/crypt32.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/4d9770a1af99bdf84d0d41150bf4ef1f802e216184279ebbbc23908e7b73c47c/winemetal.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/53a37d08c6b036a92b852121e66c430f1c0d43c199aeb6d2f8b5c833facae8e5/dnsapi.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/59c86eec8ed6ab5bc313fb6d96ade57a08a940ea7bac9714e7f98f4d498f20e1/ntdll.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/5cce348b9d99277972c2f52381e6568fc0c76d57d6439848989aa347f5460239/win32u.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/793d854b4d01bf37122c5968ae326090ef15f602f0182e912624d73236155a03/dyld.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/8345e9386805915f2a195ed283b5374c24eeec0b30a15d728bf8a5573bf56737/libgmp.10.dylib.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/87950fc684e52e095810194fa4a05c4bb30397727fdde871daba08a82aaaa94c/ws2_32.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/98999ee0e78f955d29066d190f6c6bf78ff9b453433d0d6098464f6663cc7f50/bcrypt.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/98ed39bc22af13945f9f7916cd3e50e00d4fecd009544bac6a75d0eb230c38c8/libhogweed.6.9.dylib.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/bb92df94b4cdcd33a434196604a907d77cb362cfcb5c9de80fd079eb2c9544c0/libfreetype.6.20.2.dylib.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/d744f935a2eed25237aaa3cb4da501b71194ef5bac6b45e5f50e57997e1b9419/winecoreaudio.so.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/e2f3de06e8fc9a31ce331e79e71778bd7c6f4df9b47e863e9eef3ec2c0efb261/AGXMetalG17G.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/f2f903a99d16c7272e0cfb9fff0cdef30ef16f11c244f504878daee3f101be0f/libobjc-trampolines.dylib.aot
+LOADED_PATH pid=22962 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/f9d10dfa0bca149aae7839cb6b8872eeb4bdf4128ff6392789e8f270da58a724/secur32.so.aot
+LOADED_PATH pid=22962 path=/usr/lib/libobjc-trampolines.dylib
+LOADED_PATH pid=22962 path=/usr/libexec/rosetta/runtime
+LOADED_PATH pid=22965 path=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/bin/wineserver
+LOADED_PATH pid=22965 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/54e1ee83de61ef56c23e2a8689c3d88f98d0513c161531a8e6ff2c3561759241/wineserver.aot
+LOADED_PATH pid=22965 path=/private/var/db/oah/3c86f4e9d8fef1442c7030a645b45c063b21705b71f16047ff76fb56cb013410/793d854b4d01bf37122c5968ae326090ef15f602f0182e912624d73236155a03/dyld.aot
+LOADED_PATH pid=22965 path=/usr/libexec/rosetta/runtime
+SAMPLE index=1 pid=56706 cpu_percent=202.1 rss_kib=824088
+SAMPLE index=1 pid=22962 cpu_percent=2.1 rss_kib=81264
+SAMPLE index=1 pid=22965 cpu_percent=4.9 rss_kib=20416
+SAMPLE index=2 pid=56706 cpu_percent=210.1 rss_kib=824184
+SAMPLE index=2 pid=22962 cpu_percent=2.0 rss_kib=81264
+SAMPLE index=2 pid=22965 cpu_percent=5.3 rss_kib=20416
+SAMPLE index=3 pid=56706 cpu_percent=244.8 rss_kib=824388
+SAMPLE index=3 pid=22962 cpu_percent=2.0 rss_kib=81264
+SAMPLE index=3 pid=22965 cpu_percent=4.7 rss_kib=20416
+SAMPLE index=4 pid=56706 cpu_percent=252.4 rss_kib=824404
+SAMPLE index=4 pid=22962 cpu_percent=2.1 rss_kib=81264
+SAMPLE index=4 pid=22965 cpu_percent=5.6 rss_kib=20416
+SAMPLE index=5 pid=56706 cpu_percent=239.9 rss_kib=824436
+SAMPLE index=5 pid=22962 cpu_percent=2.4 rss_kib=81264
+SAMPLE index=5 pid=22965 cpu_percent=5.1 rss_kib=20416
+SAMPLE index=6 pid=56706 cpu_percent=236.6 rss_kib=824560
+SAMPLE index=6 pid=22962 cpu_percent=2.3 rss_kib=81264
+SAMPLE index=6 pid=22965 cpu_percent=5.4 rss_kib=20416
+SAMPLE index=7 pid=56706 cpu_percent=237.9 rss_kib=824592
+SAMPLE index=7 pid=22962 cpu_percent=1.8 rss_kib=81264
+SAMPLE index=7 pid=22965 cpu_percent=5.1 rss_kib=20416
+SAMPLE index=8 pid=56706 cpu_percent=152.8 rss_kib=824612
+SAMPLE index=8 pid=22962 cpu_percent=1.8 rss_kib=81264
+SAMPLE index=8 pid=22965 cpu_percent=4.2 rss_kib=20416
+SAMPLE index=9 pid=56706 cpu_percent=185.2 rss_kib=824628
+SAMPLE index=9 pid=22962 cpu_percent=1.8 rss_kib=81264
+SAMPLE index=9 pid=22965 cpu_percent=4.4 rss_kib=20416
+SAMPLE index=10 pid=56706 cpu_percent=213.4 rss_kib=824680
+SAMPLE index=10 pid=22962 cpu_percent=2.2 rss_kib=81264
+SAMPLE index=10 pid=22965 cpu_percent=3.6 rss_kib=20416
+CONTAMINATION_RESULT=PASS
+SOURCE_ONLY_PROVENANCE_BEGIN
+SECUNDA_SOURCE_ONLY=1
+PROVENANCE_FORMAT=1
+CHECKED_AT_UTC=2026-08-07T05:17:23Z
+RUNTIME_EXECUTABLE=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/bin/wine
+PROCESS pid=56706 executable=C:Program Files (x86)SteamsteamappsSOURCE_ONLY_PROVENANCE_END

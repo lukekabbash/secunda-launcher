@@ -1,0 +1,32 @@
+Secunda source-only Skyrim audio stack evidence
+Observed: 2026-08-07T04:57:39Z
+Target: PID 34522, kernel process name SkyrimSE.exe
+
+CoreAudio process-state result
+- 33 of 33 samples reported kAudioProcessPropertyIsRunningOutput = 1.
+- Samples were taken every 250 ms across 8 seconds.
+- Longest uninterrupted active-output run: 33 samples.
+- CoreAudio associated the process with default output device 71, MacBook Air Speakers, at 48 kHz.
+- The physical endpoint was muted with volume 0 during this unattended observation. This proves an active CoreAudio output path, but does not claim that speaker sound was audible during the observation.
+- Raw result: gate-2-skyrim-audio-coreaudio.json
+
+Mapped source-only audio modules observed in the same Skyrim process
+- Runtime/wine/lib/wine/x86_64-windows/x3daudio1_7.dll
+- Runtime/wine/lib/wine/x86_64-windows/xaudio2_7.dll
+- Runtime/wine/lib/wine/x86_64-windows/winecoreaudio.drv
+- Runtime/wine/lib/wine/x86_64-unix/winecoreaudio.so
+- /System/Library/Frameworks/CoreAudio.framework/Versions/A/CoreAudio
+- /System/Library/Frameworks/AudioToolbox.framework/Versions/A/AudioToolbox
+- /System/Library/Frameworks/AudioUnit.framework/Versions/A/AudioUnit
+
+Source runtime audio artifact hashes
+- winecoreaudio.so: 5384a264454d4053905c88fde43baf25b0474bd0994a4fa0db8eb2eff193c257
+- winecoreaudio.drv: f8b8ab5524aa634d9735d85719425f34a4dbd3ded7a91f18d464b002706b0d6b
+- xaudio2_7.dll: 5607b98890e45dd332bdb3cbd32d59b6db9b0db6b63d2c8441cf146b0fcf40e2
+
+Interpretation boundary
+- Apple documents kAudioProcessPropertyIsRunningOutput = 1 as running audio I/O with at least one active output stream.
+- The source Wine driver creates a HAL output AudioUnit and starts it with AudioOutputUnitStart.
+- Wine intentionally keeps that AudioUnit running continuously, so active output proves the live plumbing but not that every sampled buffer contained non-silent game audio.
+- This evidence does not inspect credentials, process arguments, process environments, prefixes, or saves.
+- A human unmuted listening check remains required to judge audible content, channel correctness, volume balance, crackle, and dropout quality.
