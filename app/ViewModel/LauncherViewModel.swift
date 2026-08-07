@@ -12,6 +12,7 @@ final class LauncherViewModel: ObservableObject {
     @Published private(set) var setupProgress: SetupProgress?
     @Published var settings: LauncherSettings
     @Published var presentedError: String?
+    @Published private(set) var bottleProcesses: [BottleProcess] = []
 
     let paths: SecundaPaths
     private let settingsStore: SettingsStore
@@ -22,6 +23,7 @@ final class LauncherViewModel: ObservableObject {
     private let saveServices: [String: SaveService]
     private let diagnosticService: DiagnosticService
     private let hostPowerProbe: HostPowerProbe
+    private let bottleProcessInspector: BottleProcessInspector
     private var runtime: RuntimeDescriptor?
     private var installObservationTask: Task<Void, Never>?
 
@@ -44,6 +46,7 @@ final class LauncherViewModel: ObservableObject {
             processRunner: runner,
             runtimeManager: runtimeManager
         )
+        let bottleProcessInspector = BottleProcessInspector(processRunner: runner)
         var gameServices: [String: GameService] = [:]
         var saveServices: [String: SaveService] = [:]
         for descriptor in GameDescriptor.supported {
@@ -55,7 +58,8 @@ final class LauncherViewModel: ObservableObject {
                 processRunner: runner,
                 runtimeManager: runtimeManager,
                 processProbe: processProbe,
-                voiceAudioService: voiceAudio
+                voiceAudioService: voiceAudio,
+                bottleProcessInspector: bottleProcessInspector
             )
             saveServices[descriptor.id] = SaveService(paths: paths, descriptor: descriptor)
         }
@@ -68,7 +72,8 @@ final class LauncherViewModel: ObservableObject {
             gameServices: gameServices,
             saveServices: saveServices,
             diagnosticService: DiagnosticService(paths: paths),
-            hostPowerProbe: HostPowerProbe(processRunner: runner)
+            hostPowerProbe: HostPowerProbe(processRunner: runner),
+            bottleProcessInspector: bottleProcessInspector
         )
     }
 
@@ -81,7 +86,8 @@ final class LauncherViewModel: ObservableObject {
         gameServices: [String: GameService],
         saveServices: [String: SaveService],
         diagnosticService: DiagnosticService,
-        hostPowerProbe: HostPowerProbe
+        hostPowerProbe: HostPowerProbe,
+        bottleProcessInspector: BottleProcessInspector
     ) {
         self.paths = paths
         self.settingsStore = settingsStore
@@ -92,6 +98,7 @@ final class LauncherViewModel: ObservableObject {
         self.saveServices = saveServices
         self.diagnosticService = diagnosticService
         self.hostPowerProbe = hostPowerProbe
+        self.bottleProcessInspector = bottleProcessInspector
         self.settings = settingsStore.load()
         self.snapshot = .empty(paths: paths)
         self.isBusy = true
@@ -411,6 +418,80 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    /// Hard per-game stop for hung or orphaned processes. Skips Wine's
+    /// graceful shutdown entirely, so it works when wineserver is dead.
+    func forceStopGame(_ descriptor: GameDescriptor) {
+        guard let runtime else {
+            presentedError = "A compatible runtime is not available."
+            return
+        }
+        runTask(label: "Force-stopping \(descriptor.shortTitle)") {
+            let killed = try await self.gameServices[descriptor.id]?
+                .forceStop(runtime: runtime) ?? 0
+            self.addActivity(
+                killed > 0
+                    ? "Force-stopped \(killed) \(descriptor.shortTitle) process\(killed == 1 ? "" : "es")."
+                    : "Nothing to stop — no \(descriptor.shortTitle) processes were running.",
+                kind: killed > 0 ? .success : .info
+            )
+            self.refreshBottleProcesses()
+        }
+    }
+
+    /// Refresh the on-demand process list shown in Launcher Settings.
+    func refreshBottleProcesses() {
+        guard let runtime else {
+            bottleProcesses = []
+            return
+        }
+        Task {
+            bottleProcesses = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
+        }
+    }
+
+    /// Force-stop specific processes from the Settings list.
+    func forceStopProcesses(_ processes: [BottleProcess]) {
+        guard !processes.isEmpty else { return }
+        Task {
+            await bottleProcessInspector.forceKill(processes)
+            addActivity(
+                "Force-stopped \(processes.count) game-space process\(processes.count == 1 ? "" : "es").",
+                kind: .success
+            )
+            refreshBottleProcesses()
+            await refresh()
+        }
+    }
+
+    /// The whole-bottle hammer: kill every game-space process, then ask any
+    /// surviving wineserver to shut down. This is the recovery path for the
+    /// orphaned-processes-block-macOS-restart scenario.
+    func forceStopEverything() {
+        guard let runtime else {
+            presentedError = "A compatible runtime is not available."
+            return
+        }
+        runTask(label: "Force-stopping all game-space processes") {
+            let processes = try await self.bottleProcessInspector.runningProcesses(runtime: runtime)
+            await self.bottleProcessInspector.forceKill(processes)
+            let wineserver = runtime.wineExecutable
+                .deletingLastPathComponent()
+                .appendingPathComponent("wineserver")
+            _ = try? await self.bottleManager.requestWineserverExit(
+                wineserver: wineserver,
+                runtime: runtime,
+                diagnostics: self.settings.enableDiagnostics
+            )
+            self.addActivity(
+                processes.isEmpty
+                    ? "Nothing to stop — the game space is already quiet."
+                    : "Force-stopped \(processes.count) game-space process\(processes.count == 1 ? "" : "es").",
+                kind: processes.isEmpty ? .info : .success
+            )
+            self.refreshBottleProcesses()
+        }
+    }
+
     func verifyGameFiles(_ descriptor: GameDescriptor) {
         guard let runtime else { return }
         do {
@@ -565,7 +646,24 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func shutdown(_ runtime: RuntimeDescriptor) async throws {
-        try await bottleManager.shutdown(runtime: runtime, diagnostics: settings.enableDiagnostics)
+        // Graceful first; then sweep anything the Wine-IPC path cannot
+        // reach (orphaned processes whose wineserver already died).
+        var gracefulError: Error?
+        do {
+            try await bottleManager.shutdown(runtime: runtime, diagnostics: settings.enableDiagnostics)
+        } catch {
+            gracefulError = error
+        }
+        let leftovers = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
+        if !leftovers.isEmpty {
+            await bottleProcessInspector.forceKill(leftovers)
+            addActivity(
+                "Force-stopped \(leftovers.count) process\(leftovers.count == 1 ? "" : "es") the graceful shutdown couldn’t reach.",
+                kind: .warning
+            )
+        } else if let gracefulError {
+            throw gracefulError
+        }
         addActivity("Steam and every game in this space are closed.", kind: .success)
     }
 

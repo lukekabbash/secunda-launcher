@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var model: LauncherViewModel
     @State private var copied = false
+    @State private var showsForceStopAllConfirmation = false
 
     var body: some View {
         ScrollView {
@@ -52,6 +53,15 @@ struct SettingsView: View {
                         }
                         .buttonStyle(SecundaActionButtonStyle())
                     }
+                }
+
+                FlatSection(
+                    title: "Running Processes",
+                    detail: model.bottleProcesses.isEmpty
+                        ? "None detected"
+                        : "\(model.bottleProcesses.count) running"
+                ) {
+                    runningProcesses
                 }
 
                 FlatSection(title: "Diagnostics", detail: "Off by default") {
@@ -127,6 +137,84 @@ struct SettingsView: View {
             }
             .padding(42)
             .frame(maxWidth: 880, alignment: .leading)
+        }
+    }
+
+    private var runningProcesses: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Button {
+                    model.refreshBottleProcesses()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(SecundaActionButtonStyle())
+
+                Spacer()
+
+                if !model.bottleProcesses.isEmpty {
+                    Button {
+                        showsForceStopAllConfirmation = true
+                    } label: {
+                        Label("Force Stop All", systemImage: "stop.fill")
+                            .foregroundStyle(SecundaTheme.ember)
+                    }
+                    .buttonStyle(SecundaActionButtonStyle())
+                }
+            }
+
+            if model.bottleProcesses.isEmpty {
+                Text("No Secunda-managed processes are currently running.")
+                    .font(.caption)
+                    .foregroundStyle(SecundaTheme.secondaryText)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(model.bottleProcesses) { process in
+                        HStack(spacing: 12) {
+                            Text(String(process.pid))
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(SecundaTheme.secondaryText)
+                                .frame(width: 52, alignment: .trailing)
+                            Text(process.displayName)
+                                .font(.system(size: 12.5, weight: .medium))
+                                .lineLimit(1)
+                            if process.isOrphaned {
+                                Text("ORPHANED")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                    .tracking(0.8)
+                                    .foregroundStyle(SecundaTheme.ember)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background {
+                                        Capsule().fill(SecundaTheme.ember.opacity(0.14))
+                                    }
+                            }
+                            Spacer()
+                            Button("Force Stop") {
+                                model.forceStopProcesses([process])
+                            }
+                            .buttonStyle(SecundaActionButtonStyle())
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                Text("Force-stopping skips the game's own save-and-quit path. Orphaned entries lost their Wine session and can only be removed this way.")
+                    .font(.caption2)
+                    .foregroundStyle(SecundaTheme.secondaryText)
+            }
+        }
+        .onAppear { model.refreshBottleProcesses() }
+        .confirmationDialog(
+            "Force stop everything in the game space?",
+            isPresented: $showsForceStopAllConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Force Stop All", role: .destructive) {
+                model.forceStopEverything()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Immediately kills every Windows process in Secunda's game space — games, Steam, and Wine workers. Unsaved progress is lost.")
         }
     }
 

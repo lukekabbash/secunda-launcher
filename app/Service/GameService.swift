@@ -55,6 +55,7 @@ final class GameService {
     private let runtimeManager: RuntimeManager
     private let processProbe: WindowsProcessProbe
     private let voiceAudioService: VoiceAudioService
+    private let bottleProcessInspector: BottleProcessInspector
 
     init(
         descriptor: GameDescriptor,
@@ -64,7 +65,8 @@ final class GameService {
         processRunner: ProcessRunner,
         runtimeManager: RuntimeManager,
         processProbe: WindowsProcessProbe,
-        voiceAudioService: VoiceAudioService
+        voiceAudioService: VoiceAudioService,
+        bottleProcessInspector: BottleProcessInspector
     ) {
         self.descriptor = descriptor
         self.paths = paths
@@ -75,6 +77,18 @@ final class GameService {
         self.runtimeManager = runtimeManager
         self.processProbe = processProbe
         self.voiceAudioService = voiceAudioService
+        self.bottleProcessInspector = bottleProcessInspector
+    }
+
+    /// Hard OS-level stop for this game's processes, working even when
+    /// wineserver is dead and they are orphaned. Returns the kill count.
+    func forceStop(runtime: RuntimeDescriptor) async throws -> Int {
+        let processes = try await bottleProcessInspector.runningProcesses(
+            for: descriptor,
+            runtime: runtime
+        )
+        await bottleProcessInspector.forceKill(processes)
+        return processes.count
     }
 
     func executable(in runtime: RuntimeDescriptor?) -> URL? {

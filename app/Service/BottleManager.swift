@@ -140,6 +140,26 @@ final class BottleManager {
         }
     }
 
+    /// Best-effort `wineserver -k` after an OS-level force kill, so a
+    /// half-alive wineserver doesn't linger. Failure is acceptable — the
+    /// processes are already dead.
+    @discardableResult
+    func requestWineserverExit(
+        wineserver: URL,
+        runtime: RuntimeDescriptor,
+        diagnostics: Bool
+    ) async throws -> Int32 {
+        let result = try await processRunner.run(
+            executable: wineserver,
+            arguments: ["-k"],
+            environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
+            currentDirectory: runtime.bottleRoot,
+            logURL: paths.logsDirectory.appendingPathComponent("bottle-force-stop.log"),
+            timeoutSeconds: 8
+        )
+        return result.terminationStatus
+    }
+
     static func hasPrivateDocuments(paths: SecundaPaths, bottleRoot: URL) -> Bool {
         guard paths.isManagedBottleRoot(bottleRoot) else { return false }
         let userDirectory = paths.activeWindowsUserDirectory(in: bottleRoot)

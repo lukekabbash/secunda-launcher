@@ -83,6 +83,68 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+
+        let psFixture = """
+          123     1 /Users/t/Bottles/SkyrimSE/drive_c/Games/Fallout4.exe -arg one
+          456   123 C:\\windows\\system32\\winedevice.exe
+        garbage line
+          789    10 /usr/bin/unrelated
+        """
+        let parsedProcesses = BottleProcessInspector.parse(psOutput: psFixture)
+        expect(
+            parsedProcesses.count == 3
+                && parsedProcesses[0].pid == 123
+                && parsedProcesses[0].isOrphaned
+                && parsedProcesses[0].command == "/Users/t/Bottles/SkyrimSE/drive_c/Games/Fallout4.exe -arg one"
+                && parsedProcesses[1].pid == 456
+                && !parsedProcesses[1].isOrphaned,
+            "ps output parsing and orphan detection",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            parsedProcesses[0].displayName == "Fallout4.exe"
+                && parsedProcesses[1].displayName == "winedevice.exe",
+            "process display names from unix and windows paths",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            BottleProcessInspector.matches(
+                parsedProcesses[0],
+                bottlePath: "/Users/t/Bottles/SkyrimSE",
+                executablePath: nil,
+                runtimeRoot: "/opt/runtime"
+            )
+                && BottleProcessInspector.matches(
+                    parsedProcesses[1],
+                    bottlePath: "/Users/t/Bottles/SkyrimSE",
+                    executablePath: "/opt/runtime/bin/wine64-preloader",
+                    runtimeRoot: "/opt/runtime"
+                )
+                && !BottleProcessInspector.matches(
+                    parsedProcesses[2],
+                    bottlePath: "/Users/t/Bottles/SkyrimSE",
+                    executablePath: "/usr/bin/unrelated",
+                    runtimeRoot: "/opt/runtime"
+                ),
+            "game-space process matching by bottle path and runtime executable",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            BottleProcessInspector.matchesImages(
+                "z:\\games\\FALLOUT4.EXE -windowed",
+                images: ["Fallout4.exe", "Fallout4Launcher.exe"]
+            )
+                && !BottleProcessInspector.matchesImages(
+                    "/bottle/SkyrimSE.exe",
+                    images: ["Fallout4.exe", "Fallout4Launcher.exe"]
+                ),
+            "per-game image filter is case-insensitive",
+            passes: &passes,
+            failures: &failures
+        )
         expect(
             PrimaryAction.locateRuntime.title(for: .skyrimSE) == "Open Setup Help",
             "truthful source runtime recovery action",

@@ -70,6 +70,8 @@ struct LauncherRootView: View {
                         title: descriptor.shortTitle,
                         subtitle: sidebarSubtitle(for: descriptor),
                         isSelected: model.selection == .game(descriptor.id),
+                        forceStopTitle: "Force stop \(descriptor.shortTitle)?",
+                        onForceStop: { model.forceStopGame(descriptor) },
                         icon: { SidebarGameThumb(descriptor: descriptor) }
                     ) {
                         select(.game(descriptor.id))
@@ -202,15 +204,19 @@ private struct SidebarGameThumb: View {
     }
 }
 
-/// Full-width sidebar row with a large forgiving hit area and hover state.
+/// Full-width sidebar row with a large forgiving hit area, hover state,
+/// and an optional hover-revealed force-stop control for game rows.
 private struct SidebarRow<Icon: View>: View {
     let title: String
     var subtitle: String?
     let isSelected: Bool
+    var forceStopTitle: String?
+    var onForceStop: (() -> Void)?
     @ViewBuilder var icon: Icon
     let action: () -> Void
 
     @State private var isHovering = false
+    @State private var showsStopConfirmation = false
 
     var body: some View {
         Button(action: action) {
@@ -220,6 +226,7 @@ private struct SidebarRow<Icon: View>: View {
                     Text(title)
                         .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                         .foregroundStyle(isSelected ? SecundaTheme.text : SecundaTheme.secondaryText)
+                        .lineLimit(1)
                     if let subtitle {
                         Text(subtitle)
                             .font(.system(size: 9.5))
@@ -227,6 +234,23 @@ private struct SidebarRow<Icon: View>: View {
                     }
                 }
                 Spacer(minLength: 0)
+                if isHovering, onForceStop != nil {
+                    Button {
+                        showsStopConfirmation = true
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(SecundaTheme.ember)
+                            .frame(width: 22, height: 22)
+                            .background {
+                                Circle().fill(Color.white.opacity(0.08))
+                            }
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Force stop — for hung games; skips saving")
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -240,5 +264,17 @@ private struct SidebarRow<Icon: View>: View {
         .buttonStyle(.plain)
         .animation(.easeOut(duration: 0.14), value: isHovering)
         .onHover { isHovering = $0 }
+        .confirmationDialog(
+            forceStopTitle ?? "Force stop?",
+            isPresented: $showsStopConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Force Stop", role: .destructive) {
+                onForceStop?()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Immediately kills this game's processes, including hung or orphaned ones. Unsaved progress is lost.")
+        }
     }
 }
