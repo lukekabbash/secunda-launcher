@@ -33,14 +33,16 @@ struct SettingsView: View {
                         Text("Resolution")
                         Spacer()
                         Picker("Resolution", selection: resolutionBinding) {
-                            Text("1920 × 1080").tag("1920x1080")
-                            Text("1728 × 1117").tag("1728x1117")
-                            Text("1440 × 900").tag("1440x900")
-                            Text("1280 × 800").tag("1280x800")
+                            ForEach(resolutionOptions) { option in
+                                Text(option.label).tag(option.id)
+                            }
                         }
                         .labelsHidden()
-                        .frame(width: 170)
+                        .frame(width: 230)
                     }
+                    Text("Higher resolutions look sharper but cost frame rate. Your display's own sizes are listed first.")
+                        .font(.caption)
+                        .foregroundStyle(SecundaTheme.secondaryText)
 
                     HStack {
                         Text("Field of view")
@@ -123,6 +125,49 @@ struct SettingsView: View {
             .padding(42)
             .frame(maxWidth: 860, alignment: .leading)
         }
+    }
+
+    private struct ResolutionOption: Identifiable {
+        let width: Int
+        let height: Int
+        let note: String?
+
+        var id: String { "\(width)x\(height)" }
+        var label: String {
+            let base = "\(width) × \(height)"
+            return note.map { "\(base)  (\($0))" } ?? base
+        }
+    }
+
+    /// The main display's sizes first, then common Mac panel resolutions,
+    /// then whatever custom value is already saved so the picker never
+    /// shows an empty selection.
+    private var resolutionOptions: [ResolutionOption] {
+        var options: [ResolutionOption] = []
+        var seen = Set<String>()
+
+        func add(_ width: Int, _ height: Int, note: String? = nil) {
+            guard width > 0, height > 0 else { return }
+            let option = ResolutionOption(width: width, height: height, note: note)
+            guard seen.insert(option.id).inserted else { return }
+            options.append(option)
+        }
+
+        if let screen = NSScreen.main {
+            let points = screen.frame.size
+            let scale = screen.backingScaleFactor
+            add(Int(points.width * scale), Int(points.height * scale), note: "this display, native")
+            add(Int(points.width), Int(points.height), note: "this display")
+        }
+        for (width, height) in [
+            (3456, 2234), (3024, 1964), (2880, 1864), (2560, 1664),
+            (2560, 1440), (1920, 1200), (1920, 1080), (1728, 1117),
+            (1512, 982), (1470, 956), (1440, 900), (1280, 800)
+        ] {
+            add(width, height)
+        }
+        add(model.settings.width, model.settings.height)
+        return options
     }
 
     private var displayModeCaption: String {
