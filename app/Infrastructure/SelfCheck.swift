@@ -387,6 +387,45 @@ enum SelfCheck {
         expect(falloutProfile.contains("iPresentInterval=1"), "Fallout vsync key", passes: &passes, failures: &failures)
         expect(!falloutProfile.contains("iVSyncPresentInterval"), "no Skyrim vsync key in Fallout profile", passes: &passes, failures: &failures)
 
+        var qualitySettings = GameSettings()
+        qualitySettings.quality = [
+            "godrays": "Off",
+            "ssao": "Off",
+            "bogus-option": "On",
+            "shadow-resolution": "Bogus Label"
+        ]
+        let falloutQuality = GameProfileWriter.qualityValues(
+            settings: qualitySettings,
+            descriptor: .fallout4
+        )
+        expect(
+            falloutQuality["bVolumetricLightingEnable"] == "0"
+                && falloutQuality["bSAOEnable"] == "0"
+                && falloutQuality.count == 2,
+            "quality choices resolve and stale entries drop",
+            passes: &passes,
+            failures: &failures
+        )
+        var godrayHigh = GameSettings()
+        godrayHigh.quality = ["godrays": "High"]
+        let falloutGodrays = GameProfileWriter.qualityValues(
+            settings: godrayHigh,
+            descriptor: .fallout4
+        )
+        expect(
+            falloutGodrays["bVolumetricLightingEnable"] == "1"
+                && falloutGodrays["iVolumetricLightingQuality"] == "2",
+            "multi-key quality choice",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameProfileWriter.qualityValues(settings: GameSettings(), descriptor: .skyrimSE).isEmpty,
+            "default quality writes nothing",
+            passes: &passes,
+            failures: &failures
+        )
+
         let legacySettings = try? JSONDecoder().decode(
             LauncherSettings.self,
             from: Data(#"{"launchInWindow":true,"width":1280,"height":800,"enableDiagnostics":false}"#.utf8)

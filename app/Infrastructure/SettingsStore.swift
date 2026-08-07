@@ -15,6 +15,9 @@ struct GameSettings: Codable, Equatable, Sendable {
     var verticalSync = true
     var fieldOfView = 95
     var nativeVoiceAudio = true
+    /// Chosen quality options, keyed by QualityOption id → choice label.
+    /// Absent entries mean "Game default" (write nothing).
+    var quality: [String: String] = [:]
 
     init() {}
 
@@ -25,6 +28,7 @@ struct GameSettings: Codable, Equatable, Sendable {
         case verticalSync
         case fieldOfView
         case nativeVoiceAudio
+        case quality
     }
 
     init(from decoder: Decoder) throws {
@@ -35,6 +39,7 @@ struct GameSettings: Codable, Equatable, Sendable {
         verticalSync = try container.decodeIfPresent(Bool.self, forKey: .verticalSync) ?? verticalSync
         fieldOfView = try container.decodeIfPresent(Int.self, forKey: .fieldOfView) ?? fieldOfView
         nativeVoiceAudio = try container.decodeIfPresent(Bool.self, forKey: .nativeVoiceAudio) ?? nativeVoiceAudio
+        quality = try container.decodeIfPresent([String: String].self, forKey: .quality) ?? quality
     }
 }
 

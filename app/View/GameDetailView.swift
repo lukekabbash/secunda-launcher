@@ -51,6 +51,12 @@ struct GameDetailView: View {
                     }
                 }
 
+                if descriptor.supportsDisplayProfile && !descriptor.qualityOptions.isEmpty {
+                    FlatSection(title: "Graphics Quality", detail: "Applied at launch") {
+                        qualitySettings
+                    }
+                }
+
                 if !descriptor.dlc.isEmpty {
                     FlatSection(title: "Add-ons", detail: "Managed through Steam") {
                         dlcList
@@ -349,6 +355,48 @@ struct GameDetailView: View {
         }
     }
 
+    private var qualitySettings: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            Text("\"Game default\" leaves the game's own choice untouched. Everything else writes the engine's documented setting at launch — your in-game menu shows the result.")
+                .font(.caption)
+                .foregroundStyle(SecundaTheme.secondaryText)
+                .frame(maxWidth: 560, alignment: .leading)
+
+            ForEach(descriptor.qualityOptions) { option in
+                settingRow(
+                    label: option.title,
+                    caption: option.caption ?? ""
+                ) {
+                    Picker(option.title, selection: qualityBinding(option)) {
+                        ForEach(option.choices, id: \.label) { choice in
+                            Text(choice.label).tag(choice.label)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 170)
+                }
+            }
+        }
+    }
+
+    private func qualityBinding(_ option: QualityOption) -> Binding<String> {
+        Binding(
+            get: {
+                model.gameSettings(for: descriptor).quality[option.id]
+                    ?? QualityOption.gameDefaultLabel
+            },
+            set: { newLabel in
+                var updated = model.gameSettings(for: descriptor)
+                if newLabel == QualityOption.gameDefaultLabel {
+                    updated.quality.removeValue(forKey: option.id)
+                } else {
+                    updated.quality[option.id] = newLabel
+                }
+                model.updateGameSettings(updated, for: descriptor)
+            }
+        )
+    }
+
     private func settingRow<Control: View>(
         label: String,
         caption: String,
@@ -361,10 +409,12 @@ struct GameDetailView: View {
                 Spacer()
                 control()
             }
-            Text(caption)
-                .font(.caption)
-                .foregroundStyle(SecundaTheme.secondaryText)
-                .frame(maxWidth: 560, alignment: .leading)
+            if !caption.isEmpty {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(SecundaTheme.secondaryText)
+                    .frame(maxWidth: 560, alignment: .leading)
+            }
         }
     }
 

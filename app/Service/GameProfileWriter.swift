@@ -45,11 +45,15 @@ struct GameProfileWriter {
         if let prefsFileName = descriptor.prefsFileName {
             let profileURL = preferencesDirectory.appendingPathComponent(prefsFileName)
             let existingPrefs = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
-            let updatedPrefs = Self.updatingDisplaySection(
+            var updatedPrefs = Self.updatingDisplaySection(
                 in: existingPrefs,
                 settings: settings,
                 vsyncKey: descriptor.vsyncKey
             )
+            let qualityValues = Self.qualityValues(settings: settings, descriptor: descriptor)
+            if !qualityValues.isEmpty {
+                updatedPrefs = Self.mergingDisplayValues(qualityValues, into: updatedPrefs)
+            }
             try updatedPrefs.write(to: profileURL, atomically: true, encoding: .utf8)
         }
 
@@ -107,7 +111,24 @@ struct GameProfileWriter {
         )
     }
 
-    private static func mergingDisplayValues(
+    /// Resolve the player's chosen quality options into concrete ini keys.
+    /// Unknown option ids or labels resolve to nothing, so stale stored
+    /// choices can never write garbage.
+    static func qualityValues(
+        settings: GameSettings,
+        descriptor: GameDescriptor
+    ) -> [String: String] {
+        var values: [String: String] = [:]
+        for (optionID, chosenLabel) in settings.quality {
+            guard let option = descriptor.qualityOption(for: optionID),
+                  let choice = option.choices.first(where: { $0.label == chosenLabel })
+            else { continue }
+            values.merge(choice.values) { _, new in new }
+        }
+        return values
+    }
+
+    static func mergingDisplayValues(
         _ values: [String: String],
         into contents: String
     ) -> String {

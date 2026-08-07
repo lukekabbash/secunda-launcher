@@ -25,6 +25,37 @@ struct DLCDescriptor: Identifiable, Equatable, Sendable {
     }
 }
 
+/// One selectable value for a quality option: a label plus the exact
+/// [Display] ini keys it writes. An empty `values` map means "leave the
+/// game's own setting untouched".
+struct QualityChoice: Equatable, Sendable {
+    let label: String
+    let values: [String: String]
+}
+
+/// One curated graphics option a game exposes through Secunda. Only keys
+/// the engine demonstrably honors belong here.
+struct QualityOption: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let caption: String?
+    let choices: [QualityChoice]
+
+    init(id: String, title: String, caption: String? = nil, choices: [QualityChoice]) {
+        self.id = id
+        self.title = title
+        self.caption = caption
+        self.choices = choices
+    }
+
+    static let gameDefaultLabel = "Game default"
+
+    /// Standard first entry: change nothing.
+    static func gameDefault() -> QualityChoice {
+        QualityChoice(label: gameDefaultLabel, values: [:])
+    }
+}
+
 /// Single source of truth for per-game constants. Supporting another game
 /// means adding a descriptor here and registering it in `supported`;
 /// services read these fields instead of hardcoding one title.
@@ -52,9 +83,83 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// File that proves the game data is really present (Steam manifests can
     /// claim completion before content lands). Nil skips the check.
     let baselineDataFile: String?
+    let qualityOptions: [QualityOption]
     let dlc: [DLCDescriptor]
 
     var supportsDisplayProfile: Bool { prefsFileName != nil }
+
+    func qualityOption(for id: String) -> QualityOption? {
+        qualityOptions.first { $0.id == id }
+    }
+
+    /// Shared Creation Engine options valid in both Skyrim SE and Fallout 4.
+    private static func creationEngineOptions() -> [QualityOption] {
+        [
+            QualityOption(
+                id: "ssao",
+                title: "Ambient occlusion",
+                caption: "Contact shading in corners and under objects. Off is a solid frame-rate win.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bSAOEnable": "0"]),
+                    .init(label: "On", values: ["bSAOEnable": "1"])
+                ]
+            ),
+            QualityOption(
+                id: "shadow-resolution",
+                title: "Shadow resolution",
+                caption: "Sharper shadows cost GPU time; 2048 is a good middle ground.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "1024", values: ["iShadowMapResolution": "1024"]),
+                    .init(label: "2048", values: ["iShadowMapResolution": "2048"]),
+                    .init(label: "4096", values: ["iShadowMapResolution": "4096"])
+                ]
+            ),
+            QualityOption(
+                id: "shadow-distance",
+                title: "Shadow distance",
+                caption: "How far away the world still casts shadows.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Short", values: ["fShadowDistance": "2500.0000"]),
+                    .init(label: "Medium", values: ["fShadowDistance": "4000.0000"]),
+                    .init(label: "Long", values: ["fShadowDistance": "8000.0000"])
+                ]
+            ),
+            QualityOption(
+                id: "anisotropy",
+                title: "Anisotropic filtering",
+                caption: "Keeps ground textures sharp at glancing angles. Cheap on Apple GPUs; 16x is fine.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["iMaxAnisotropy": "0"]),
+                    .init(label: "8x", values: ["iMaxAnisotropy": "8"]),
+                    .init(label: "16x", values: ["iMaxAnisotropy": "16"])
+                ]
+            ),
+            QualityOption(
+                id: "lens-flare",
+                title: "Lens flare",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bLensFlare": "0"]),
+                    .init(label: "On", values: ["bLensFlare": "1"])
+                ]
+            ),
+            QualityOption(
+                id: "grass-distance",
+                title: "Grass draw distance",
+                caption: "Closer fade means fewer grass batches on screen.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Near", values: ["fGrassStartFadeDistance": "3500.0000"]),
+                    .init(label: "Medium", values: ["fGrassStartFadeDistance": "7000.0000"]),
+                    .init(label: "Far", values: ["fGrassStartFadeDistance": "14000.0000"])
+                ]
+            )
+        ]
+    }
 
     /// Steam's own artwork CDN. Fetched at runtime for the player's library
     /// presentation and never redistributed inside Secunda.
@@ -87,6 +192,28 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         saveFileExtensions: ["ess"],
         defaultFieldOfView: 80,
         baselineDataFile: "Data/Skyrim.esm",
+        qualityOptions: creationEngineOptions() + [
+            QualityOption(
+                id: "godrays",
+                title: "God rays",
+                caption: "Volumetric sunlight. A large frame-rate cost on this engine; Off is recommended.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bVolumetricLightingEnable": "0"]),
+                    .init(label: "On", values: ["bVolumetricLightingEnable": "1"])
+                ]
+            ),
+            QualityOption(
+                id: "taa",
+                title: "Anti-aliasing (TAA)",
+                caption: "Temporal anti-aliasing smooths edges with slight softening.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bUseTAA": "0"]),
+                    .init(label: "On", values: ["bUseTAA": "1"])
+                ]
+            )
+        ],
         dlc: [
             DLCDescriptor(
                 id: "skyrim-dawnguard",
@@ -133,6 +260,49 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         saveFileExtensions: ["fos"],
         defaultFieldOfView: 80,
         baselineDataFile: "Data/Fallout4.esm",
+        qualityOptions: creationEngineOptions() + [
+            QualityOption(
+                id: "godrays",
+                title: "God rays",
+                caption: "Volumetric sunlight is one of Fallout 4's heaviest effects. Off is strongly recommended on this runtime.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bVolumetricLightingEnable": "0"]),
+                    .init(label: "Low", values: [
+                        "bVolumetricLightingEnable": "1",
+                        "iVolumetricLightingQuality": "0"
+                    ]),
+                    .init(label: "Medium", values: [
+                        "bVolumetricLightingEnable": "1",
+                        "iVolumetricLightingQuality": "1"
+                    ]),
+                    .init(label: "High", values: [
+                        "bVolumetricLightingEnable": "1",
+                        "iVolumetricLightingQuality": "2"
+                    ])
+                ]
+            ),
+            QualityOption(
+                id: "ssr",
+                title: "Screen-space reflections",
+                caption: "Wet-surface reflections. Off saves GPU time in the Commonwealth's many puddles.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bScreenSpaceReflections": "0"]),
+                    .init(label: "On", values: ["bScreenSpaceReflections": "1"])
+                ]
+            ),
+            QualityOption(
+                id: "depth-of-field",
+                title: "Depth of field",
+                caption: "Background blur in dialogue and aiming.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bDoDepthOfField": "0"]),
+                    .init(label: "On", values: ["bDoDepthOfField": "1"])
+                ]
+            )
+        ],
         dlc: [
             DLCDescriptor(
                 id: "fallout4-automatron",
@@ -197,6 +367,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         saveFileExtensions: [],
         defaultFieldOfView: 90,
         baselineDataFile: nil,
+        qualityOptions: [],
         dlc: []
     )
 
