@@ -23,7 +23,7 @@ enum SkyrimLaunchError: LocalizedError {
 }
 
 final class SkyrimService {
-    static let steamAppID = "489830"
+    static let steamAppID = GameDescriptor.skyrimSE.steamAppID
     static let interactiveOutput: ProcessOutput = .discard
 
     private let paths: SecundaPaths

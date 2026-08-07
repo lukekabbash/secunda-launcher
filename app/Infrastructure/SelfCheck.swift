@@ -44,6 +44,9 @@ enum SelfCheck {
             failures: &failures
         )
         expect(SkyrimService.steamAppID == "489830", "Steam app identifier", passes: &passes, failures: &failures)
+        expect(GameDescriptor.supported.count == 1, "single supported game", passes: &passes, failures: &failures)
+        expect(GameDescriptor.supported.first == .skyrimSE, "Skyrim descriptor registered", passes: &passes, failures: &failures)
+        expect(GameDescriptor.skyrimSE.gameImageName == "SkyrimSE.exe", "descriptor game image", passes: &passes, failures: &failures)
         expect(
             PrimaryAction.locateRuntime.title == "Open Setup Help",
             "truthful source runtime recovery action",

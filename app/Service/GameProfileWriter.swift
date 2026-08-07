@@ -117,6 +117,9 @@ struct GameProfileWriter {
 
     private func preferencesDirectory(in bottleRoot: URL) -> URL {
         paths.activeWindowsUserDirectory(in: bottleRoot)
-            .appendingPathComponent("Documents/My Games/Skyrim Special Edition", isDirectory: true)
+            .appendingPathComponent(
+                "Documents/My Games/\(GameDescriptor.skyrimSE.documentsFolderName)",
+                isDirectory: true
+            )
     }
 }

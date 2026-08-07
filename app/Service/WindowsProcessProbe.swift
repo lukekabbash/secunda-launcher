@@ -39,8 +39,8 @@ struct WindowsProcessSnapshot: Equatable, Sendable {
 }
 
 final class WindowsProcessProbe {
-    static let gameImageName = "SkyrimSE.exe"
-    static let launcherImageName = "SkyrimSELauncher.exe"
+    static let gameImageName = GameDescriptor.skyrimSE.gameImageName
+    static let launcherImageName = GameDescriptor.skyrimSE.launcherImageName
     static let queryTimeoutSeconds: TimeInterval = 15
 
     private let processRunner: ProcessRunner
