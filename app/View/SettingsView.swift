@@ -42,6 +42,21 @@ struct SettingsView: View {
                         .frame(width: 170)
                     }
 
+                    HStack {
+                        Text("Field of view")
+                        Spacer()
+                        Stepper(
+                            "\(model.settings.fieldOfView)°",
+                            value: setting(\.fieldOfView),
+                            in: 70...110,
+                            step: 5
+                        )
+                        .fixedSize()
+                    }
+                    Text("Skyrim's default is 80°. Applied at launch; takes effect on the next game start.")
+                        .font(.caption)
+                        .foregroundStyle(SecundaTheme.secondaryText)
+
                     Toggle("Vertical sync", isOn: setting(\.verticalSync))
                     Text(model.settings.verticalSync
                         ? "VSync caps the frame rate to your display for smooth, tear-free play."

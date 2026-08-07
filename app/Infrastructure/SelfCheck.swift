@@ -237,6 +237,7 @@ enum SelfCheck {
         let settings = LauncherSettings()
         expect(settings.displayMode == .borderlessFullscreen, "display defaults", passes: &passes, failures: &failures)
         expect(settings.verticalSync, "vsync defaults", passes: &passes, failures: &failures)
+        expect(settings.fieldOfView == 95, "field of view default", passes: &passes, failures: &failures)
         expect(!settings.enableDiagnostics, "diagnostic defaults", passes: &passes, failures: &failures)
         expect(settings.width == 1920 && settings.height == 1080, "resolution defaults", passes: &passes, failures: &failures)
 
@@ -284,6 +285,14 @@ enum SelfCheck {
         )
         expect(exclusiveProfile.contains("bFull Screen=1"), "exclusive fullscreen profile", passes: &passes, failures: &failures)
         expect(exclusiveProfile.contains("bBorderless=0"), "exclusive borderless off", passes: &passes, failures: &failures)
+
+        let customProfile = GameProfileWriter.updatingCustomDisplaySection(
+            in: "[General]\r\nsLanguage=ENGLISH\r\n",
+            settings: settings
+        )
+        expect(customProfile.contains("fDefaultWorldFOV=95"), "world FOV profile", passes: &passes, failures: &failures)
+        expect(customProfile.contains("fDefault1stPersonFOV=95"), "first-person FOV profile", passes: &passes, failures: &failures)
+        expect(customProfile.contains("sLanguage=ENGLISH"), "custom ini preservation", passes: &passes, failures: &failures)
 
         let legacySettings = try? JSONDecoder().decode(
             LauncherSettings.self,

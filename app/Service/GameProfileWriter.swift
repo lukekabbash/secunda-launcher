@@ -15,15 +15,22 @@ struct GameProfileWriter {
         guard paths.contains(preferencesDirectory, inBottleRoot: bottleRoot) else {
             throw CocoaError(.fileWriteNoPermission)
         }
-        let profileURL = preferencesDirectory.appendingPathComponent("SkyrimPrefs.ini")
-        let existing = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
-        let updated = Self.updatingDisplaySection(in: existing, settings: settings)
-
         try FileManager.default.createDirectory(
             at: preferencesDirectory,
             withIntermediateDirectories: true
         )
-        try updated.write(to: profileURL, atomically: true, encoding: .utf8)
+
+        let profileURL = preferencesDirectory.appendingPathComponent("SkyrimPrefs.ini")
+        let existingPrefs = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
+        let updatedPrefs = Self.updatingDisplaySection(in: existingPrefs, settings: settings)
+        try updatedPrefs.write(to: profileURL, atomically: true, encoding: .utf8)
+
+        // FOV lives in SkyrimCustom.ini, which the game reads as an override
+        // of Skyrim.ini; the launcher never rewrites it, unlike SkyrimPrefs.ini.
+        let customURL = preferencesDirectory.appendingPathComponent("SkyrimCustom.ini")
+        let existingCustom = (try? String(contentsOf: customURL, encoding: .utf8)) ?? ""
+        let updatedCustom = Self.updatingCustomDisplaySection(in: existingCustom, settings: settings)
+        try updatedCustom.write(to: customURL, atomically: true, encoding: .utf8)
     }
 
     static func updatingDisplaySection(
@@ -52,7 +59,27 @@ struct GameProfileWriter {
             "iSize W": String(settings.width),
             "iVSyncPresentInterval": settings.verticalSync ? "1" : "0"
         ]
+        return mergingDisplayValues(values, into: contents)
+    }
 
+    static func updatingCustomDisplaySection(
+        in contents: String,
+        settings: LauncherSettings
+    ) -> String {
+        let fov = String(settings.fieldOfView)
+        return mergingDisplayValues(
+            [
+                "fDefault1stPersonFOV": fov,
+                "fDefaultWorldFOV": fov
+            ],
+            into: contents
+        )
+    }
+
+    private static func mergingDisplayValues(
+        _ values: [String: String],
+        into contents: String
+    ) -> String {
         var lines = contents.components(separatedBy: .newlines)
         if lines.last == "" { lines.removeLast() }
 

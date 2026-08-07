@@ -11,6 +11,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
     var width = 1920
     var height = 1080
     var verticalSync = true
+    var fieldOfView = 95
     var enableDiagnostics = false
 
     init() {}
@@ -21,6 +22,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         case width
         case height
         case verticalSync
+        case fieldOfView
         case enableDiagnostics
     }
 
@@ -34,6 +36,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         width = try container.decodeIfPresent(Int.self, forKey: .width) ?? width
         height = try container.decodeIfPresent(Int.self, forKey: .height) ?? height
         verticalSync = try container.decodeIfPresent(Bool.self, forKey: .verticalSync) ?? verticalSync
+        fieldOfView = try container.decodeIfPresent(Int.self, forKey: .fieldOfView) ?? fieldOfView
         enableDiagnostics = try container.decodeIfPresent(Bool.self, forKey: .enableDiagnostics) ?? enableDiagnostics
     }
 
@@ -43,6 +46,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         try container.encode(width, forKey: .width)
         try container.encode(height, forKey: .height)
         try container.encode(verticalSync, forKey: .verticalSync)
+        try container.encode(fieldOfView, forKey: .fieldOfView)
         try container.encode(enableDiagnostics, forKey: .enableDiagnostics)
     }
 }
