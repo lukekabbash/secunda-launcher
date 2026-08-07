@@ -32,8 +32,15 @@ struct WindowsProcessSnapshot: Equatable, Sendable {
     }
 
     var handoffState: WindowsHandoffState {
-        if contains(WindowsProcessProbe.gameImageName) { return .game }
-        if contains(WindowsProcessProbe.launcherImageName) { return .launcher }
+        handoffState(
+            gameImage: WindowsProcessProbe.gameImageName,
+            launcherImage: WindowsProcessProbe.launcherImageName
+        )
+    }
+
+    func handoffState(gameImage: String, launcherImage: String) -> WindowsHandoffState {
+        if contains(gameImage) { return .game }
+        if contains(launcherImage) { return .launcher }
         return .none
     }
 }
@@ -53,23 +60,25 @@ final class WindowsProcessProbe {
 
     func snapshot(
         runtime: RuntimeDescriptor,
-        diagnostics: Bool
+        diagnostics: Bool,
+        gameImage: String = WindowsProcessProbe.gameImageName,
+        launcherImage: String = WindowsProcessProbe.launcherImageName
     ) async throws -> WindowsProcessSnapshot {
         var names = Set<String>()
         if try await isRunning(
-            Self.gameImageName,
+            gameImage,
             runtime: runtime,
             diagnostics: diagnostics
         ) {
-            names.insert(Self.gameImageName)
+            names.insert(gameImage)
             return WindowsProcessSnapshot(imageNames: names)
         }
         if try await isRunning(
-            Self.launcherImageName,
+            launcherImage,
             runtime: runtime,
             diagnostics: diagnostics
         ) {
-            names.insert(Self.launcherImageName)
+            names.insert(launcherImage)
         }
         return WindowsProcessSnapshot(imageNames: names)
     }
@@ -104,12 +113,19 @@ final class WindowsProcessProbe {
     func waitForHandoff(
         runtime: RuntimeDescriptor,
         diagnostics: Bool,
-        timeoutSeconds: TimeInterval
+        timeoutSeconds: TimeInterval,
+        gameImage: String = WindowsProcessProbe.gameImageName,
+        launcherImage: String = WindowsProcessProbe.launcherImageName
     ) async throws -> WindowsHandoffState {
         let deadline = Date().addingTimeInterval(timeoutSeconds)
         repeat {
             try Task.checkCancellation()
-            let state = try await snapshot(runtime: runtime, diagnostics: diagnostics).handoffState
+            let state = try await snapshot(
+                runtime: runtime,
+                diagnostics: diagnostics,
+                gameImage: gameImage,
+                launcherImage: launcherImage
+            ).handoffState(gameImage: gameImage, launcherImage: launcherImage)
             if state != .none { return state }
             if Date() >= deadline { return .none }
             try await Task.sleep(for: .milliseconds(750))
@@ -119,13 +135,14 @@ final class WindowsProcessProbe {
     func waitForGame(
         runtime: RuntimeDescriptor,
         diagnostics: Bool,
-        timeoutSeconds: TimeInterval
+        timeoutSeconds: TimeInterval,
+        gameImage: String = WindowsProcessProbe.gameImageName
     ) async throws -> Bool {
         let deadline = Date().addingTimeInterval(timeoutSeconds)
         repeat {
             try Task.checkCancellation()
             if try await isRunning(
-                Self.gameImageName,
+                gameImage,
                 runtime: runtime,
                 diagnostics: diagnostics
             ) {

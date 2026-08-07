@@ -19,14 +19,22 @@ final class DiagnosticService {
         Runtime path: \(redacted(snapshot.runtimePath))
         Managed game space: \(redacted(snapshot.bottlePath))
         Steam: \(snapshot.steam.detail ?? "Unavailable")
-        Skyrim: \(redacted(snapshot.gamePath, fallback: "Not installed"))
-        Saves: \(snapshot.saveCount)
-        Backups: \(snapshot.backupCount)
+        \(gameLines(snapshot: snapshot))
         Free disk bytes: \(snapshot.freeDiskBytes)
         Logs: \(redacted(paths.logsDirectory.path))
 
         Secunda does not collect Steam credentials, session data, or personal documents.
         """
+    }
+
+    private func gameLines(snapshot: LauncherSnapshot) -> String {
+        GameDescriptor.supported.map { descriptor in
+            let game = snapshot.game(descriptor)
+            return """
+            \(descriptor.shortTitle): \(redacted(game.path, fallback: "Not installed"))
+            \(descriptor.shortTitle) saves: \(game.saveCount) (backups: \(game.backupCount))
+            """
+        }.joined(separator: "\n")
     }
 
     private func redacted(_ path: String?, fallback: String = "Unavailable") -> String {

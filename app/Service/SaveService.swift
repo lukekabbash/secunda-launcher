@@ -2,9 +2,11 @@ import Foundation
 
 final class SaveService {
     private let paths: SecundaPaths
+    private let descriptor: GameDescriptor
 
-    init(paths: SecundaPaths) {
+    init(paths: SecundaPaths, descriptor: GameDescriptor) {
         self.paths = paths
+        self.descriptor = descriptor
     }
 
     func saveDirectory(in bottleRoot: URL) -> URL? {
@@ -13,7 +15,7 @@ final class SaveService {
         }
         let saves = paths.activeWindowsUserDirectory(in: bottleRoot)
             .appendingPathComponent(
-                "Documents/My Games/Skyrim Special Edition/Saves",
+                "Documents/My Games/\(descriptor.documentsFolderName)/Saves",
                 isDirectory: true
             )
         return paths.contains(saves, inBottleRoot: bottleRoot)
@@ -24,7 +26,11 @@ final class SaveService {
         guard let saveDirectory = saveDirectory(in: bottleRoot),
               let files = try? FileManager.default.contentsOfDirectory(atPath: saveDirectory.path)
         else { return 0 }
-        return files.filter { $0.lowercased().hasSuffix(".ess") }.count
+        let extensions = descriptor.saveFileExtensions.map { "." + $0 }
+        return files.filter { file in
+            let lowered = file.lowercased()
+            return extensions.contains { lowered.hasSuffix($0) }
+        }.count
     }
 
     var backupCount: Int {
@@ -32,7 +38,7 @@ final class SaveService {
             at: paths.backupsDirectory,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
-        ).count) ?? 0
+        ).filter { $0.lastPathComponent.hasPrefix(backupPrefix) }.count) ?? 0
     }
 
     @discardableResult
@@ -46,7 +52,10 @@ final class SaveService {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
         let destination = paths.backupsDirectory
-            .appendingPathComponent(formatter.string(from: Date()), isDirectory: true)
+            .appendingPathComponent(
+                backupPrefix + formatter.string(from: Date()),
+                isDirectory: true
+            )
             .appendingPathComponent("Saves", isDirectory: true)
         try FileManager.default.createDirectory(
             at: destination.deletingLastPathComponent(),
@@ -54,5 +63,10 @@ final class SaveService {
         )
         try FileManager.default.copyItem(at: saveDirectory, to: destination)
         return destination
+    }
+
+    /// Legacy Skyrim backups predate per-game prefixes; keep counting them.
+    private var backupPrefix: String {
+        descriptor.id == GameDescriptor.skyrimSE.id ? "" : descriptor.id + "-"
     }
 }

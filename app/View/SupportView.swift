@@ -25,10 +25,14 @@ struct SupportView: View {
                         .buttonStyle(.plain)
                         .foregroundStyle(SecundaTheme.frost)
 
-                    if model.snapshot.game.isReady {
-                        Button("Verify Game Files") { model.verifyGameFiles() }
+                    ForEach(GameDescriptor.supported) { descriptor in
+                        if model.snapshot.game(descriptor).state.isReady {
+                            Button("Verify \(descriptor.shortTitle) Files") {
+                                model.verifyGameFiles(descriptor)
+                            }
                             .buttonStyle(.plain)
                             .foregroundStyle(SecundaTheme.frost)
+                        }
                     }
                 }
 

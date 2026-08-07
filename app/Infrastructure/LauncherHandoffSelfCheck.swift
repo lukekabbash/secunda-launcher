@@ -310,21 +310,24 @@ enum LauncherHandoffSelfCheck {
             ) == nil,
             "targeted Windows process mismatch rejection"
         )
-        let gameEnvironment = SkyrimService.gameEnvironment(base: ["WINEPREFIX": "/tmp/prefix"])
+        let gameEnvironment = GameService.gameEnvironment(
+            base: ["WINEPREFIX": "/tmp/prefix"],
+            appID: GameDescriptor.skyrimSE.steamAppID
+        )
         checks.expect(
-            gameEnvironment["SteamAppId"] == SkyrimService.steamAppID
-                && gameEnvironment["SteamGameId"] == SkyrimService.steamAppID
+            gameEnvironment["SteamAppId"] == GameDescriptor.skyrimSE.steamAppID
+                && gameEnvironment["SteamGameId"] == GameDescriptor.skyrimSE.steamAppID
                 && gameEnvironment["WINEPREFIX"] == "/tmp/prefix",
             "direct game environment"
         )
         checks.expect(
             SteamService.interactiveOutput == .discard
-                && SkyrimService.interactiveOutput == .discard,
+                && GameService.interactiveOutput == .discard,
             "interactive launch output is discarded"
         )
         checks.expect(
-            SkyrimLaunchStage.allCases == [.checking, .compatibility, .profile, .steam, .game],
-            "five-stage game launch progress"
+            GameLaunchStage.allCases == [.checking, .compatibility, .voiceAudio, .profile, .steam, .game],
+            "six-stage game launch progress"
         )
     }
 
@@ -334,22 +337,28 @@ enum LauncherHandoffSelfCheck {
     ) {
         var snapshot = LauncherSnapshot.empty(paths: paths)
         checks.expect(
-            SetupJourney(snapshot: snapshot).completedSteps == 0,
+            SetupJourney(snapshot: snapshot, descriptor: .skyrimSE).completedSteps == 0,
             "setup journey starts empty"
         )
         snapshot.runtime = .ready("Source-only")
         snapshot.bottle = .ready("Separate")
         snapshot.steam = .ready("Files detected")
-        let awaitingSteam = SetupJourney(snapshot: snapshot)
+        let awaitingSteam = SetupJourney(snapshot: snapshot, descriptor: .skyrimSE)
         checks.expect(
             awaitingSteam.completedSteps == 3 && awaitingSteam.title == "Finish in Steam",
             "setup journey user handoff"
         )
-        snapshot.game = .ready("Files detected")
-        let complete = SetupJourney(snapshot: snapshot)
+        var skyrim = GameSnapshot()
+        skyrim.state = .ready("Files detected")
+        snapshot.games[GameDescriptor.skyrimSE.id] = skyrim
+        let complete = SetupJourney(snapshot: snapshot, descriptor: .skyrimSE)
         checks.expect(
             complete.fraction == 1 && complete.label == "Setup complete",
             "setup journey completion"
+        )
+        checks.expect(
+            SetupJourney(snapshot: snapshot, descriptor: .fallout4).completedSteps == 3,
+            "setup journey is per game"
         )
     }
 
@@ -441,7 +450,9 @@ enum LauncherHandoffSelfCheck {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         snapshot.runtimePath = home + "/SecundaRuntime/bin/wine"
         snapshot.bottlePath = home + "/Secunda/Bottles/SkyrimSE"
-        snapshot.gamePath = home + "/Secunda/SkyrimSE.exe"
+        var skyrimGame = GameSnapshot()
+        skyrimGame.path = home + "/Secunda/SkyrimSE.exe"
+        snapshot.games[GameDescriptor.skyrimSE.id] = skyrimGame
         let report = DiagnosticService(paths: paths).report(snapshot: snapshot)
         checks.expect(
             !report.contains(home + "/") && report.contains("~/SecundaRuntime"),

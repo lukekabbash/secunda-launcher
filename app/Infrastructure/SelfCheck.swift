@@ -43,13 +43,28 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
-        expect(SkyrimService.steamAppID == "489830", "Steam app identifier", passes: &passes, failures: &failures)
-        expect(GameDescriptor.supported.count == 1, "single supported game", passes: &passes, failures: &failures)
-        expect(GameDescriptor.supported.first == .skyrimSE, "Skyrim descriptor registered", passes: &passes, failures: &failures)
+        expect(GameDescriptor.skyrimSE.steamAppID == "489830", "Steam app identifier", passes: &passes, failures: &failures)
+        expect(GameDescriptor.supported == [.skyrimSE, .fallout4], "supported game registry", passes: &passes, failures: &failures)
         expect(GameDescriptor.skyrimSE.gameImageName == "SkyrimSE.exe", "descriptor game image", passes: &passes, failures: &failures)
+        expect(GameDescriptor.fallout4.steamAppID == "377160", "Fallout 4 app identifier", passes: &passes, failures: &failures)
+        expect(GameDescriptor.fallout4.gameImageName == "Fallout4.exe", "Fallout 4 game image", passes: &passes, failures: &failures)
         expect(
-            PrimaryAction.locateRuntime.title == "Open Setup Help",
+            GameDescriptor.descriptor(for: "fallout-4") == .fallout4
+                && GameDescriptor.descriptor(for: "missing") == nil,
+            "descriptor lookup",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            PrimaryAction.locateRuntime.title(for: .skyrimSE) == "Open Setup Help",
             "truthful source runtime recovery action",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            PrimaryAction.play.title(for: .fallout4) == "Play Fallout 4"
+                && PrimaryAction.installGame.title(for: .skyrimSE) == "Install Skyrim",
+            "per-game action titles",
             passes: &passes,
             failures: &failures
         )
@@ -196,8 +211,8 @@ enum SelfCheck {
             overrides: [
                 "WINEPREFIX": paths.bottleRoot.path,
                 "PATH": "/tmp/secunda/bin:/usr/bin:/bin",
-                "SteamAppId": SkyrimService.steamAppID,
-                "SteamGameId": SkyrimService.steamAppID,
+                "SteamAppId": GameDescriptor.skyrimSE.steamAppID,
+                "SteamGameId": GameDescriptor.skyrimSE.steamAppID,
                 "CX_ROOT": "/tmp/external",
                 "WINEDLLPATH": "/Applications/CrossOver.app/Contents/Libraries"
             ]
@@ -215,8 +230,8 @@ enum SelfCheck {
             failures: &failures
         )
         expect(
-            sanitized["SteamAppId"] == SkyrimService.steamAppID
-                && sanitized["SteamGameId"] == SkyrimService.steamAppID,
+            sanitized["SteamAppId"] == GameDescriptor.skyrimSE.steamAppID
+                && sanitized["SteamGameId"] == GameDescriptor.skyrimSE.steamAppID,
             "public Steam game identifiers",
             passes: &passes,
             failures: &failures
@@ -237,12 +252,57 @@ enum SelfCheck {
             failures: &failures
         )
 
-        let settings = LauncherSettings()
+        let launcherSettings = LauncherSettings()
+        let settings = launcherSettings.game(.skyrimSE)
         expect(settings.displayMode == .borderlessFullscreen, "display defaults", passes: &passes, failures: &failures)
         expect(settings.verticalSync, "vsync defaults", passes: &passes, failures: &failures)
         expect(settings.fieldOfView == 95, "field of view default", passes: &passes, failures: &failures)
-        expect(!settings.enableDiagnostics, "diagnostic defaults", passes: &passes, failures: &failures)
+        expect(settings.nativeVoiceAudio, "voice audio default", passes: &passes, failures: &failures)
+        expect(!launcherSettings.enableDiagnostics, "diagnostic defaults", passes: &passes, failures: &failures)
         expect(settings.width == 1920 && settings.height == 1080, "resolution defaults", passes: &passes, failures: &failures)
+        var fittingSettings = settings
+        fittingSettings.width = 1440
+        fittingSettings.height = 900
+        expect(
+            GameProfileWriter.sessionLogPixels(settings: fittingSettings, screenPixelWidth: 3420) == 216,
+            "standard DPI preserved for the accepted 1440x900 profile",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameProfileWriter.sessionLogPixels(settings: settings, screenPixelWidth: 3420) == 96,
+            "1920-wide session maps 1:1 on a 3420-pixel panel",
+            passes: &passes,
+            failures: &failures
+        )
+        var nativeSettings = settings
+        nativeSettings.width = 3420
+        nativeSettings.height = 2214
+        expect(
+            GameProfileWriter.sessionLogPixels(settings: nativeSettings, screenPixelWidth: 3420) == 96,
+            "native-resolution session drops to 96 DPI",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameProfileWriter.sessionLogPixels(settings: nativeSettings, screenPixelWidth: 0) == 216,
+            "unknown screen keeps standard DPI",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            VoiceAudioService.nativeDLLBaseNames == ["x3daudio1_7", "xactengine3_7", "xaudio2_7"],
+            "voice audio override names",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            VoiceAudioService.isWinePlaceholder(Data("MZ Wine placeholder DLL rest".utf8))
+                && !VoiceAudioService.isWinePlaceholder(Data("MZ genuine microsoft bytes".utf8)),
+            "voice audio placeholder detection",
+            passes: &passes,
+            failures: &failures
+        )
 
         let setupProgress = SetupProgress(
             step: 2,
@@ -280,7 +340,7 @@ enum SelfCheck {
         expect(profile.contains("iSize W=1920"), "profile width", passes: &passes, failures: &failures)
         expect(profile.contains("[Audio]"), "profile preservation", passes: &passes, failures: &failures)
 
-        var exclusiveSettings = LauncherSettings()
+        var exclusiveSettings = GameSettings()
         exclusiveSettings.displayMode = .exclusiveFullscreen
         let exclusiveProfile = GameProfileWriter.updatingDisplaySection(
             in: "[Display]\r\n",
@@ -301,8 +361,16 @@ enum SelfCheck {
             LauncherSettings.self,
             from: Data(#"{"launchInWindow":true,"width":1280,"height":800,"enableDiagnostics":false}"#.utf8)
         )
-        expect(legacySettings?.displayMode == .windowed, "legacy windowed migration", passes: &passes, failures: &failures)
-        expect(legacySettings?.verticalSync == true, "legacy vsync default", passes: &passes, failures: &failures)
+        let migrated = legacySettings?.game(.skyrimSE)
+        expect(migrated?.displayMode == .windowed, "legacy windowed migration", passes: &passes, failures: &failures)
+        expect(migrated?.width == 1280 && migrated?.height == 800, "legacy resolution migration", passes: &passes, failures: &failures)
+        expect(migrated?.verticalSync == true, "legacy vsync default", passes: &passes, failures: &failures)
+        expect(
+            legacySettings?.game(.fallout4) == GameSettings(),
+            "unconfigured game gets defaults",
+            passes: &passes,
+            failures: &failures
+        )
 
         if failures.isEmpty {
             print("Secunda self-check: \(passes) contracts passed")

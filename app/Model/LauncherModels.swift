@@ -1,28 +1,20 @@
 import Foundation
 
-enum LauncherSection: String, CaseIterable, Identifiable {
-    case play
-    case saves
+/// Sidebar navigation. The library card grid is the home surface; each
+/// supported game gets its own entry; launcher-level settings and support
+/// live at the bottom.
+enum SidebarItem: Hashable, Identifiable {
+    case games
+    case game(String)
     case settings
     case support
 
-    var id: String { rawValue }
-
-    var title: String {
+    var id: String {
         switch self {
-        case .play: "Play"
-        case .saves: "Saves"
-        case .settings: "Settings"
-        case .support: "Support"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .play: "play.fill"
-        case .saves: "shield.lefthalf.filled"
-        case .settings: "slider.horizontal.3"
-        case .support: "waveform.path.ecg"
+        case .games: "games"
+        case .game(let gameID): "game-\(gameID)"
+        case .settings: "settings"
+        case .support: "support"
         }
     }
 }
@@ -47,19 +39,28 @@ enum ComponentState: Equatable, Sendable {
     }
 }
 
+/// Per-game portion of the launcher snapshot.
+struct GameSnapshot: Equatable, Sendable {
+    var state: ComponentState = .missing("Install through Steam")
+    var path: String?
+    var saveCount = 0
+    var backupCount = 0
+}
+
 struct LauncherSnapshot: Equatable, Sendable {
     var host: ComponentState = .working("Checking this Mac")
     var runtime: ComponentState = .missing("Runtime not found")
     var bottle: ComponentState = .missing("Not created")
     var steam: ComponentState = .missing("Not installed")
-    var game: ComponentState = .missing("Install through Steam")
-    var saveCount = 0
-    var backupCount = 0
+    var games: [String: GameSnapshot] = [:]
     var freeDiskBytes: Int64 = 0
     var lowPowerModeEnabled = false
     var runtimePath: String?
     var bottlePath: String
-    var gamePath: String?
+
+    func game(_ descriptor: GameDescriptor) -> GameSnapshot {
+        games[descriptor.id] ?? GameSnapshot()
+    }
 
     static func empty(paths: SecundaPaths) -> LauncherSnapshot {
         LauncherSnapshot(bottlePath: paths.bottleRoot.path)
@@ -70,17 +71,17 @@ enum PrimaryAction: Equatable {
     case locateRuntime
     case createBottle
     case installSteam
-    case openSteam
+    case installGame
     case play
     case unavailable
 
-    var title: String {
+    func title(for descriptor: GameDescriptor) -> String {
         switch self {
         case .locateRuntime: "Open Setup Help"
         case .createBottle: "Prepare Secunda"
         case .installSteam: "Install Steam"
-        case .openSteam: "Open Steam"
-        case .play: "Play Skyrim"
+        case .installGame: "Install \(descriptor.shortTitle)"
+        case .play: "Play \(descriptor.shortTitle)"
         case .unavailable: "Working…"
         }
     }
@@ -90,7 +91,7 @@ enum PrimaryAction: Equatable {
         case .locateRuntime: "arrow.down.app.fill"
         case .createBottle: "sparkles"
         case .installSteam: "arrow.down.circle.fill"
-        case .openSteam: "person.crop.circle"
+        case .installGame: "arrow.down.circle.fill"
         case .play: "play.fill"
         case .unavailable: "hourglass"
         }
@@ -134,8 +135,13 @@ struct SetupJourney: Equatable, Sendable {
     let title: String
     let detail: String
 
-    init(snapshot: LauncherSnapshot) {
-        let states = [snapshot.runtime, snapshot.bottle, snapshot.steam, snapshot.game]
+    init(snapshot: LauncherSnapshot, descriptor: GameDescriptor) {
+        let states = [
+            snapshot.runtime,
+            snapshot.bottle,
+            snapshot.steam,
+            snapshot.game(descriptor).state
+        ]
         completedSteps = states.prefix(while: \.isReady).count
         totalSteps = states.count
 
@@ -145,13 +151,13 @@ struct SetupJourney: Equatable, Sendable {
             detail = "Checking the free, source-built engine included with Secunda."
         case 1:
             title = "Separate Windows Space"
-            detail = "Next, create a separate managed place for Steam, Skyrim, and game settings."
+            detail = "Next, create a separate managed place for Steam, your games, and their settings."
         case 2:
             title = "Steam Client"
             detail = "Next, install Steam directly from Valve."
         case 3:
             title = "Finish in Steam"
-            detail = "Sign in if asked, then install Skyrim Special Edition. Steam shows the download progress."
+            detail = "Sign in if asked, then install \(descriptor.shortTitle). Steam shows the download progress."
         default:
             title = "Ready to Launch"
             detail = "The required files are installed. Secunda applies its compatibility profile each time you press Play."
@@ -166,12 +172,4 @@ struct SetupJourney: Equatable, Sendable {
     var label: String {
         completedSteps == totalSteps ? "Setup complete" : "\(completedSteps) of \(totalSteps) ready"
     }
-}
-
-enum SkyrimLaunchStage: CaseIterable, Sendable {
-    case checking
-    case compatibility
-    case profile
-    case steam
-    case game
 }

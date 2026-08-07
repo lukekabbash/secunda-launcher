@@ -4,7 +4,7 @@ import Foundation
 
 @MainActor
 final class LauncherViewModel: ObservableObject {
-    @Published var selection: LauncherSection = .play
+    @Published var selection: SidebarItem = .games
     @Published private(set) var snapshot: LauncherSnapshot
     @Published private(set) var activities: [ActivityEntry] = []
     @Published private(set) var isBusy = false
@@ -18,8 +18,8 @@ final class LauncherViewModel: ObservableObject {
     private let runtimeManager: RuntimeManager
     private let bottleManager: BottleManager
     private let steamService: SteamService
-    private let skyrimService: SkyrimService
-    private let saveService: SaveService
+    private let gameServices: [String: GameService]
+    private let saveServices: [String: SaveService]
     private let diagnosticService: DiagnosticService
     private let hostPowerProbe: HostPowerProbe
     private var runtime: RuntimeDescriptor?
@@ -39,21 +39,34 @@ final class LauncherViewModel: ObservableObject {
             processRunner: runner,
             runtimeManager: runtimeManager
         )
+        let voiceAudio = VoiceAudioService(
+            paths: paths,
+            processRunner: runner,
+            runtimeManager: runtimeManager
+        )
+        var gameServices: [String: GameService] = [:]
+        var saveServices: [String: SaveService] = [:]
+        for descriptor in GameDescriptor.supported {
+            gameServices[descriptor.id] = GameService(
+                descriptor: descriptor,
+                paths: paths,
+                steamService: steam,
+                bottleManager: bottleManager,
+                processRunner: runner,
+                runtimeManager: runtimeManager,
+                processProbe: processProbe,
+                voiceAudioService: voiceAudio
+            )
+            saveServices[descriptor.id] = SaveService(paths: paths, descriptor: descriptor)
+        }
         return LauncherViewModel(
             paths: paths,
             settingsStore: SettingsStore(paths: paths),
             runtimeManager: runtimeManager,
             bottleManager: bottleManager,
             steamService: steam,
-            skyrimService: SkyrimService(
-                paths: paths,
-                steamService: steam,
-                bottleManager: bottleManager,
-                processRunner: runner,
-                runtimeManager: runtimeManager,
-                processProbe: processProbe
-            ),
-            saveService: SaveService(paths: paths),
+            gameServices: gameServices,
+            saveServices: saveServices,
             diagnosticService: DiagnosticService(paths: paths),
             hostPowerProbe: HostPowerProbe(processRunner: runner)
         )
@@ -65,8 +78,8 @@ final class LauncherViewModel: ObservableObject {
         runtimeManager: RuntimeManager,
         bottleManager: BottleManager,
         steamService: SteamService,
-        skyrimService: SkyrimService,
-        saveService: SaveService,
+        gameServices: [String: GameService],
+        saveServices: [String: SaveService],
         diagnosticService: DiagnosticService,
         hostPowerProbe: HostPowerProbe
     ) {
@@ -75,8 +88,8 @@ final class LauncherViewModel: ObservableObject {
         self.runtimeManager = runtimeManager
         self.bottleManager = bottleManager
         self.steamService = steamService
-        self.skyrimService = skyrimService
-        self.saveService = saveService
+        self.gameServices = gameServices
+        self.saveServices = saveServices
         self.diagnosticService = diagnosticService
         self.hostPowerProbe = hostPowerProbe
         self.settings = settingsStore.load()
@@ -91,50 +104,68 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    var primaryAction: PrimaryAction {
+    // MARK: - Per-game state
+
+    func primaryAction(for descriptor: GameDescriptor) -> PrimaryAction {
         if isBusy { return .unavailable }
         guard snapshot.runtime.isReady else { return .locateRuntime }
         guard snapshot.bottle.isReady else { return .createBottle }
         guard snapshot.steam.isReady else { return .installSteam }
-        guard snapshot.game.isReady else { return .openSteam }
+        guard snapshot.game(descriptor).state.isReady else { return .installGame }
         return .play
     }
 
-    var setupJourney: SetupJourney {
-        SetupJourney(snapshot: snapshot)
+    func setupJourney(for descriptor: GameDescriptor) -> SetupJourney {
+        SetupJourney(snapshot: snapshot, descriptor: descriptor)
     }
 
-    var headline: String {
-        switch primaryAction {
+    func headline(for descriptor: GameDescriptor) -> String {
+        switch primaryAction(for: descriptor) {
         case .locateRuntime:
             paths.bottleOverrideError == nil
                 ? "Secunda’s free game engine is missing."
                 : "Secunda refused an unsafe test game space."
         case .createBottle: "Prepare a clean realm."
         case .installSteam: "Bring Steam into Secunda."
-        case .openSteam: "Install Skyrim through Steam."
-        case .play: "Skyrim is installed and ready to launch."
+        case .installGame: "Install \(descriptor.shortTitle) through Steam."
+        case .play: "\(descriptor.shortTitle) is installed and ready to launch."
         case .unavailable: progressLabel ?? "Preparing Secunda…"
         }
     }
 
-    var supportingText: String {
-        switch primaryAction {
+    func supportingText(for descriptor: GameDescriptor) -> String {
+        switch primaryAction(for: descriptor) {
         case .locateRuntime:
             paths.bottleOverrideError
                 ?? "This build should include Secunda’s source-built engine. Reinstall the complete Secunda package or use the source build instructions."
         case .createBottle:
-            "Secunda creates a separate managed Windows space for Steam, Skyrim, settings, and saves."
+            "Secunda creates a separate managed Windows space for Steam, your games, settings, and saves."
         case .installSteam:
             "Steam is downloaded directly from Valve. Secunda never sees or stores your credentials."
-        case .openSteam:
-            "Sign in to your own Steam account, install Skyrim Special Edition, then return here."
+        case .installGame:
+            "Secunda asks Steam to install your own copy of \(descriptor.shortTitle). Steam confirms the download and shows its progress."
         case .play:
-            "Secunda applies its tested settings, asks Steam to authorize your copy, then opens Skyrim through its source-built engine."
+            "Secunda applies its tested settings, asks Steam to authorize your copy, then opens \(descriptor.shortTitle) through its source-built engine."
         case .unavailable:
             "This can take a few minutes. You can leave this window open."
         }
     }
+
+    func gameSettings(for descriptor: GameDescriptor) -> GameSettings {
+        settings.game(descriptor)
+    }
+
+    func updateGameSettings(_ gameSettings: GameSettings, for descriptor: GameDescriptor) {
+        settings.setGame(gameSettings, for: descriptor)
+        persistSettings()
+    }
+
+    func dlcStates(for descriptor: GameDescriptor) -> [DLCState] {
+        gameServices[descriptor.id]?.dlcStates(in: runtime)
+            ?? descriptor.dlc.map { DLCState(descriptor: $0, isInstalled: false) }
+    }
+
+    // MARK: - Refresh
 
     func refresh() async {
         let lowPowerModeEnabled = await hostPowerProbe.lowPowerModeEnabled() ?? false
@@ -169,20 +200,37 @@ final class LauncherViewModel: ObservableObject {
                 ? "Separate test space · \(paths.bottleName)"
                 : "Separate game space")
             : .missing("Not prepared")
-        if updated.bottle.isReady, steamService.executable(in: locatedRuntime) != nil {
+
+        let steamReady = updated.bottle.isReady
+            && steamService.executable(in: locatedRuntime) != nil
+        if steamReady {
             updated.steam = .ready("Client files detected")
-            switch skyrimService.installation(in: locatedRuntime) {
-            case .installed(let game):
-                updated.game = .ready("Game files detected")
-                updated.gamePath = game.path
-            case .incomplete(let detail):
-                updated.game = .warning(detail)
-            case .missing:
-                updated.game = .missing("Install through Steam")
-            }
         }
-        updated.saveCount = saveService.saveCount(in: locatedRuntime?.bottleRoot ?? paths.bottleRoot)
-        updated.backupCount = saveService.backupCount
+
+        var anyGameMissing = false
+        for descriptor in GameDescriptor.supported {
+            var gameSnapshot = GameSnapshot()
+            if steamReady, let service = gameServices[descriptor.id] {
+                switch service.installation(in: locatedRuntime) {
+                case .installed(let game):
+                    gameSnapshot.state = .ready("Game files detected")
+                    gameSnapshot.path = game.path
+                case .incomplete(let detail):
+                    gameSnapshot.state = .warning(detail)
+                    anyGameMissing = true
+                case .missing:
+                    gameSnapshot.state = .missing("Install through Steam")
+                    anyGameMissing = true
+                }
+            } else {
+                anyGameMissing = true
+            }
+            let bottleRoot = locatedRuntime?.bottleRoot ?? paths.bottleRoot
+            gameSnapshot.saveCount = saveServices[descriptor.id]?.saveCount(in: bottleRoot) ?? 0
+            gameSnapshot.backupCount = saveServices[descriptor.id]?.backupCount ?? 0
+            updated.games[descriptor.id] = gameSnapshot
+        }
+
         updated.freeDiskBytes = freeDiskBytes
         updated.lowPowerModeEnabled = lowPowerModeEnabled
         updated.host = HostPreflight.evaluate(
@@ -190,15 +238,17 @@ final class LauncherViewModel: ObservableObject {
             isAppleSilicon: HostPreflight.isAppleSilicon,
             sourceRuntimeProbeSucceeded: locatedRuntime != nil,
             freeDiskBytes: freeDiskBytes,
-            needsInstallSpace: !updated.game.isReady,
+            needsInstallSpace: anyGameMissing,
             lowPowerModeEnabled: lowPowerModeEnabled
         )
         snapshot = updated
         updateInstallObservation()
     }
 
-    func performPrimaryAction() {
-        switch primaryAction {
+    // MARK: - Actions
+
+    func performPrimaryAction(for descriptor: GameDescriptor) {
+        switch primaryAction(for: descriptor) {
         case .locateRuntime:
             selection = .support
             addActivity("The source-built engine is missing. Opened recovery details.", kind: .warning)
@@ -209,7 +259,7 @@ final class LauncherViewModel: ObservableObject {
                     step: 1,
                     totalSteps: 1,
                     title: "Preparing Secunda",
-                    detail: "Creating a separate Windows environment without linking Skyrim saves to your Mac Documents folder."
+                    detail: "Creating a separate Windows environment without linking game saves to your Mac Documents folder."
                 )
             ) { try await self.createBottle() }
         case .installSteam:
@@ -222,9 +272,12 @@ final class LauncherViewModel: ObservableObject {
                     detail: "Confirming Secunda’s selected game space is ready."
                 )
             ) { try await self.installSteam() }
-        case .openSteam: openSteam()
-        case .play: play()
-        case .unavailable: break
+        case .installGame:
+            requestGameInstall(descriptor)
+        case .play:
+            play(descriptor)
+        case .unavailable:
+            break
         }
     }
 
@@ -246,21 +299,78 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    func play() {
+    func play(_ descriptor: GameDescriptor) {
         guard let runtime else {
             presentedError = "A compatible runtime is not available."
             return
         }
         runTask(
-            label: "Preparing Skyrim for launch",
+            label: "Preparing \(descriptor.shortTitle) for launch",
             initialProgress: SetupProgress(
                 step: 1,
-                totalSteps: 5,
+                totalSteps: 6,
                 title: "Checking Game Space",
-                detail: "Confirming Skyrim is not already running before Secunda changes anything."
+                detail: "Confirming \(descriptor.shortTitle) is not already running before Secunda changes anything."
             )
         ) {
-            try await self.launchSkyrim(runtime)
+            try await self.launchGame(descriptor, runtime: runtime)
+        }
+    }
+
+    func requestGameInstall(_ descriptor: GameDescriptor) {
+        guard let runtime else {
+            presentedError = "A compatible runtime is not available."
+            return
+        }
+        do {
+            try gameServices[descriptor.id]?.requestInstall(
+                runtime: runtime,
+                diagnostics: settings.enableDiagnostics
+            )
+            addActivity(
+                "Asked Steam to install \(descriptor.shortTitle). Confirm the download inside Steam’s window.",
+                kind: .info
+            )
+            scheduleRefresh()
+        } catch {
+            present(error)
+        }
+    }
+
+    func requestGameUninstall(_ descriptor: GameDescriptor) {
+        guard let runtime else {
+            presentedError = "A compatible runtime is not available."
+            return
+        }
+        do {
+            try gameServices[descriptor.id]?.requestUninstall(
+                runtime: runtime,
+                diagnostics: settings.enableDiagnostics
+            )
+            addActivity(
+                "Asked Steam to uninstall \(descriptor.shortTitle). Confirm inside Steam’s window; saves stay in place.",
+                kind: .info
+            )
+            scheduleRefresh()
+        } catch {
+            present(error)
+        }
+    }
+
+    func requestDLCInstall(_ dlc: DLCDescriptor, for descriptor: GameDescriptor) {
+        guard let runtime else {
+            presentedError = "A compatible runtime is not available."
+            return
+        }
+        do {
+            try gameServices[descriptor.id]?.requestDLCInstall(
+                dlc,
+                runtime: runtime,
+                diagnostics: settings.enableDiagnostics
+            )
+            addActivity("Asked Steam to install \(dlc.title). Confirm inside Steam’s window.", kind: .info)
+        } catch {
+            present(error)
         }
     }
 
@@ -270,7 +380,7 @@ final class LauncherViewModel: ObservableObject {
             return
         }
         runTask(
-            label: "Closing Steam and Skyrim",
+            label: "Closing Steam and games",
             initialProgress: SetupProgress(
                 step: 1,
                 totalSteps: 1,
@@ -282,24 +392,29 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    func verifyGameFiles() {
+    func verifyGameFiles(_ descriptor: GameDescriptor) {
         guard let runtime else { return }
         do {
-            try skyrimService.requestVerification(runtime: runtime, diagnostics: settings.enableDiagnostics)
-            addActivity("Opened Steam file verification for Skyrim.", kind: .info)
+            try gameServices[descriptor.id]?.requestVerification(
+                runtime: runtime,
+                diagnostics: settings.enableDiagnostics
+            )
+            addActivity("Opened Steam file verification for \(descriptor.shortTitle).", kind: .info)
         } catch {
             present(error)
         }
     }
 
-    func createSaveBackup() {
+    func createSaveBackup(_ descriptor: GameDescriptor) {
         guard let runtime else {
             presentedError = "A compatible runtime is not available."
             return
         }
         do {
-            let destination = try saveService.createBackup(in: runtime.bottleRoot)
-            addActivity("Backed up saves to \(destination.lastPathComponent).", kind: .success)
+            guard let destination = try saveServices[descriptor.id]?.createBackup(in: runtime.bottleRoot) else {
+                return
+            }
+            addActivity("Backed up \(descriptor.shortTitle) saves to \(destination.lastPathComponent).", kind: .success)
             Task { await refresh() }
         } catch {
             present(error)
@@ -332,6 +447,8 @@ final class LauncherViewModel: ObservableObject {
         diagnosticService.latestLogExcerpt()
     }
 
+    // MARK: - Private
+
     private func createBottle() async throws {
         guard let runtime else { throw CocoaError(.fileNoSuchFile) }
         try await bottleManager.initialize(runtime: runtime, diagnostics: settings.enableDiagnostics)
@@ -349,7 +466,10 @@ final class LauncherViewModel: ObservableObject {
             progressLabel = "Preparing the separate game space"
             try await bottleManager.initialize(runtime: runtime, diagnostics: settings.enableDiagnostics)
         }
-        try await prepareSkyrimCompatibility(runtime)
+        try await bottleManager.applyGameCompatibility(
+            runtime: runtime,
+            diagnostics: settings.enableDiagnostics
+        )
         progressLabel = "Downloading Steam directly from Valve"
         updateSetupProgress(
             step: 2,
@@ -375,20 +495,25 @@ final class LauncherViewModel: ObservableObject {
         scheduleRefresh()
     }
 
-    private func launchSkyrim(_ runtime: RuntimeDescriptor) async throws {
-        let outcome = try await skyrimService.launch(
+    private func launchGame(_ descriptor: GameDescriptor, runtime: RuntimeDescriptor) async throws {
+        guard let service = gameServices[descriptor.id] else { return }
+        let screenPixelWidth = Int(
+            (NSScreen.main?.frame.width ?? 0) * (NSScreen.main?.backingScaleFactor ?? 1)
+        )
+        let outcome = try await service.launch(
             runtime: runtime,
-            settings: settings,
+            settings: settings.game(descriptor),
             diagnostics: settings.enableDiagnostics,
+            screenPixelWidth: screenPixelWidth,
             progress: { [weak self] stage in
-                self?.updateSkyrimLaunchProgress(stage)
+                self?.updateGameLaunchProgress(stage, descriptor: descriptor)
             }
         )
         switch outcome {
         case .started:
-            addActivity("Skyrim is running through Secunda’s source-built engine.", kind: .success)
+            addActivity("\(descriptor.shortTitle) is running through Secunda’s source-built engine.", kind: .success)
         case .alreadyRunning:
-            addActivity("Skyrim is already running in this game space.", kind: .info)
+            addActivity("\(descriptor.shortTitle) is already running in this game space.", kind: .info)
         }
     }
 
@@ -404,9 +529,12 @@ final class LauncherViewModel: ObservableObject {
         updateSetupProgress(
             step: 2,
             title: "Applying Compatibility",
-            detail: "Preparing Skyrim’s tested audio components before Steam opens."
+            detail: "Preparing tested audio components before Steam opens."
         )
-        try await prepareSkyrimCompatibility(runtime)
+        try await bottleManager.applyGameCompatibility(
+            runtime: runtime,
+            diagnostics: settings.enableDiagnostics
+        )
         updateSetupProgress(
             step: 3,
             title: "Requesting Steam",
@@ -419,14 +547,7 @@ final class LauncherViewModel: ObservableObject {
 
     private func shutdown(_ runtime: RuntimeDescriptor) async throws {
         try await bottleManager.shutdown(runtime: runtime, diagnostics: settings.enableDiagnostics)
-        addActivity("Steam and Skyrim are closed in this game space.", kind: .success)
-    }
-
-    private func prepareSkyrimCompatibility(_ runtime: RuntimeDescriptor) async throws {
-        try await bottleManager.applyGameCompatibility(
-            runtime: runtime,
-            diagnostics: settings.enableDiagnostics
-        )
+        addActivity("Steam and every game in this space are closed.", kind: .success)
     }
 
     private func runTask(
@@ -462,13 +583,13 @@ final class LauncherViewModel: ObservableObject {
         )
     }
 
-    private func updateSkyrimLaunchProgress(_ stage: SkyrimLaunchStage) {
+    private func updateGameLaunchProgress(_ stage: GameLaunchStage, descriptor: GameDescriptor) {
         switch stage {
         case .checking:
             updateSetupProgress(
                 step: 1,
                 title: "Checking Game Space",
-                detail: "Confirming Skyrim is not already running before Secunda changes anything."
+                detail: "Confirming \(descriptor.shortTitle) is not already running before Secunda changes anything."
             )
         case .compatibility:
             updateSetupProgress(
@@ -476,22 +597,28 @@ final class LauncherViewModel: ObservableObject {
                 title: "Applying Compatibility",
                 detail: "Preparing the tested graphics, audio, and input settings."
             )
-        case .profile:
+        case .voiceAudio:
             updateSetupProgress(
                 step: 3,
+                title: "Checking Voice Audio",
+                detail: "Confirming Microsoft’s XAudio components so dialogue is audible. First time downloads ~96 MB."
+            )
+        case .profile:
+            updateSetupProgress(
+                step: 4,
                 title: "Writing Game Settings",
                 detail: "Applying your display choices inside Secunda’s selected game space."
             )
         case .steam:
             updateSetupProgress(
-                step: 4,
+                step: 5,
                 title: "Waiting for Steam",
-                detail: "Steam is authorizing your installed copy of Skyrim Special Edition."
+                detail: "Steam is authorizing your installed copy of \(descriptor.shortTitle)."
             )
         case .game:
             updateSetupProgress(
-                step: 5,
-                title: "Starting Skyrim",
+                step: 6,
+                title: "Starting \(descriptor.shortTitle)",
                 detail: "Opening the game through Secunda’s verified source-built engine."
             )
         }
@@ -516,7 +643,9 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func updateInstallObservation() {
-        guard snapshot.steam.isReady, !snapshot.game.isReady else {
+        let anyGamePending = snapshot.steam.isReady
+            && GameDescriptor.supported.contains { !snapshot.game($0).state.isReady }
+        guard anyGamePending else {
             installObservationTask?.cancel()
             installObservationTask = nil
             return
@@ -528,7 +657,10 @@ final class LauncherViewModel: ObservableObject {
                 try? await Task.sleep(for: .seconds(15))
                 guard !Task.isCancelled, let self else { return }
                 await self.refresh()
-                if self.snapshot.game.isReady { return }
+                let stillPending = GameDescriptor.supported.contains {
+                    !self.snapshot.game($0).state.isReady
+                }
+                if !stillPending { return }
             }
         }
     }

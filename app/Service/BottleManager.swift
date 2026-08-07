@@ -46,16 +46,31 @@ final class BottleManager {
         try await configureMacDisplay(runtime: runtime, diagnostics: diagnostics)
     }
 
-    func applyGameCompatibility(runtime: RuntimeDescriptor, diagnostics: Bool) async throws {
+    func applyGameCompatibility(
+        runtime: RuntimeDescriptor,
+        diagnostics: Bool,
+        logPixels: Int = GameProfileWriter.standardLogPixels,
+        nativeVoiceAudio: Bool = false
+    ) async throws {
         let environment = runtimeManager.environment(for: runtime, diagnostics: diagnostics)
         let logURL = paths.logsDirectory.appendingPathComponent("game-compatibility.log")
 
-        for name in Self.gameDLLOverrides {
+        // The runtime has no WMA decode path, so xWMA voice lines are silent
+        // through the builtin XAudio. When Microsoft's freely redistributable
+        // XAudio 2.7 has been installed into the game space, prefer it.
+        var overrides = Dictionary(uniqueKeysWithValues: Self.gameDLLOverrides.map { ($0, "builtin") })
+        if nativeVoiceAudio {
+            for name in VoiceAudioService.nativeDLLBaseNames {
+                overrides[name] = "native,builtin"
+            }
+        }
+
+        for (name, value) in overrides.sorted(by: { $0.key < $1.key }) {
             let result = try await processRunner.run(
                 executable: runtime.wineExecutable,
                 arguments: runtime.wineArguments(for: [
                     "reg", "add", "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides",
-                    "/v", name, "/t", "REG_SZ", "/d", "builtin", "/f"
+                    "/v", name, "/t", "REG_SZ", "/d", value, "/f"
                 ]),
                 environment: environment,
                 currentDirectory: runtime.bottleRoot,
@@ -64,6 +79,22 @@ final class BottleManager {
             guard result.terminationStatus == 0 else {
                 throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)
             }
+        }
+
+        // Session DPI: 216 keeps Steam legible on Retina panels; 96 gives a
+        // native-resolution game session exact 1:1 pixel mapping.
+        let dpiResult = try await processRunner.run(
+            executable: runtime.wineExecutable,
+            arguments: runtime.wineArguments(for: [
+                "reg", "add", "HKEY_CURRENT_USER\\Control Panel\\Desktop",
+                "/v", "LogPixels", "/t", "REG_DWORD", "/d", String(logPixels), "/f"
+            ]),
+            environment: environment,
+            currentDirectory: runtime.bottleRoot,
+            logURL: logURL
+        )
+        guard dpiResult.terminationStatus == 0 else {
+            throw ProcessRunnerError.nonZeroExit(dpiResult.terminationStatus, dpiResult.logURL)
         }
     }
 

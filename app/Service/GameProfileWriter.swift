@@ -1,13 +1,32 @@
 import Foundation
 
 struct GameProfileWriter {
-    private let paths: SecundaPaths
+    /// The bottle's standard Windows DPI. Chosen so Steam's interface is
+    /// legible on Retina panels; DPI-unaware game windows are scaled by
+    /// LogPixels/96 (2.25x) under it.
+    static let standardLogPixels = 216
+    static let nativeLogPixels = 96
 
-    init(paths: SecundaPaths) {
+    private let paths: SecundaPaths
+    private let descriptor: GameDescriptor
+
+    init(paths: SecundaPaths, descriptor: GameDescriptor) {
         self.paths = paths
+        self.descriptor = descriptor
     }
 
-    func apply(_ settings: LauncherSettings, bottleRoot: URL) throws {
+    /// DPI-unaware game windows are virtualized by LogPixels/96 (2.25x at the
+    /// standard DPI). Keep the standard DPI only while that scaled footprint
+    /// still fits the panel; otherwise map the session 1:1 to physical pixels
+    /// so large and native resolutions fit the screen sharp instead of
+    /// overflowing it.
+    static func sessionLogPixels(settings: GameSettings, screenPixelWidth: Int) -> Int {
+        guard screenPixelWidth > 0 else { return standardLogPixels }
+        let scaledWidth = settings.width * standardLogPixels / nativeLogPixels
+        return scaledWidth > screenPixelWidth ? nativeLogPixels : standardLogPixels
+    }
+
+    func apply(_ settings: GameSettings, bottleRoot: URL) throws {
         guard BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot) else {
             throw CocoaError(.fileWriteNoPermission)
         }
@@ -20,14 +39,14 @@ struct GameProfileWriter {
             withIntermediateDirectories: true
         )
 
-        let profileURL = preferencesDirectory.appendingPathComponent("SkyrimPrefs.ini")
+        let profileURL = preferencesDirectory.appendingPathComponent(descriptor.prefsFileName)
         let existingPrefs = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
         let updatedPrefs = Self.updatingDisplaySection(in: existingPrefs, settings: settings)
         try updatedPrefs.write(to: profileURL, atomically: true, encoding: .utf8)
 
-        // FOV lives in SkyrimCustom.ini, which the game reads as an override
-        // of Skyrim.ini; the launcher never rewrites it, unlike SkyrimPrefs.ini.
-        let customURL = preferencesDirectory.appendingPathComponent("SkyrimCustom.ini")
+        // FOV lives in the game's Custom ini, which the engine reads as an
+        // override and the vendor launcher never rewrites.
+        let customURL = preferencesDirectory.appendingPathComponent(descriptor.customIniFileName)
         let existingCustom = (try? String(contentsOf: customURL, encoding: .utf8)) ?? ""
         let updatedCustom = Self.updatingCustomDisplaySection(in: existingCustom, settings: settings)
         try updatedCustom.write(to: customURL, atomically: true, encoding: .utf8)
@@ -35,7 +54,7 @@ struct GameProfileWriter {
 
     static func updatingDisplaySection(
         in contents: String,
-        settings: LauncherSettings
+        settings: GameSettings
     ) -> String {
         // Borderless windowed is the default: exclusive fullscreen through
         // Wine's Mac driver cannot reliably regain the display after Cmd-Tab.
@@ -64,7 +83,7 @@ struct GameProfileWriter {
 
     static func updatingCustomDisplaySection(
         in contents: String,
-        settings: LauncherSettings
+        settings: GameSettings
     ) -> String {
         let fov = String(settings.fieldOfView)
         return mergingDisplayValues(
@@ -118,7 +137,7 @@ struct GameProfileWriter {
     private func preferencesDirectory(in bottleRoot: URL) -> URL {
         paths.activeWindowsUserDirectory(in: bottleRoot)
             .appendingPathComponent(
-                "Documents/My Games/\(GameDescriptor.skyrimSE.documentsFolderName)",
+                "Documents/My Games/\(descriptor.documentsFolderName)",
                 isDirectory: true
             )
     }
