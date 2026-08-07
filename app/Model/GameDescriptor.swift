@@ -562,7 +562,14 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             luaPrefsRelativePath: nil,
             luaTuningOptions: [],
             usesWindowedResolutionArguments: false,
-            d3d9Backend: .dxvk,
+            // Black Ops II is a 32-bit binary, and DXVK's 32-bit path fails
+            // in this runtime: Vulkan is not reachable from WoW64 processes,
+            // so d3d9 device creation throws and the game reports
+            // "Unhandled exception caught" during initialization. Verified
+            // by forcing Supreme Commander 2 — which runs well on the
+            // built-in path — onto DXVK, where it dies identically. DXVK
+            // stays available in the runtime for 64-bit Direct3D 9 titles.
+            d3d9Backend: .wined3d,
             prefsFileName: nil,
             customIniFileName: nil,
             vsyncKey: "iPresentInterval",

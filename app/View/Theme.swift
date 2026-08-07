@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Design tokens. Views pick from these scales rather than inventing a
+/// value, which is what keeps a fourth corner radius or a 12.5pt label from
+/// creeping in one nudge at a time.
 enum SecundaTheme {
     static let void = Color(red: 0.018, green: 0.025, blue: 0.045)
     static let midnight = Color(red: 0.035, green: 0.052, blue: 0.085)
@@ -17,147 +20,186 @@ enum SecundaTheme {
     /// Every capsule control in an action row shares this height.
     static let controlHeight: CGFloat = 40
 
-    static let panel = LinearGradient(
-        colors: [Color.white.opacity(0.075), Color.white.opacity(0.035)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    /// Three steps, roughly 1.5x apart. `sm` is for thumbnails, `md` for
+    /// rows and inline panels, `lg` for library cards.
+    enum Radius {
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 18
+    }
+
+    /// Text sizes only. Icon glyphs (`Image(systemName:)`) are sized to the
+    /// art around them and stay literal — forcing them onto a type scale
+    /// makes symbols float in their frames.
+    enum FontSize {
+        /// Tracked-out eyebrows, badges, and metric captions.
+        static let micro: CGFloat = 9
+        /// Secondary labels, monospaced log text, card status lines.
+        static let small: CGFloat = 11
+        /// Default UI text: rows, controls, setting labels.
+        static let body: CGFloat = 13
+        /// Lead paragraphs and serif card titles.
+        static let lead: CGFloat = 15
+        /// Sheet titles.
+        static let title: CGFloat = 22
+        /// Numeric stats.
+        static let display: CGFloat = 30
+        /// Page and hero headlines.
+        static let hero: CGFloat = 34
+    }
 }
 
-struct SecundaPanel: ViewModifier {
-    var padding: CGFloat = 20
+// MARK: - Controls
+
+/// Metrics and feedback shared by every capsule control, so a row that
+/// mixes normal and destructive buttons stays on one baseline.
+private struct CapsuleControlChrome: ViewModifier {
+    let isPressed: Bool
+    let isEnabled: Bool
+    /// Only the primary call to action goes semibold.
+    var weight: Font.Weight = .medium
 
     func body(content: Content) -> some View {
         content
-            .padding(padding)
-            .background(SecundaTheme.panel)
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(SecundaTheme.hairline, lineWidth: 1)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .font(.system(size: SecundaTheme.FontSize.body, weight: weight))
+            .padding(.horizontal, 16)
+            .frame(height: SecundaTheme.controlHeight)
+            .contentShape(Capsule())
+            .scaleEffect(isPressed ? 0.97 : 1)
+            .opacity(isEnabled ? 1 : 0.45)
+            .animation(.easeOut(duration: 0.1), value: isPressed)
     }
 }
 
-extension View {
-    func secundaPanel(padding: CGFloat = 20) -> some View {
-        modifier(SecundaPanel(padding: padding))
+/// A generous, obviously-clickable capsule button — the default control for
+/// actions. `prominent` is the primary call to action on a page.
+///
+/// The body lives in a nested `View` so `@State` and `@Environment` have
+/// real view storage to hang off; a `ButtonStyle` is a value SwiftUI may
+/// recreate, and property wrappers declared directly on it are unreliable.
+struct SecundaActionButtonStyle: ButtonStyle {
+    var prominent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        StyleBody(configuration: configuration, prominent: prominent)
     }
-}
 
-/// Flat content section: an uppercase heading over a hairline, no box.
-/// The restrained alternative to nesting panels.
-struct FlatSection<Content: View>: View {
-    let title: String
-    var detail: String?
-    @ViewBuilder var content: Content
+    struct StyleBody: View {
+        let configuration: ButtonStyleConfiguration
+        let prominent: Bool
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(title.uppercased())
-                        .font(.system(size: 11, weight: .semibold))
-                        .tracking(2.0)
-                        .foregroundStyle(SecundaTheme.frost)
-                    Spacer()
-                    if let detail {
-                        Text(detail)
-                            .font(.caption)
-                            .foregroundStyle(SecundaTheme.secondaryText)
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var isHovering = false
+
+        var body: some View {
+            configuration.label
+                .foregroundStyle(prominent ? SecundaTheme.void : SecundaTheme.text)
+                .background {
+                    if prominent {
+                        Capsule().fill(
+                            LinearGradient(
+                                colors: [SecundaTheme.moon, SecundaTheme.frost],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    } else {
+                        Capsule().fill(Color.white.opacity(
+                            configuration.isPressed ? 0.16 : (isHovering ? 0.11 : 0.06)
+                        ))
                     }
                 }
-                Rectangle()
-                    .fill(SecundaTheme.hairline)
-                    .frame(height: 1)
-            }
-            content
+                .overlay {
+                    if !prominent {
+                        Capsule().stroke(
+                            isHovering ? SecundaTheme.frost.opacity(0.5) : SecundaTheme.hairline
+                        )
+                    }
+                }
+                .modifier(CapsuleControlChrome(
+                    isPressed: configuration.isPressed,
+                    isEnabled: isEnabled,
+                    weight: prominent ? .semibold : .medium
+                ))
+                .shadow(
+                    color: SecundaTheme.frost.opacity(prominent ? prominentGlow : 0),
+                    radius: 14,
+                    y: 5
+                )
+                .animation(.easeOut(duration: 0.14), value: isHovering)
+                .onHover { isHovering = isEnabled && $0 }
+        }
+
+        private var prominentGlow: Double {
+            if configuration.isPressed { return 0.12 }
+            return isHovering ? 0.34 : 0.25
         }
     }
 }
 
-/// A generous, obviously-clickable text button with a hover state — the
-/// default control for secondary actions.
-struct SecundaActionButtonStyle: ButtonStyle {
-    var prominent = false
-
-    @State private var isHovering = false
-
+/// Red-tinted capsule for stop/uninstall-class actions. Shares
+/// `CapsuleControlChrome`, so mixed rows stay uniform.
+struct SecundaDestructiveButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundStyle(prominent ? SecundaTheme.void : SecundaTheme.text)
-            .padding(.horizontal, 16)
-            .frame(height: SecundaTheme.controlHeight)
-            .background {
-                if prominent {
-                    Capsule().fill(SecundaTheme.moon)
-                } else {
-                    Capsule().fill(Color.white.opacity(
-                        configuration.isPressed ? 0.16 : (isHovering ? 0.11 : 0.06)
-                    ))
-                }
-            }
-            .overlay {
-                if !prominent {
-                    Capsule().stroke(
-                        isHovering ? SecundaTheme.frost.opacity(0.5) : SecundaTheme.hairline
+        StyleBody(configuration: configuration)
+    }
+
+    struct StyleBody: View {
+        let configuration: ButtonStyleConfiguration
+
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var isHovering = false
+
+        var body: some View {
+            configuration.label
+                .foregroundStyle(isHovering ? Color.white : SecundaTheme.danger)
+                .background {
+                    Capsule().fill(
+                        isHovering
+                            ? SecundaTheme.danger.opacity(configuration.isPressed ? 0.85 : 0.75)
+                            : SecundaTheme.danger.opacity(0.10)
                     )
                 }
-            }
-            .contentShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.14), value: isHovering)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
-            .onHover { isHovering = $0 }
-    }
-}
-
-/// Red-tinted capsule for stop/uninstall-class actions. Same metrics as
-/// SecundaActionButtonStyle so mixed rows stay uniform.
-struct SecundaDestructiveButtonStyle: ButtonStyle {
-    @State private var isHovering = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundStyle(isHovering ? Color.white : SecundaTheme.danger)
-            .padding(.horizontal, 16)
-            .frame(height: SecundaTheme.controlHeight)
-            .background {
-                Capsule().fill(
-                    isHovering
-                        ? SecundaTheme.danger.opacity(configuration.isPressed ? 0.85 : 0.75)
-                        : SecundaTheme.danger.opacity(0.10)
-                )
-            }
-            .overlay {
-                Capsule().stroke(SecundaTheme.danger.opacity(isHovering ? 0.9 : 0.45))
-            }
-            .contentShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.14), value: isHovering)
-            .onHover { isHovering = $0 }
+                .overlay {
+                    Capsule().stroke(SecundaTheme.danger.opacity(isHovering ? 0.9 : 0.45))
+                }
+                .modifier(CapsuleControlChrome(
+                    isPressed: configuration.isPressed,
+                    isEnabled: isEnabled
+                ))
+                .animation(.easeOut(duration: 0.14), value: isHovering)
+                .onHover { isHovering = isEnabled && $0 }
+        }
     }
 }
 
 /// Circular icon-only button with a hover halo (sidebar gear, overflow menus).
 struct SecundaIconButtonStyle: ButtonStyle {
-    @State private var isHovering = false
-
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(isHovering ? SecundaTheme.text : SecundaTheme.secondaryText)
-            .frame(width: SecundaTheme.controlHeight, height: SecundaTheme.controlHeight)
-            .background {
-                Circle().fill(Color.white.opacity(
-                    configuration.isPressed ? 0.15 : (isHovering ? 0.09 : 0)
-                ))
-            }
-            .contentShape(Circle())
-            .scaleEffect(configuration.isPressed ? 0.94 : 1)
-            .animation(.easeOut(duration: 0.14), value: isHovering)
-            .onHover { isHovering = $0 }
+        StyleBody(configuration: configuration)
+    }
+
+    struct StyleBody: View {
+        let configuration: ButtonStyleConfiguration
+
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var isHovering = false
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(isHovering ? SecundaTheme.text : SecundaTheme.secondaryText)
+                .frame(width: SecundaTheme.controlHeight, height: SecundaTheme.controlHeight)
+                .background {
+                    Circle().fill(Color.white.opacity(
+                        configuration.isPressed ? 0.15 : (isHovering ? 0.09 : 0)
+                    ))
+                }
+                .contentShape(Circle())
+                .scaleEffect(configuration.isPressed ? 0.94 : 1)
+                .opacity(isEnabled ? 1 : 0.45)
+                .animation(.easeOut(duration: 0.14), value: isHovering)
+                .onHover { isHovering = isEnabled && $0 }
+        }
     }
 }

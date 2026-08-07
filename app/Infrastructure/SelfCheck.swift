@@ -63,8 +63,12 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+        // Every 32-bit Direct3D 9 title stays on the built-in path: DXVK's
+        // 32-bit build cannot reach Vulkan through WoW64 in this runtime.
         expect(
-            GameDescriptor.blackOps2SP.d3d9Backend == .dxvk
+            GameDescriptor.blackOps2SP.d3d9Backend == .wined3d
+                && GameDescriptor.blackOps2MP.d3d9Backend == .wined3d
+                && GameDescriptor.blackOps2Zombies.d3d9Backend == .wined3d
                 && GameDescriptor.supcom2.d3d9Backend == .wined3d
                 && GameDescriptor.skyrimSE.d3d9Backend == .wined3d,
             "per-game Direct3D 9 backends",
