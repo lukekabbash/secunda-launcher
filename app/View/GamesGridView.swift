@@ -2,22 +2,23 @@ import SwiftUI
 
 struct GamesGridView: View {
     @ObservedObject var model: LauncherViewModel
+    @State private var appeared = false
 
     private let columns = [
-        GridItem(.adaptive(minimum: 210, maximum: 260), spacing: 24)
+        GridItem(.adaptive(minimum: 216, maximum: 280), spacing: 28)
     ]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 30) {
+            VStack(alignment: .leading, spacing: 34) {
                 PageHeader(
                     eyebrow: "LIBRARY",
                     title: "Your games.",
-                    detail: "Windows games from your own Steam library, played through Secunda’s free source-built engine. Select a game to set it up, tune it, and play."
+                    detail: "Windows games from your own Steam library, played through Secunda’s free source-built engine."
                 )
 
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 26) {
-                    ForEach(GameDescriptor.supported) { descriptor in
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 30) {
+                    ForEach(Array(GameDescriptor.supported.enumerated()), id: \.element.id) { index, descriptor in
                         GameCard(
                             descriptor: descriptor,
                             state: model.snapshot.game(descriptor).state
@@ -26,16 +27,20 @@ struct GamesGridView: View {
                                 model.selection = .game(descriptor.id)
                             }
                         }
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 18)
+                        .animation(
+                            .spring(response: 0.5, dampingFraction: 0.85)
+                                .delay(Double(index) * 0.06),
+                            value: appeared
+                        )
                     }
                 }
-
-                Text("Game artwork is loaded from Steam. Each game requires your own Steam purchase; Secunda never bundles game files.")
-                    .font(.caption2)
-                    .foregroundStyle(SecundaTheme.secondaryText)
             }
             .padding(42)
-            .frame(maxWidth: 1080, alignment: .leading)
+            .frame(maxWidth: 1120, alignment: .leading)
         }
+        .onAppear { appeared = true }
     }
 }
 
@@ -48,82 +53,63 @@ private struct GameCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 0) {
-                artwork
-                footer
-            }
-            .background(Color.white.opacity(0.045))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isHovering ? SecundaTheme.frost.opacity(0.55) : SecundaTheme.hairline)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(
-                color: .black.opacity(isHovering ? 0.5 : 0.28),
-                radius: isHovering ? 26 : 14,
-                y: isHovering ? 14 : 8
-            )
-            .scaleEffect(isHovering ? 1.035 : 1)
-            .animation(.spring(response: 0.32, dampingFraction: 0.75), value: isHovering)
+            GameArtwork(url: descriptor.cardArtworkURL, fallbackSymbol: descriptor.symbol)
+                .aspectRatio(2 / 3, contentMode: .fit)
+                .overlay {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .clear, location: 0.62),
+                            .init(color: .black.opacity(0.78), location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+                .overlay(alignment: .bottomLeading) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(descriptor.shortTitle)
+                            .font(.system(size: 16, weight: .semibold, design: .serif))
+                            .foregroundStyle(.white)
+                        Text(statusText)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(statusColor)
+                    }
+                    .padding(16)
+                }
+                .overlay {
+                    if isHovering {
+                        ZStack {
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 60, height: 60)
+                            Image(systemName: state.isReady ? "play.fill" : "arrow.down.circle")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(
+                            isHovering ? SecundaTheme.frost.opacity(0.6) : Color.white.opacity(0.08),
+                            lineWidth: 1
+                        )
+                }
+                .shadow(
+                    color: .black.opacity(isHovering ? 0.55 : 0.3),
+                    radius: isHovering ? 30 : 16,
+                    y: isHovering ? 16 : 9
+                )
+                .scaleEffect(isHovering ? 1.04 : 1)
+                .animation(.spring(response: 0.34, dampingFraction: 0.72), value: isHovering)
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovering = hovering
-        }
+        .onHover { isHovering = $0 }
         .accessibilityLabel("\(descriptor.title), \(state.isReady ? "installed" : "not installed")")
-    }
-
-    private var artwork: some View {
-        GameArtwork(url: descriptor.cardArtworkURL, fallbackSymbol: descriptor.symbol)
-            .aspectRatio(2 / 3, contentMode: .fit)
-            .overlay {
-                LinearGradient(
-                    colors: [
-                        .clear,
-                        .clear,
-                        .black.opacity(isHovering ? 0.15 : 0.4)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
-            .overlay {
-                if isHovering {
-                    ZStack {
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .frame(width: 58, height: 58)
-                        Image(systemName: state.isReady ? "play.fill" : "arrow.down.circle")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
-                }
-            }
-            .animation(.easeOut(duration: 0.18), value: isHovering)
-    }
-
-    private var footer: some View {
-        HStack(spacing: 10) {
-            Image(systemName: descriptor.symbol)
-                .font(.system(size: 13))
-                .foregroundStyle(SecundaTheme.frost)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(descriptor.shortTitle)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(SecundaTheme.text)
-                Text(statusText)
-                    .font(.caption2)
-                    .foregroundStyle(statusColor)
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(SecundaTheme.secondaryText.opacity(isHovering ? 1 : 0.4))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial.opacity(0.6))
     }
 
     private var statusText: String {
@@ -140,7 +126,7 @@ private struct GameCard: View {
         switch state {
         case .ready: SecundaTheme.aurora
         case .warning, .failed: SecundaTheme.ember
-        default: SecundaTheme.secondaryText
+        default: Color.white.opacity(0.75)
         }
     }
 }

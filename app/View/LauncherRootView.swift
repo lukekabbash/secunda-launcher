@@ -12,14 +12,19 @@ struct LauncherRootView: View {
                 Rectangle()
                     .fill(SecundaTheme.hairline)
                     .frame(width: 1)
-                content
+                ZStack {
+                    content
+                        .id(model.selection)
+                        .transition(.opacity.combined(with: .offset(y: 10)))
+                }
+                .animation(.easeOut(duration: 0.22), value: model.selection)
             }
         }
         .foregroundStyle(SecundaTheme.text)
         .alert("Secunda couldn’t continue", isPresented: errorBinding) {
             Button("OK", role: .cancel) { model.presentedError = nil }
-            Button("Open Support") {
-                model.selection = .support
+            Button("Open Settings") {
+                model.selection = .settings
                 model.presentedError = nil
             }
         } message: {
@@ -28,7 +33,7 @@ struct LauncherRootView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 26) {
+        VStack(alignment: .leading, spacing: 24) {
             HStack(spacing: 12) {
                 MoonMark(size: 35)
                 VStack(alignment: .leading, spacing: 1) {
@@ -41,73 +46,74 @@ struct LauncherRootView: View {
                         .foregroundStyle(SecundaTheme.secondaryText)
                 }
             }
+            .padding(.horizontal, 22)
 
-            VStack(alignment: .leading, spacing: 6) {
-                SidebarButton(
+            VStack(alignment: .leading, spacing: 4) {
+                SidebarRow(
                     title: "Games",
-                    symbol: "square.grid.2x2.fill",
-                    isSelected: model.selection == .games
+                    isSelected: model.selection == .games,
+                    icon: { SidebarSymbol(name: "square.grid.2x2.fill") }
                 ) {
                     select(.games)
                 }
-            }
 
-            VStack(alignment: .leading, spacing: 6) {
                 Text("LIBRARY")
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(1.8)
                     .foregroundStyle(SecundaTheme.secondaryText)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 18)
+                    .padding(.bottom, 4)
 
                 ForEach(GameDescriptor.supported) { descriptor in
-                    SidebarButton(
+                    SidebarRow(
                         title: descriptor.shortTitle,
-                        symbol: descriptor.symbol,
+                        subtitle: model.snapshot.game(descriptor).state.isReady ? nil : "Not installed",
                         isSelected: model.selection == .game(descriptor.id),
-                        accessory: model.snapshot.game(descriptor).state.isReady ? nil : "circle.dashed"
+                        icon: { SidebarGameThumb(descriptor: descriptor) }
                     ) {
                         select(.game(descriptor.id))
                     }
                 }
             }
+            .padding(.horizontal, 10)
 
             Spacer()
 
-            VStack(alignment: .leading, spacing: 6) {
-                SidebarButton(
-                    title: "Launcher Settings",
-                    symbol: "slider.horizontal.3",
-                    isSelected: model.selection == .settings
-                ) {
-                    select(.settings)
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(SecundaTheme.hairline)
+                    .frame(height: 1)
+                HStack {
+                    Text("v0.1 · Unofficial")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(0.6)
+                        .foregroundStyle(SecundaTheme.secondaryText.opacity(0.8))
+                    Spacer()
+                    Button {
+                        select(.settings)
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                    }
+                    .buttonStyle(SecundaIconButtonStyle())
+                    .help("Launcher settings, support, and recovery")
+                    .background {
+                        if model.selection == .settings {
+                            Circle().fill(Color.white.opacity(0.09))
+                        }
+                    }
                 }
-                SidebarButton(
-                    title: "Support",
-                    symbol: "waveform.path.ecg",
-                    isSelected: model.selection == .support
-                ) {
-                    select(.support)
-                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Unofficial launcher", systemImage: "checkmark.shield")
-                Text("Each game requires your own separately purchased Steam copy.")
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .font(.caption)
-            .foregroundStyle(SecundaTheme.secondaryText)
-            .lineSpacing(3)
         }
-        .padding(.horizontal, 22)
         .padding(.top, 34)
-        .padding(.bottom, 24)
-        .frame(width: 224)
+        .frame(width: 236)
         .background(Color.black.opacity(0.16))
     }
 
     private func select(_ item: SidebarItem) {
-        withAnimation(.easeOut(duration: 0.16)) {
+        withAnimation(.easeOut(duration: 0.18)) {
             model.selection = item
         }
     }
@@ -120,14 +126,11 @@ struct LauncherRootView: View {
         case .game(let gameID):
             if let descriptor = GameDescriptor.descriptor(for: gameID) {
                 GameDetailView(model: model, descriptor: descriptor)
-                    .id(descriptor.id)
             } else {
                 GamesGridView(model: model)
             }
         case .settings:
             SettingsView(model: model)
-        case .support:
-            SupportView(model: model)
         }
     }
 
@@ -139,33 +142,95 @@ struct LauncherRootView: View {
     }
 }
 
-private struct SidebarButton: View {
+private struct SidebarSymbol: View {
+    let name: String
+
+    var body: some View {
+        Image(systemName: name)
+            .font(.system(size: 13, weight: .medium))
+            .frame(width: 30, height: 40)
+    }
+}
+
+/// Small poster thumbnail for a game row, with a symbol fallback.
+private struct SidebarGameThumb: View {
+    let descriptor: GameDescriptor
+
+    var body: some View {
+        Color.clear
+            .frame(width: 30, height: 40)
+            .overlay {
+                if let url = descriptor.cardArtworkURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        default:
+                            fallback
+                        }
+                    }
+                } else {
+                    fallback
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(SecundaTheme.hairline)
+            }
+    }
+
+    private var fallback: some View {
+        ZStack {
+            LinearGradient(
+                colors: [SecundaTheme.slate, SecundaTheme.midnight],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            Image(systemName: descriptor.symbol)
+                .font(.system(size: 12))
+                .foregroundStyle(SecundaTheme.frost)
+        }
+    }
+}
+
+/// Full-width sidebar row with a large forgiving hit area and hover state.
+private struct SidebarRow<Icon: View>: View {
     let title: String
-    let symbol: String
+    var subtitle: String?
     let isSelected: Bool
-    var accessory: String?
+    @ViewBuilder var icon: Icon
     let action: () -> Void
+
+    @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .frame(width: 18)
-                Text(title)
-                Spacer()
-                if let accessory {
-                    Image(systemName: accessory)
-                        .font(.system(size: 9))
-                        .foregroundStyle(SecundaTheme.secondaryText.opacity(0.7))
+                icon
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? SecundaTheme.text : SecundaTheme.secondaryText)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(SecundaTheme.secondaryText.opacity(0.7))
+                    }
                 }
+                Spacer(minLength: 0)
             }
-            .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-            .foregroundStyle(isSelected ? SecundaTheme.text : SecundaTheme.secondaryText)
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(isSelected ? Color.white.opacity(0.085) : .clear)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(Color.white.opacity(isSelected ? 0.09 : (isHovering ? 0.05 : 0)))
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
         .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.14), value: isHovering)
+        .onHover { isHovering = $0 }
     }
 }

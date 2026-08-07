@@ -250,7 +250,7 @@ final class LauncherViewModel: ObservableObject {
     func performPrimaryAction(for descriptor: GameDescriptor) {
         switch primaryAction(for: descriptor) {
         case .locateRuntime:
-            selection = .support
+            selection = .settings
             addActivity("The source-built engine is missing. Opened recovery details.", kind: .warning)
         case .createBottle:
             runTask(

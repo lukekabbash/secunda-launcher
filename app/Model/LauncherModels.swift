@@ -1,20 +1,18 @@
 import Foundation
 
 /// Sidebar navigation. The library card grid is the home surface; each
-/// supported game gets its own entry; launcher-level settings and support
-/// live at the bottom.
+/// supported game gets its own entry; launcher settings (which include
+/// support and recovery) live behind the gear at the sidebar's foot.
 enum SidebarItem: Hashable, Identifiable {
     case games
     case game(String)
     case settings
-    case support
 
     var id: String {
         switch self {
         case .games: "games"
         case .game(let gameID): "game-\(gameID)"
         case .settings: "settings"
-        case .support: "support"
         }
     }
 }

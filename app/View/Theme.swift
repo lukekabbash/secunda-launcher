@@ -39,3 +39,93 @@ extension View {
         modifier(SecundaPanel(padding: padding))
     }
 }
+
+/// Flat content section: an uppercase heading over a hairline, no box.
+/// The restrained alternative to nesting panels.
+struct FlatSection<Content: View>: View {
+    let title: String
+    var detail: String?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title.uppercased())
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(2.0)
+                        .foregroundStyle(SecundaTheme.frost)
+                    Spacer()
+                    if let detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(SecundaTheme.secondaryText)
+                    }
+                }
+                Rectangle()
+                    .fill(SecundaTheme.hairline)
+                    .frame(height: 1)
+            }
+            content
+        }
+    }
+}
+
+/// A generous, obviously-clickable text button with a hover state — the
+/// default control for secondary actions.
+struct SecundaActionButtonStyle: ButtonStyle {
+    var prominent = false
+
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundStyle(prominent ? SecundaTheme.void : SecundaTheme.text)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .frame(minHeight: 34)
+            .background {
+                if prominent {
+                    Capsule().fill(SecundaTheme.moon)
+                } else {
+                    Capsule().fill(Color.white.opacity(
+                        configuration.isPressed ? 0.16 : (isHovering ? 0.11 : 0.06)
+                    ))
+                }
+            }
+            .overlay {
+                if !prominent {
+                    Capsule().stroke(
+                        isHovering ? SecundaTheme.frost.opacity(0.5) : SecundaTheme.hairline
+                    )
+                }
+            }
+            .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.14), value: isHovering)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { isHovering = $0 }
+    }
+}
+
+/// Circular icon-only button with a hover halo (sidebar gear, overflow menus).
+struct SecundaIconButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(isHovering ? SecundaTheme.text : SecundaTheme.secondaryText)
+            .frame(width: 34, height: 34)
+            .background {
+                Circle().fill(Color.white.opacity(
+                    configuration.isPressed ? 0.15 : (isHovering ? 0.09 : 0)
+                ))
+            }
+            .contentShape(Circle())
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.easeOut(duration: 0.14), value: isHovering)
+            .onHover { isHovering = $0 }
+    }
+}

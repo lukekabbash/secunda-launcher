@@ -9,20 +9,45 @@ struct GameDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 40) {
                 hero
 
-                HStack(alignment: .top, spacing: 18) {
-                    readiness
-                    recentActivity
+                HStack(alignment: .top, spacing: 40) {
+                    FlatSection(title: "Setup", detail: "One separate installation") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            StatusRow(title: "This Mac", symbol: "desktopcomputer", state: model.snapshot.host)
+                            StatusRow(title: "Secunda Engine", symbol: "shippingbox.fill", state: model.snapshot.runtime)
+                            StatusRow(title: "Separate Windows Space", symbol: "cube.transparent", state: model.snapshot.bottle)
+                            StatusRow(title: "Steam Client", symbol: "person.crop.circle", state: model.snapshot.steam)
+                            StatusRow(
+                                title: descriptor.shortTitle,
+                                symbol: descriptor.symbol,
+                                state: model.snapshot.game(descriptor).state
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    FlatSection(title: "Activity", detail: "Latest events") {
+                        activityList
+                    }
+                    .frame(width: 300)
                 }
 
-                displaySettings
-                dlcPanel
-                savesPanel
+                FlatSection(title: "Display & Audio", detail: "Applied at launch") {
+                    displaySettings
+                }
+
+                FlatSection(title: "Add-ons", detail: "Managed through Steam") {
+                    dlcList
+                }
+
+                FlatSection(title: "Saves", detail: "Local and reversible") {
+                    savesContent
+                }
             }
             .padding(.horizontal, 42)
-            .padding(.bottom, 42)
+            .padding(.bottom, 48)
             .frame(maxWidth: 980, alignment: .leading)
         }
         .ignoresSafeArea(edges: .top)
@@ -33,7 +58,7 @@ struct GameDetailView: View {
     private var hero: some View {
         VStack(alignment: .leading, spacing: 18) {
             GameArtwork(url: descriptor.heroArtworkURL, fallbackSymbol: descriptor.symbol)
-                .frame(height: 240)
+                .frame(height: 250)
                 .overlay {
                     LinearGradient(
                         colors: [.clear, SecundaTheme.void.opacity(0.55), SecundaTheme.void],
@@ -54,9 +79,7 @@ struct GameDetailView: View {
                     .padding(.horizontal, 28)
                     .padding(.bottom, 18)
                 }
-                .clipShape(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .padding(.top, 24)
 
             Text(model.supportingText(for: descriptor))
@@ -65,7 +88,7 @@ struct GameDetailView: View {
                 .lineSpacing(4)
                 .frame(maxWidth: 590, alignment: .leading)
 
-            HStack(spacing: 14) {
+            HStack(spacing: 12) {
                 Button {
                     model.performPrimaryAction(for: descriptor)
                 } label: {
@@ -91,15 +114,17 @@ struct GameDetailView: View {
                     } label: {
                         Label("Close Apps", systemImage: "stop.fill")
                     }
-                    .buttonStyle(SecundaSecondaryButtonStyle())
+                    .buttonStyle(SecundaActionButtonStyle())
                     .disabled(model.isBusy)
                     .help("Save first, then close every Windows app in this Secunda game space")
                 }
 
-                Button("Refresh") {
+                Button {
                     Task { await model.refresh() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .buttonStyle(SecundaSecondaryButtonStyle())
+                .buttonStyle(SecundaActionButtonStyle())
                 .disabled(model.isBusy)
 
                 if model.snapshot.game(descriptor).state.isReady {
@@ -113,13 +138,11 @@ struct GameDetailView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .frame(width: 18)
-                            .padding(.vertical, 12)
-                            .padding(.horizontal, 6)
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .fixedSize()
+                    .buttonStyle(SecundaIconButtonStyle())
                     .disabled(model.isBusy)
                 }
             }
@@ -161,38 +184,21 @@ struct GameDetailView: View {
         }
     }
 
-    // MARK: - Status
+    // MARK: - Activity
 
-    private var readiness: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeading(title: "Secunda setup", detail: "One separate installation")
-            StatusRow(title: "This Mac", symbol: "desktopcomputer", state: model.snapshot.host)
-            StatusRow(title: "Secunda Engine", symbol: "shippingbox.fill", state: model.snapshot.runtime)
-            StatusRow(title: "Separate Windows Space", symbol: "cube.transparent", state: model.snapshot.bottle)
-            StatusRow(title: "Steam Client", symbol: "person.crop.circle", state: model.snapshot.steam)
-            StatusRow(
-                title: descriptor.shortTitle,
-                symbol: descriptor.symbol,
-                state: model.snapshot.game(descriptor).state
-            )
-        }
-        .secundaPanel()
-        .frame(maxWidth: .infinity)
-    }
-
-    private var recentActivity: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeading(title: "Activity", detail: "Latest events")
-            if model.activities.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Quiet for now")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("Setup and launch events will appear here.")
-                        .font(.caption)
-                        .foregroundStyle(SecundaTheme.secondaryText)
-                }
-                .frame(maxWidth: .infinity, minHeight: 148, alignment: .topLeading)
-            } else {
+    @ViewBuilder
+    private var activityList: some View {
+        if model.activities.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Quiet for now")
+                    .font(.system(size: 13, weight: .medium))
+                Text("Setup and launch events will appear here.")
+                    .font(.caption)
+                    .foregroundStyle(SecundaTheme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
                 ForEach(model.activities.prefix(4)) { activity in
                     HStack(alignment: .top, spacing: 10) {
                         Circle()
@@ -208,11 +214,11 @@ struct GameDetailView: View {
                                 .foregroundStyle(SecundaTheme.secondaryText)
                         }
                     }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
+            .animation(.easeOut(duration: 0.2), value: model.activities)
         }
-        .secundaPanel()
-        .frame(width: 300)
     }
 
     private func activityColor(_ kind: ActivityEntry.Kind) -> Color {
@@ -227,12 +233,11 @@ struct GameDetailView: View {
     // MARK: - Settings
 
     private var displaySettings: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            SectionHeading(title: "Display & Audio", detail: "Applied at launch")
-
-            HStack {
-                Text("Mode")
-                Spacer()
+        VStack(alignment: .leading, spacing: 22) {
+            settingRow(
+                label: "Mode",
+                caption: displayModeCaption
+            ) {
                 Picker("Mode", selection: gameSetting(\.displayMode)) {
                     Text("Borderless Fullscreen").tag(DisplayMode.borderlessFullscreen)
                     Text("Exclusive Fullscreen").tag(DisplayMode.exclusiveFullscreen)
@@ -241,13 +246,11 @@ struct GameDetailView: View {
                 .labelsHidden()
                 .frame(width: 200)
             }
-            Text(displayModeCaption)
-                .font(.caption)
-                .foregroundStyle(SecundaTheme.secondaryText)
 
-            HStack {
-                Text("Resolution")
-                Spacer()
+            settingRow(
+                label: "Resolution",
+                caption: "Higher looks sharper but costs frame rate. Your display's sizes are listed first; native sizes run with exact 1:1 pixel mapping."
+            ) {
                 Picker("Resolution", selection: resolutionBinding) {
                     ForEach(resolutionOptions) { option in
                         Text(option.label).tag(option.id)
@@ -256,13 +259,11 @@ struct GameDetailView: View {
                 .labelsHidden()
                 .frame(width: 230)
             }
-            Text("Higher resolutions look sharper but cost frame rate. Your display's own sizes are listed first; native sizes run with exact 1:1 pixel mapping.")
-                .font(.caption)
-                .foregroundStyle(SecundaTheme.secondaryText)
 
-            HStack {
-                Text("Field of view")
-                Spacer()
+            settingRow(
+                label: "Field of view",
+                caption: "The game default is \(descriptor.defaultFieldOfView)°. Takes effect on the next game start."
+            ) {
                 Stepper(
                     "\(model.gameSettings(for: descriptor).fieldOfView)°",
                     value: gameSetting(\.fieldOfView),
@@ -271,104 +272,110 @@ struct GameDetailView: View {
                 )
                 .fixedSize()
             }
-            Text("The game default is \(descriptor.defaultFieldOfView)°. Takes effect on the next game start.")
-                .font(.caption)
-                .foregroundStyle(SecundaTheme.secondaryText)
 
-            Toggle("Vertical sync", isOn: gameSetting(\.verticalSync))
-            Text(model.gameSettings(for: descriptor).verticalSync
-                ? "VSync caps the frame rate to your display for smooth, tear-free play."
-                : "Uncapped frame rate can cause screen tearing and physics glitches in this engine.")
-                .font(.caption)
-                .foregroundStyle(SecundaTheme.secondaryText)
+            settingRow(
+                label: "Vertical sync",
+                caption: model.gameSettings(for: descriptor).verticalSync
+                    ? "Caps the frame rate to your display for smooth, tear-free play."
+                    : "Uncapped frame rate can cause screen tearing and physics glitches in this engine."
+            ) {
+                Toggle("Vertical sync", isOn: gameSetting(\.verticalSync))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
 
-            Toggle("Voice audio fix", isOn: gameSetting(\.nativeVoiceAudio))
-            Text(model.gameSettings(for: descriptor).nativeVoiceAudio
-                ? "Uses Microsoft’s freely redistributable XAudio so spoken dialogue is audible. Installed into the game space on first launch (~96 MB download)."
-                : "Without the fix, spoken dialogue is silent on this engine because voice files use Windows Media compression.")
-                .font(.caption)
-                .foregroundStyle(SecundaTheme.secondaryText)
+            settingRow(
+                label: "Voice audio fix",
+                caption: model.gameSettings(for: descriptor).nativeVoiceAudio
+                    ? "Uses Microsoft’s freely redistributable XAudio so spoken dialogue is audible. Installed into the game space on first launch."
+                    : "Without the fix, spoken dialogue is silent because voice files use Windows Media compression."
+            ) {
+                Toggle("Voice audio fix", isOn: gameSetting(\.nativeVoiceAudio))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
         }
-        .secundaPanel()
+    }
+
+    private func settingRow<Control: View>(
+        label: String,
+        caption: String,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 13, weight: .medium))
+                Spacer()
+                control()
+            }
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(SecundaTheme.secondaryText)
+                .frame(maxWidth: 560, alignment: .leading)
+        }
     }
 
     // MARK: - DLC
 
-    private var dlcPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeading(title: "Add-ons", detail: "Managed through Steam")
+    private var dlcList: some View {
+        VStack(alignment: .leading, spacing: 2) {
             ForEach(model.dlcStates(for: descriptor)) { dlc in
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: dlc.isInstalled ? "checkmark.circle.fill" : "circle.dashed")
-                        .foregroundStyle(dlc.isInstalled ? SecundaTheme.aurora : SecundaTheme.secondaryText)
-                        .padding(.top, 2)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(dlc.descriptor.title)
-                            .font(.system(size: 13, weight: .medium))
-                        if let note = dlc.descriptor.note {
-                            Text(note)
-                                .font(.caption)
-                                .foregroundStyle(SecundaTheme.secondaryText)
-                        }
-                    }
-                    Spacer()
-                    if dlc.isInstalled {
-                        Text("Installed")
-                            .font(.caption)
-                            .foregroundStyle(SecundaTheme.aurora)
-                    } else if dlc.descriptor.steamAppID != nil,
-                              model.snapshot.game(descriptor).state.isReady {
-                        Button("Install in Steam") {
-                            model.requestDLCInstall(dlc.descriptor, for: descriptor)
-                        }
-                        .buttonStyle(.plain)
-                        .font(.caption)
-                        .foregroundStyle(SecundaTheme.frost)
-                    } else {
-                        Text("Not detected")
-                            .font(.caption)
-                            .foregroundStyle(SecundaTheme.secondaryText)
-                    }
+                DLCRow(
+                    dlc: dlc,
+                    canInstall: dlc.descriptor.steamAppID != nil
+                        && model.snapshot.game(descriptor).state.isReady
+                ) {
+                    model.requestDLCInstall(dlc.descriptor, for: descriptor)
                 }
-                .padding(.vertical, 3)
             }
             Text("Add-ons you own install through Steam’s own confirmation. Secunda only detects their files and never modifies your purchases.")
                 .font(.caption2)
                 .foregroundStyle(SecundaTheme.secondaryText)
+                .padding(.top, 10)
         }
-        .secundaPanel()
     }
 
     // MARK: - Saves
 
-    private var savesPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeading(title: "Saves", detail: "Local and reversible")
-            HStack(spacing: 18) {
-                MetricPanel(
-                    value: "\(model.snapshot.game(descriptor).saveCount)",
-                    label: "Local saves",
-                    symbol: "doc.fill"
+    private var savesContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 44) {
+                stat(
+                    value: model.snapshot.game(descriptor).saveCount,
+                    label: "Local saves"
                 )
-                MetricPanel(
-                    value: "\(model.snapshot.game(descriptor).backupCount)",
-                    label: "Backups",
-                    symbol: "shield.fill"
+                stat(
+                    value: model.snapshot.game(descriptor).backupCount,
+                    label: "Backups"
                 )
+                Spacer()
+                Button {
+                    model.createSaveBackup(descriptor)
+                } label: {
+                    Label("Back Up Saves Now", systemImage: "shield.lefthalf.filled")
+                }
+                .buttonStyle(SecundaActionButtonStyle())
+                .disabled(model.snapshot.game(descriptor).saveCount == 0)
             }
             Text(model.snapshot.game(descriptor).saveCount > 0
-                 ? "Create a dated copy of every detected \(descriptor.shortTitle) save."
+                 ? "Backups are dated copies of every detected \(descriptor.shortTitle) save, kept outside the game space."
                  : "Saves will appear here after your first in-game save.")
-                .font(.system(size: 13))
+                .font(.caption)
                 .foregroundStyle(SecundaTheme.secondaryText)
-
-            Button("Back Up Saves Now") {
-                model.createSaveBackup(descriptor)
-            }
-            .buttonStyle(SecundaSecondaryButtonStyle())
-            .disabled(model.snapshot.game(descriptor).saveCount == 0)
         }
-        .secundaPanel()
+    }
+
+    private func stat(value: Int, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(value)")
+                .font(.system(size: 30, weight: .medium, design: .serif))
+                .contentTransition(.numericText())
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(1.4)
+                .foregroundStyle(SecundaTheme.secondaryText)
+        }
     }
 
     // MARK: - Bindings
@@ -454,5 +461,52 @@ struct GameDetailView: View {
         let current = model.gameSettings(for: descriptor)
         add(current.width, current.height)
         return options
+    }
+}
+
+/// One add-on row with a full-width hover state and a real install button.
+private struct DLCRow: View {
+    let dlc: DLCState
+    let canInstall: Bool
+    let install: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: dlc.isInstalled ? "checkmark.circle.fill" : "circle.dashed")
+                .foregroundStyle(dlc.isInstalled ? SecundaTheme.aurora : SecundaTheme.secondaryText)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(dlc.descriptor.title)
+                    .font(.system(size: 13, weight: .medium))
+                if let note = dlc.descriptor.note {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(SecundaTheme.secondaryText)
+                }
+            }
+            Spacer()
+            if dlc.isInstalled {
+                Text("Installed")
+                    .font(.caption)
+                    .foregroundStyle(SecundaTheme.aurora)
+            } else if canInstall {
+                Button("Install in Steam", action: install)
+                    .buttonStyle(SecundaActionButtonStyle())
+                    .opacity(isHovering ? 1 : 0.75)
+            } else {
+                Text("Not detected")
+                    .font(.caption)
+                    .foregroundStyle(SecundaTheme.secondaryText)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(isHovering ? 0.045 : 0))
+        }
+        .animation(.easeOut(duration: 0.14), value: isHovering)
+        .onHover { isHovering = $0 }
     }
 }
