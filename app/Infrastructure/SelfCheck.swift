@@ -49,6 +49,13 @@ enum SelfCheck {
         expect(GameDescriptor.fallout4.steamAppID == "377160", "Fallout 4 app identifier", passes: &passes, failures: &failures)
         expect(GameDescriptor.fallout4.gameImageName == "Fallout4.exe", "Fallout 4 game image", passes: &passes, failures: &failures)
         expect(
+            GameDescriptor.skyrimSE.baselineDataFile == "Data/Skyrim.esm"
+                && GameDescriptor.fallout4.baselineDataFile == "Data/Fallout4.esm",
+            "per-game baseline data files",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
             GameDescriptor.descriptor(for: "fallout-4") == .fallout4
                 && GameDescriptor.descriptor(for: "missing") == nil,
             "descriptor lookup",

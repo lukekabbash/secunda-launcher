@@ -91,7 +91,12 @@ final class GameService {
         return SteamInstallProbe(
             bottleRoot: runtime.bottleRoot,
             steamRoot: steam.deletingLastPathComponent()
-        ).inspect(appID: descriptor.steamAppID, executableName: descriptor.gameImageName)
+        ).inspect(
+            appID: descriptor.steamAppID,
+            executableName: descriptor.gameImageName,
+            baselineDataFile: descriptor.baselineDataFile,
+            displayName: descriptor.shortTitle
+        )
     }
 
     func dlcStates(in runtime: RuntimeDescriptor?) -> [DLCState] {

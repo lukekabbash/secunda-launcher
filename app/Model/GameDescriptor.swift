@@ -42,6 +42,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     let customIniFileName: String
     let saveFileExtensions: [String]
     let defaultFieldOfView: Int
+    /// File that proves the game data is really present (Steam manifests can
+    /// claim completion before content lands). Nil skips the check.
+    let baselineDataFile: String?
     let dlc: [DLCDescriptor]
 
     /// Steam's own artwork CDN. Fetched at runtime for the player's library
@@ -72,6 +75,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         customIniFileName: "SkyrimCustom.ini",
         saveFileExtensions: ["ess"],
         defaultFieldOfView: 80,
+        baselineDataFile: "Data/Skyrim.esm",
         dlc: [
             DLCDescriptor(
                 id: "skyrim-dawnguard",
@@ -115,6 +119,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         customIniFileName: "Fallout4Custom.ini",
         saveFileExtensions: ["fos"],
         defaultFieldOfView: 80,
+        baselineDataFile: "Data/Fallout4.esm",
         dlc: [
             DLCDescriptor(
                 id: "fallout4-automatron",

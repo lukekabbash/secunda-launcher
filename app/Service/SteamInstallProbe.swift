@@ -10,7 +10,12 @@ struct SteamInstallProbe {
     let bottleRoot: URL
     let steamRoot: URL
 
-    func inspect(appID: String, executableName: String) -> SteamGameInstallState {
+    func inspect(
+        appID: String,
+        executableName: String,
+        baselineDataFile: String? = "Data/Skyrim.esm",
+        displayName: String = "Skyrim"
+    ) -> SteamGameInstallState {
         guard appID.allSatisfy({ $0.isASCII && $0.isNumber }) else { return .missing }
 
         var sawManifest = false
@@ -36,15 +41,16 @@ struct SteamInstallProbe {
                 partial.appendingPathComponent(component, isDirectory: true)
             }
             let executable = gameRoot.appendingPathComponent(executableName)
-            let baselineData = gameRoot.appendingPathComponent("Data/Skyrim.esm")
-            if isPlausibleWindowsExecutable(executable),
-               isContainedRegularFile(baselineData, minimumSize: 1) {
+            let baselineSatisfied = baselineDataFile.map {
+                isContainedRegularFile(gameRoot.appendingPathComponent($0), minimumSize: 1)
+            } ?? true
+            if isPlausibleWindowsExecutable(executable), baselineSatisfied {
                 return .installed(executable)
             }
         }
 
         return sawManifest
-            ? .incomplete("Finish the Skyrim download or update in Steam")
+            ? .incomplete("Finish the \(displayName) download or update in Steam")
             : .missing
     }
 
