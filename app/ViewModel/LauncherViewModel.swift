@@ -26,6 +26,7 @@ final class LauncherViewModel: ObservableObject {
     private let bottleProcessInspector: BottleProcessInspector
     private var runtime: RuntimeDescriptor?
     private var installObservationTask: Task<Void, Never>?
+    private var processObservationTask: Task<Void, Never>?
 
     static func live() -> LauncherViewModel {
         let paths = SecundaPaths()
@@ -106,6 +107,7 @@ final class LauncherViewModel: ObservableObject {
 
         Task {
             await refresh()
+            startProcessObservation()
             isBusy = false
             progressLabel = nil
         }
@@ -127,7 +129,10 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func headline(for descriptor: GameDescriptor) -> String {
-        switch primaryAction(for: descriptor) {
+        if isGameRunning(descriptor) {
+            return "\(descriptor.shortTitle) is running."
+        }
+        return switch primaryAction(for: descriptor) {
         case .locateRuntime:
             paths.bottleOverrideError == nil
                 ? "Secunda’s free game engine is missing."
@@ -141,7 +146,10 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func supportingText(for descriptor: GameDescriptor) -> String {
-        switch primaryAction(for: descriptor) {
+        if isGameRunning(descriptor) {
+            return "Playing through Secunda’s source-built engine. Save and quit from inside the game; Stop is the emergency exit."
+        }
+        return switch primaryAction(for: descriptor) {
         case .locateRuntime:
             paths.bottleOverrideError
                 ?? "This build should include Secunda’s source-built engine. Reinstall the complete Secunda package or use the source build instructions."
@@ -446,6 +454,33 @@ final class LauncherViewModel: ObservableObject {
         }
         Task {
             bottleProcesses = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
+        }
+    }
+
+    /// Live host-side check: is this game's process actually running? Drives
+    /// the stop controls, which must vanish once the player quits.
+    func isGameRunning(_ descriptor: GameDescriptor) -> Bool {
+        bottleProcesses.contains { process in
+            BottleProcessInspector.matchesImages(
+                process.command,
+                images: [descriptor.gameImageName, descriptor.launcherImageName]
+            )
+        }
+    }
+
+    var anyGameRunning: Bool {
+        GameDescriptor.supported.contains { isGameRunning($0) }
+    }
+
+    /// Keep the process snapshot fresh so running/stopped state tracks
+    /// reality within a few seconds of a game quitting.
+    func startProcessObservation() {
+        guard processObservationTask == nil else { return }
+        processObservationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.refreshBottleProcesses()
+                try? await Task.sleep(for: .seconds(5))
+            }
         }
     }
 

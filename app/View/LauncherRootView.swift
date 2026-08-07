@@ -70,8 +70,11 @@ struct LauncherRootView: View {
                         title: descriptor.shortTitle,
                         subtitle: sidebarSubtitle(for: descriptor),
                         isSelected: model.selection == .game(descriptor.id),
+                        isRunning: model.isGameRunning(descriptor),
                         forceStopTitle: "Force stop \(descriptor.shortTitle)?",
-                        onForceStop: { model.forceStopGame(descriptor) },
+                        onForceStop: model.isGameRunning(descriptor)
+                            ? { model.forceStopGame(descriptor) }
+                            : nil,
                         icon: { SidebarGameThumb(descriptor: descriptor) }
                     ) {
                         select(.game(descriptor.id))
@@ -115,7 +118,8 @@ struct LauncherRootView: View {
     }
 
     private func sidebarSubtitle(for descriptor: GameDescriptor) -> String? {
-        switch model.snapshot.game(descriptor).state {
+        if model.isGameRunning(descriptor) { return "Running" }
+        return switch model.snapshot.game(descriptor).state {
         case .ready: nil
         case .working: nil
         default: "Not installed"
@@ -210,6 +214,7 @@ private struct SidebarRow<Icon: View>: View {
     let title: String
     var subtitle: String?
     let isSelected: Bool
+    var isRunning = false
     var forceStopTitle: String?
     var onForceStop: (() -> Void)?
     @ViewBuilder var icon: Icon
@@ -234,16 +239,23 @@ private struct SidebarRow<Icon: View>: View {
                     }
                 }
                 Spacer(minLength: 0)
+                if isRunning, !isHovering || onForceStop == nil {
+                    Circle()
+                        .fill(SecundaTheme.aurora)
+                        .frame(width: 6, height: 6)
+                        .transition(.opacity)
+                        .help("\(title) is running")
+                }
                 if isHovering, onForceStop != nil {
                     Button {
                         showsStopConfirmation = true
                     } label: {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(SecundaTheme.ember)
+                            .foregroundStyle(SecundaTheme.danger)
                             .frame(width: 22, height: 22)
                             .background {
-                                Circle().fill(Color.white.opacity(0.08))
+                                Circle().fill(SecundaTheme.danger.opacity(0.15))
                             }
                             .contentShape(Circle())
                     }

@@ -196,15 +196,16 @@ struct GameDetailView: View {
                 .buttonStyle(SecundaPrimaryButtonStyle())
                 .disabled(model.isBusy)
 
-                if model.snapshot.steam.isReady {
+                if model.isGameRunning(descriptor) {
                     Button {
                         showsCloseConfirmation = true
                     } label: {
-                        Label("Close Apps", systemImage: "stop.fill")
+                        Label("Stop \(descriptor.shortTitle)", systemImage: "stop.fill")
                     }
-                    .buttonStyle(SecundaActionButtonStyle())
+                    .buttonStyle(SecundaDestructiveButtonStyle())
                     .disabled(model.isBusy)
-                    .help("Save first, then close every Windows app in this Secunda game space")
+                    .help("Save first — this closes \(descriptor.shortTitle) and every Windows app in this game space")
+                    .transition(.opacity.combined(with: .scale(scale: 0.92)))
                 }
 
                 Button {
@@ -246,6 +247,7 @@ struct GameDetailView: View {
             }
         }
         .animation(.easeInOut(duration: 0.24), value: model.setupProgress)
+        .animation(.easeOut(duration: 0.22), value: model.isGameRunning(descriptor))
         .confirmationDialog(
             "Close this Secunda game space?",
             isPresented: $showsCloseConfirmation,

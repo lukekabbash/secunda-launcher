@@ -106,6 +106,15 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+        expect(
+            BottleProcessInspector.matchesImages(
+                "C:\\Games\\bin\\SupremeCommander2.exe /windowed 1920 1080",
+                images: [GameDescriptor.supcom2.gameImageName, GameDescriptor.supcom2.launcherImageName]
+            ),
+            "running-game detection matches windowed command lines",
+            passes: &passes,
+            failures: &failures
+        )
 
         let psFixture = """
           123     1 /Users/t/Bottles/SkyrimSE/drive_c/Games/Fallout4.exe -arg one

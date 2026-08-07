@@ -5,9 +5,12 @@ enum SecundaTheme {
     static let midnight = Color(red: 0.035, green: 0.052, blue: 0.085)
     static let slate = Color(red: 0.105, green: 0.125, blue: 0.16)
     static let moon = Color(red: 0.82, green: 0.87, blue: 0.91)
-    static let frost = Color(red: 0.55, green: 0.70, blue: 0.79)
+    /// Accent: muted sea-glass teal (replaced the old pale baby-blue).
+    static let frost = Color(red: 0.45, green: 0.64, blue: 0.60)
     static let aurora = Color(red: 0.36, green: 0.62, blue: 0.65)
     static let ember = Color(red: 0.78, green: 0.60, blue: 0.32)
+    /// Destructive actions: stop, uninstall, force-kill.
+    static let danger = Color(red: 0.83, green: 0.38, blue: 0.34)
     static let text = Color(red: 0.92, green: 0.94, blue: 0.96)
     static let secondaryText = Color(red: 0.62, green: 0.67, blue: 0.73)
     static let hairline = Color.white.opacity(0.10)
@@ -105,6 +108,35 @@ struct SecundaActionButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.14), value: isHovering)
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .onHover { isHovering = $0 }
+    }
+}
+
+/// Red-tinted capsule for stop/uninstall-class actions. Same metrics as
+/// SecundaActionButtonStyle so mixed rows stay uniform.
+struct SecundaDestructiveButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundStyle(isHovering ? Color.white : SecundaTheme.danger)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .frame(minHeight: 34)
+            .background {
+                Capsule().fill(
+                    isHovering
+                        ? SecundaTheme.danger.opacity(configuration.isPressed ? 0.85 : 0.75)
+                        : SecundaTheme.danger.opacity(0.10)
+                )
+            }
+            .overlay {
+                Capsule().stroke(SecundaTheme.danger.opacity(isHovering ? 0.9 : 0.45))
+            }
+            .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.14), value: isHovering)
             .onHover { isHovering = $0 }
     }
 }

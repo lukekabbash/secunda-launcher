@@ -22,6 +22,7 @@ struct GamesGridView: View {
                         GameCard(
                             descriptor: descriptor,
                             state: model.snapshot.game(descriptor).state,
+                            isRunning: model.isGameRunning(descriptor),
                             primaryAction: model.primaryAction(for: descriptor),
                             isBusy: model.isBusy,
                             open: {
@@ -53,6 +54,7 @@ struct GamesGridView: View {
 private struct GameCard: View {
     let descriptor: GameDescriptor
     let state: ComponentState
+    var isRunning = false
     let primaryAction: PrimaryAction
     let isBusy: Bool
     let open: () -> Void
@@ -139,7 +141,8 @@ private struct GameCard: View {
     }
 
     private var statusText: String {
-        switch state {
+        if isRunning { return "Running" }
+        return switch state {
         case .ready: "Installed"
         case .warning(let detail): detail
         case .failed(let detail): detail
@@ -149,8 +152,9 @@ private struct GameCard: View {
     }
 
     private var statusColor: Color {
-        switch state {
-        case .ready: SecundaTheme.aurora
+        if isRunning { return SecundaTheme.aurora }
+        return switch state {
+        case .ready: SecundaTheme.moon.opacity(0.85)
         case .warning, .failed: SecundaTheme.ember
         default: Color.white.opacity(0.75)
         }
