@@ -6,6 +6,8 @@
     <string>Secunda Launcher</string>
     <key>CFBundleExecutable</key>
     <string>SecundaLauncher</string>
+    <key>CFBundleIconFile</key>
+    <string>Secunda</string>
     <key>CFBundleIdentifier</key>
     <string>app.secunda.launcher</string>
     <key>CFBundleInfoDictionaryVersion</key>

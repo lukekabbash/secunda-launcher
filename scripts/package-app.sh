@@ -153,6 +153,8 @@ if [[ "$RUNTIME_MODE" == "1" ]]; then
 fi
 
 cp "$REPOSITORY_ROOT/packaging/Info.plist" "$CONTENTS/Info.plist"
+mkdir -p "$RESOURCES"
+cp "$REPOSITORY_ROOT/packaging/Secunda.icns" "$RESOURCES/Secunda.icns"
 OUTER_SIGNING_ARGS=(--force --sign "$SIGNING_IDENTITY")
 if [[ "$SIGNING_IDENTITY" != "-" ]]; then
     OUTER_SIGNING_ARGS+=(--options runtime --timestamp)
