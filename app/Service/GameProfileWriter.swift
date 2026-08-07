@@ -27,9 +27,10 @@ struct GameProfileWriter {
     }
 
     func apply(_ settings: GameSettings, bottleRoot: URL) throws {
-        // Games without a Secunda-writable profile manage display settings
+        // Games without any Secunda-writable profile manage settings
         // themselves; nothing to write.
-        guard descriptor.supportsDisplayProfile else { return }
+        let writesLuaPrefs = descriptor.luaPrefsFileName != nil && !descriptor.luaTuningOptions.isEmpty
+        guard descriptor.supportsDisplayProfile || writesLuaPrefs else { return }
         guard BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot) else {
             throw CocoaError(.fileWriteNoPermission)
         }
@@ -65,6 +66,52 @@ struct GameProfileWriter {
             let updatedCustom = Self.updatingCustomDisplaySection(in: existingCustom, settings: settings)
             try updatedCustom.write(to: customURL, atomically: true, encoding: .utf8)
         }
+
+        // Lua-style prefs (Game.prefs): rewrite only keys the game itself
+        // has already written — never invent structure. Absent file or
+        // absent keys are silently skipped, so a launch can't fail here.
+        if writesLuaPrefs, let luaFileName = descriptor.luaPrefsFileName {
+            let luaURL = preferencesDirectory.appendingPathComponent(luaFileName)
+            guard let existing = try? String(contentsOf: luaURL, encoding: .utf8) else { return }
+            var updated = existing
+            for option in descriptor.luaTuningOptions {
+                guard let chosenLabel = settings.tuning[option.id],
+                      let choice = option.choices.first(where: { $0.label == chosenLabel }),
+                      !choice.value.isEmpty
+                else { continue }
+                updated = Self.updatingLuaNumericValue(
+                    in: updated,
+                    keyCandidates: option.keyCandidates,
+                    value: choice.value
+                )
+            }
+            if updated != existing {
+                try updated.write(to: luaURL, atomically: true, encoding: .utf8)
+            }
+        }
+    }
+
+    /// Replace `key = <number>` (and quoted `key = '<number>'` / `key = "<number>"`)
+    /// for the first candidate key present, everywhere it occurs. Returns the
+    /// input unchanged when no candidate matches.
+    static func updatingLuaNumericValue(
+        in contents: String,
+        keyCandidates: [String],
+        value: String
+    ) -> String {
+        for key in keyCandidates {
+            let escaped = NSRegularExpression.escapedPattern(for: key)
+            let pattern = "(\\b\(escaped)\\b\\s*=\\s*)(['\"]?)[0-9]+(['\"]?)"
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(contents.startIndex..., in: contents)
+            guard regex.firstMatch(in: contents, range: range) != nil else { continue }
+            return regex.stringByReplacingMatches(
+                in: contents,
+                range: range,
+                withTemplate: "$1$2\(value)$3"
+            )
+        }
+        return contents
     }
 
     static func updatingDisplaySection(
@@ -170,7 +217,7 @@ struct GameProfileWriter {
     private func preferencesDirectory(in bottleRoot: URL) -> URL {
         paths.activeWindowsUserDirectory(in: bottleRoot)
             .appendingPathComponent(
-                "Documents/My Games/\(descriptor.documentsFolderName)",
+                "Documents/\(descriptor.documentsRelativePath)",
                 isDirectory: true
             )
     }

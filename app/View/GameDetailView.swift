@@ -57,6 +57,17 @@ struct GameDetailView: View {
                     }
                 }
 
+                if !descriptor.luaTuningOptions.isEmpty {
+                    FlatSection(
+                        title: "Game Tuning",
+                        detail: model.luaPrefsDetected(for: descriptor)
+                            ? "Applied at launch"
+                            : "Awaiting first run"
+                    ) {
+                        tuningSettings
+                    }
+                }
+
                 if !descriptor.dlc.isEmpty {
                     FlatSection(title: "Add-ons", detail: "Managed through Steam") {
                         dlcList
@@ -377,6 +388,52 @@ struct GameDetailView: View {
                 }
             }
         }
+    }
+
+    private var tuningSettings: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            if !model.luaPrefsDetected(for: descriptor) {
+                Text("These apply to the game's own settings file, which \(descriptor.shortTitle) creates the first time it runs. Launch the game once, quit, and Secunda takes over from there.")
+                    .font(.caption)
+                    .foregroundStyle(SecundaTheme.ember)
+                    .frame(maxWidth: 560, alignment: .leading)
+            }
+            ForEach(descriptor.luaTuningOptions) { option in
+                settingRow(
+                    label: option.title,
+                    caption: option.caption ?? ""
+                ) {
+                    Picker(option.title, selection: tuningBinding(option)) {
+                        ForEach(option.choices, id: \.label) { choice in
+                            Text(choice.label).tag(choice.label)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 170)
+                }
+            }
+            Text("Secunda only rewrites values the game has already saved itself — it never invents settings, so a mistuned entry can't corrupt the file.")
+                .font(.caption2)
+                .foregroundStyle(SecundaTheme.secondaryText)
+        }
+    }
+
+    private func tuningBinding(_ option: LuaTuningOption) -> Binding<String> {
+        Binding(
+            get: {
+                model.gameSettings(for: descriptor).tuning[option.id]
+                    ?? QualityOption.gameDefaultLabel
+            },
+            set: { newLabel in
+                var updated = model.gameSettings(for: descriptor)
+                if newLabel == QualityOption.gameDefaultLabel {
+                    updated.tuning.removeValue(forKey: option.id)
+                } else {
+                    updated.tuning[option.id] = newLabel
+                }
+                model.updateGameSettings(updated, for: descriptor)
+            }
+        )
     }
 
     private func qualityBinding(_ option: QualityOption) -> Binding<String> {

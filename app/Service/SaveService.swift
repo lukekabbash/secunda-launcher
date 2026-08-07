@@ -15,7 +15,7 @@ final class SaveService {
         }
         let saves = paths.activeWindowsUserDirectory(in: bottleRoot)
             .appendingPathComponent(
-                "Documents/My Games/\(descriptor.documentsFolderName)/Saves",
+                "Documents/\(descriptor.documentsRelativePath)/Saves",
                 isDirectory: true
             )
         return paths.contains(saves, inBottleRoot: bottleRoot)

@@ -56,6 +56,38 @@ struct QualityOption: Identifiable, Equatable, Sendable {
     }
 }
 
+/// One selectable value for a Lua-prefs tuning option.
+struct LuaTuningChoice: Equatable, Sendable {
+    let label: String
+    let value: String
+}
+
+/// A numeric setting stored in a Lua-style prefs file (Supreme Commander 2's
+/// Game.prefs). Secunda only rewrites keys it finds already present, so the
+/// game must have created the file — and the key — first.
+struct LuaTuningOption: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let caption: String?
+    /// Key spellings to look for; the first one found in the file wins.
+    let keyCandidates: [String]
+    let choices: [LuaTuningChoice]
+
+    init(
+        id: String,
+        title: String,
+        caption: String? = nil,
+        keyCandidates: [String],
+        choices: [LuaTuningChoice]
+    ) {
+        self.id = id
+        self.title = title
+        self.caption = caption
+        self.keyCandidates = keyCandidates
+        self.choices = choices
+    }
+}
+
 /// Single source of truth for per-game constants. Supporting another game
 /// means adding a descriptor here and registering it in `supported`;
 /// services read these fields instead of hardcoding one title.
@@ -71,7 +103,13 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// Path of the game binary inside the Steam install directory. Defaults
     /// to the image name; games like Supreme Commander 2 keep it in bin/.
     let executableRelativePath: String
-    let documentsFolderName: String
+    /// Path of the game's settings/saves folder under the Windows user's
+    /// Documents directory (Bethesda uses My Games/, Gas Powered doesn't).
+    let documentsRelativePath: String
+    /// Lua-style prefs file inside that folder, for games configured that
+    /// way instead of via INI (nil for Bethesda titles).
+    let luaPrefsFileName: String?
+    let luaTuningOptions: [LuaTuningOption]
     /// Bethesda-style prefs/custom ini names. Nil means the game has no
     /// Secunda-writable profile; display settings stay in the game itself.
     let prefsFileName: String?
@@ -185,7 +223,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         gameImageName: "SkyrimSE.exe",
         launcherImageName: "SkyrimSELauncher.exe",
         executableRelativePath: "SkyrimSE.exe",
-        documentsFolderName: "Skyrim Special Edition",
+        documentsRelativePath: "My Games/Skyrim Special Edition",
+        luaPrefsFileName: nil,
+        luaTuningOptions: [],
         prefsFileName: "SkyrimPrefs.ini",
         customIniFileName: "SkyrimCustom.ini",
         vsyncKey: "iVSyncPresentInterval",
@@ -253,7 +293,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         gameImageName: "Fallout4.exe",
         launcherImageName: "Fallout4Launcher.exe",
         executableRelativePath: "Fallout4.exe",
-        documentsFolderName: "Fallout4",
+        documentsRelativePath: "My Games/Fallout4",
+        luaPrefsFileName: nil,
+        luaTuningOptions: [],
         prefsFileName: "Fallout4Prefs.ini",
         customIniFileName: "Fallout4Custom.ini",
         vsyncKey: "iPresentInterval",
@@ -360,7 +402,23 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         gameImageName: "SupCom2.exe",
         launcherImageName: "SupCom2.exe",
         executableRelativePath: "bin/SupCom2.exe",
-        documentsFolderName: "Gas Powered Games/Supreme Commander 2",
+        documentsRelativePath: "Gas Powered Games/Supreme Commander 2",
+        luaPrefsFileName: "Game.prefs",
+        luaTuningOptions: [
+            LuaTuningOption(
+                id: "unit-cap",
+                title: "Unit cap",
+                caption: "Maximum army size. Applies after the game has written this setting once (host any skirmish, then quit). Higher caps are CPU-heavy under Rosetta.",
+                keyCandidates: ["UnitCap", "unit_cap", "unitCap"],
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, value: ""),
+                    .init(label: "250", value: "250"),
+                    .init(label: "500", value: "500"),
+                    .init(label: "750", value: "750"),
+                    .init(label: "1000", value: "1000")
+                ]
+            )
+        ],
         prefsFileName: nil,
         customIniFileName: nil,
         vsyncKey: "iPresentInterval",

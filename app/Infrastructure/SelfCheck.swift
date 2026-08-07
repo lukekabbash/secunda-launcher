@@ -432,6 +432,47 @@ enum SelfCheck {
             failures: &failures
         )
 
+        expect(
+            GameDescriptor.skyrimSE.documentsRelativePath == "My Games/Skyrim Special Edition"
+                && GameDescriptor.supcom2.documentsRelativePath == "Gas Powered Games/Supreme Commander 2",
+            "per-game documents paths",
+            passes: &passes,
+            failures: &failures
+        )
+        let luaSample = "options = {\n    UnitCap = 500,\n    other = 3,\n}\nlast = { UnitCap = 500 }\n"
+        let luaUpdated = GameProfileWriter.updatingLuaNumericValue(
+            in: luaSample,
+            keyCandidates: ["unit_cap", "UnitCap"],
+            value: "1000"
+        )
+        expect(
+            luaUpdated.components(separatedBy: "UnitCap = 1000").count == 3
+                && luaUpdated.contains("other = 3"),
+            "lua unit cap rewrite covers every occurrence",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameProfileWriter.updatingLuaNumericValue(
+                in: "quoted = { unit_cap = '500' }",
+                keyCandidates: ["unit_cap"],
+                value: "750"
+            ).contains("unit_cap = '750'"),
+            "lua quoted value rewrite",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameProfileWriter.updatingLuaNumericValue(
+                in: luaSample,
+                keyCandidates: ["missing_key"],
+                value: "1000"
+            ) == luaSample,
+            "lua rewrite leaves unknown keys untouched",
+            passes: &passes,
+            failures: &failures
+        )
+
         let legacySettings = try? JSONDecoder().decode(
             LauncherSettings.self,
             from: Data(#"{"launchInWindow":true,"width":1280,"height":800,"enableDiagnostics":false}"#.utf8)

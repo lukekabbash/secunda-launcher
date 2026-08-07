@@ -18,6 +18,8 @@ struct GameSettings: Codable, Equatable, Sendable {
     /// Chosen quality options, keyed by QualityOption id → choice label.
     /// Absent entries mean "Game default" (write nothing).
     var quality: [String: String] = [:]
+    /// Chosen Lua-prefs tuning, keyed by LuaTuningOption id → choice label.
+    var tuning: [String: String] = [:]
 
     init() {}
 
@@ -29,6 +31,7 @@ struct GameSettings: Codable, Equatable, Sendable {
         case fieldOfView
         case nativeVoiceAudio
         case quality
+        case tuning
     }
 
     init(from decoder: Decoder) throws {
@@ -40,6 +43,7 @@ struct GameSettings: Codable, Equatable, Sendable {
         fieldOfView = try container.decodeIfPresent(Int.self, forKey: .fieldOfView) ?? fieldOfView
         nativeVoiceAudio = try container.decodeIfPresent(Bool.self, forKey: .nativeVoiceAudio) ?? nativeVoiceAudio
         quality = try container.decodeIfPresent([String: String].self, forKey: .quality) ?? quality
+        tuning = try container.decodeIfPresent([String: String].self, forKey: .tuning) ?? tuning
     }
 }
 
