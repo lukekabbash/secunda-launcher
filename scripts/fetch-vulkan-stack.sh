@@ -44,8 +44,11 @@ fetch_verified() {
 
 fetch_verified "$MOLTENVK_URL" "$MOLTENVK_SHA256" "$STAGE_ROOT/moltenvk.tar"
 tar -xf "$STAGE_ROOT/moltenvk.tar" -C "$STAGE_ROOT"
-cp "$STAGE_ROOT/MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" \
-    "$RUNTIME_ROOT/lib/libMoltenVK.dylib"
+# Thin to x86_64: every Wine process is x86-64 under Rosetta, and the
+# runtime relocatability audit expects single-architecture dylibs.
+lipo -thin x86_64 \
+    "$STAGE_ROOT/MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" \
+    -output "$RUNTIME_ROOT/lib/libMoltenVK.dylib"
 codesign --force --sign - "$RUNTIME_ROOT/lib/libMoltenVK.dylib"
 
 fetch_verified "$DXVK_URL" "$DXVK_SHA256" "$STAGE_ROOT/dxvk.tar.gz"
