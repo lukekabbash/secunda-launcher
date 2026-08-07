@@ -21,12 +21,18 @@ struct GamesGridView: View {
                     ForEach(Array(GameDescriptor.supported.enumerated()), id: \.element.id) { index, descriptor in
                         GameCard(
                             descriptor: descriptor,
-                            state: model.snapshot.game(descriptor).state
-                        ) {
-                            withAnimation(.easeOut(duration: 0.18)) {
-                                model.selection = .game(descriptor.id)
+                            state: model.snapshot.game(descriptor).state,
+                            primaryAction: model.primaryAction(for: descriptor),
+                            isBusy: model.isBusy,
+                            open: {
+                                withAnimation(.easeOut(duration: 0.18)) {
+                                    model.selection = .game(descriptor.id)
+                                }
+                            },
+                            quickAction: {
+                                model.performPrimaryAction(for: descriptor)
                             }
-                        }
+                        )
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 18)
                         .animation(
@@ -47,12 +53,15 @@ struct GamesGridView: View {
 private struct GameCard: View {
     let descriptor: GameDescriptor
     let state: ComponentState
-    let action: () -> Void
+    let primaryAction: PrimaryAction
+    let isBusy: Bool
+    let open: () -> Void
+    let quickAction: () -> Void
 
     @State private var isHovering = false
 
     var body: some View {
-        Button(action: action) {
+        Button(action: open) {
             GameArtwork(url: descriptor.cardArtworkURL, fallbackSymbol: descriptor.symbol)
                 .aspectRatio(2 / 3, contentMode: .fit)
                 .overlay {
@@ -79,14 +88,28 @@ private struct GameCard: View {
                 }
                 .overlay {
                     if isHovering {
-                        ZStack {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .frame(width: 60, height: 60)
-                            Image(systemName: state.isReady ? "play.fill" : "arrow.down.circle")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(.white)
+                        Button(action: quickAction) {
+                            ZStack {
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .frame(width: 64, height: 64)
+                                    .overlay {
+                                        Circle().stroke(Color.white.opacity(0.35))
+                                    }
+                                if isBusy {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Image(systemName: primaryAction.symbol)
+                                        .font(.system(size: 23, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                            .contentShape(Circle())
                         }
+                        .buttonStyle(.plain)
+                        .disabled(isBusy)
+                        .help(primaryAction.title(for: descriptor))
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
                 }
