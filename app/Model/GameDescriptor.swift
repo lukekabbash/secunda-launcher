@@ -627,6 +627,13 @@ struct GameGroup: Identifiable, Equatable, Sendable {
         componentIDs.compactMap { GameDescriptor.descriptor(for: $0) }
     }
 
+    /// The component whose cover art represents the whole group. Fixed, so
+    /// the library card and sidebar icon never change when the player
+    /// switches modes or default launch targets.
+    var artworkComponent: GameDescriptor? {
+        components.first
+    }
+
     static let all: [GameGroup] = [
         GameGroup(
             id: "skyrim-se",

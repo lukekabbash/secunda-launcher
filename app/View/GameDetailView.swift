@@ -26,8 +26,6 @@ struct GameDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 heroBanner
-                    .opacity(contentAppeared ? 1 : 0)
-                    .offset(y: contentAppeared ? 0 : 10)
 
                 VStack(alignment: .leading, spacing: 40) {
                     heroActions
@@ -109,14 +107,16 @@ struct GameDetailView: View {
                 .padding(.top, 26)
                 .padding(.bottom, 48)
                 .frame(maxWidth: 980, alignment: .leading)
+                // Body settles a beat after the banner, which the page
+                // transition has already brought in.
                 .opacity(contentAppeared ? 1 : 0)
-                .offset(y: contentAppeared ? 0 : 10)
+                .offset(y: contentAppeared ? 0 : 8)
             }
         }
         .ignoresSafeArea(edges: .top)
         .onAppear {
             selectedComponentID = model.defaultComponent(for: group).id
-            withAnimation(.easeOut(duration: 0.45)) {
+            withAnimation(.easeOut(duration: 0.3).delay(0.06)) {
                 contentAppeared = true
             }
         }

@@ -24,7 +24,10 @@ struct GamesGridView: View {
                         let component = model.defaultComponent(for: group)
                         GameCard(
                             descriptor: component,
-                            artwork: model.artworkCandidates(for: component, hero: false),
+                            artwork: model.artworkCandidates(
+                                for: group.artworkComponent ?? component,
+                                hero: false
+                            ),
                             displayTitle: group.shortTitle,
                             state: groupCardState(group),
                             isRunning: model.runningComponent(in: group) != nil,

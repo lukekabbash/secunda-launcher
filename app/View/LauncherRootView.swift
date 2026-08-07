@@ -12,12 +12,23 @@ struct LauncherRootView: View {
                 Rectangle()
                     .fill(SecundaTheme.hairline)
                     .frame(width: 1)
-                ZStack {
+                ZStack(alignment: .topLeading) {
                     content
                         .id(model.selection)
-                        .transition(.opacity.combined(with: .offset(y: 10)))
+                        // Outgoing fades fast in place; incoming settles up
+                        // from below, so pages feel handed off rather than
+                        // hard-swapped.
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity
+                                    .combined(with: .offset(y: 14))
+                                    .combined(with: .scale(scale: 0.995, anchor: .top)),
+                                removal: .opacity
+                            )
+                        )
                 }
-                .animation(.easeOut(duration: 0.22), value: model.selection)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .animation(.spring(response: 0.38, dampingFraction: 0.9), value: model.selection)
             }
         }
         .foregroundStyle(SecundaTheme.text)
@@ -78,9 +89,9 @@ struct LauncherRootView: View {
                         },
                         icon: {
                             SidebarGameThumb(
-                                descriptor: model.defaultComponent(for: group),
+                                descriptor: group.artworkComponent ?? model.defaultComponent(for: group),
                                 candidates: model.artworkCandidates(
-                                    for: model.defaultComponent(for: group),
+                                    for: group.artworkComponent ?? model.defaultComponent(for: group),
                                     hero: false
                                 )
                             )
