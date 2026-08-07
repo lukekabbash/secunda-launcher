@@ -56,6 +56,14 @@ struct QualityOption: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Direct3D 9 implementation choice for a game.
+enum D3D9Backend: Equatable, Sendable {
+    /// Wine's builtin translation over OpenGL — proven for light titles.
+    case wined3d
+    /// DXVK over MoltenVK/Metal — for heavier D3D9 games.
+    case dxvk
+}
+
 /// One selectable value for a Lua-prefs tuning option.
 struct LuaTuningChoice: Equatable, Sendable {
     let label: String
@@ -114,6 +122,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// Games whose fullscreen mode fails under the Mac display driver run
     /// windowed via command line: /windowed <width> <height>.
     let usesWindowedResolutionArguments: Bool
+    /// Which Direct3D 9 implementation the game launches with. DXMT owns
+    /// D3D10/11 regardless; this only matters for D3D9-era titles.
+    let d3d9Backend: D3D9Backend
     /// Bethesda-style prefs/custom ini names. Nil means the game has no
     /// Secunda-writable profile; display settings stay in the game itself.
     let prefsFileName: String?
@@ -231,6 +242,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         luaPrefsRelativePath: nil,
         luaTuningOptions: [],
         usesWindowedResolutionArguments: false,
+        d3d9Backend: .wined3d,
         prefsFileName: "SkyrimPrefs.ini",
         customIniFileName: "SkyrimCustom.ini",
         vsyncKey: "iVSyncPresentInterval",
@@ -302,6 +314,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         luaPrefsRelativePath: nil,
         luaTuningOptions: [],
         usesWindowedResolutionArguments: false,
+        d3d9Backend: .wined3d,
         prefsFileName: "Fallout4Prefs.ini",
         customIniFileName: "Fallout4Custom.ini",
         vsyncKey: "iPresentInterval",
@@ -494,6 +507,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             )
         ],
         usesWindowedResolutionArguments: true,
+        d3d9Backend: .wined3d,
         prefsFileName: nil,
         customIniFileName: nil,
         vsyncKey: "iPresentInterval",
@@ -504,7 +518,74 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         dlc: []
     )
 
-    static let supported: [GameDescriptor] = [.skyrimSE, .fallout4, .supcom2]
+    private static func blackOps2(
+        id: String,
+        title: String,
+        shortTitle: String,
+        tagline: String,
+        symbol: String,
+        steamAppID: String,
+        executable: String
+    ) -> GameDescriptor {
+        GameDescriptor(
+            id: id,
+            title: title,
+            shortTitle: shortTitle,
+            tagline: tagline,
+            symbol: symbol,
+            steamAppID: steamAppID,
+            gameImageName: executable,
+            launcherImageName: executable,
+            executableRelativePath: executable,
+            documentsRelativePath: "My Games/Call of Duty Black Ops II",
+            luaPrefsRelativePath: nil,
+            luaTuningOptions: [],
+            usesWindowedResolutionArguments: false,
+            d3d9Backend: .dxvk,
+            prefsFileName: nil,
+            customIniFileName: nil,
+            vsyncKey: "iPresentInterval",
+            saveFileExtensions: [],
+            defaultFieldOfView: 80,
+            baselineDataFile: nil,
+            qualityOptions: [],
+            dlc: []
+        )
+    }
+
+    static let blackOps2SP = blackOps2(
+        id: "bo2-campaign",
+        title: "Call of Duty: Black Ops II",
+        shortTitle: "Black Ops II",
+        tagline: "The future is black. Campaign.",
+        symbol: "scope",
+        steamAppID: "202970",
+        executable: "t6sp.exe"
+    )
+
+    static let blackOps2MP = blackOps2(
+        id: "bo2-multiplayer",
+        title: "Call of Duty: Black Ops II - Multiplayer",
+        shortTitle: "BO2 Multiplayer",
+        tagline: "Pick ten. Prestige forever.",
+        symbol: "person.3.fill",
+        steamAppID: "202990",
+        executable: "t6mp.exe"
+    )
+
+    static let blackOps2Zombies = blackOps2(
+        id: "bo2-zombies",
+        title: "Call of Duty: Black Ops II - Zombies",
+        shortTitle: "BO2 Zombies",
+        tagline: "They keep coming. Tranzit awaits.",
+        symbol: "figure.walk.motion",
+        steamAppID: "212910",
+        executable: "t6zm.exe"
+    )
+
+    static let supported: [GameDescriptor] = [
+        .skyrimSE, .fallout4, .supcom2, .blackOps2SP, .blackOps2MP, .blackOps2Zombies
+    ]
 
     static func descriptor(for id: String) -> GameDescriptor? {
         supported.first { $0.id == id }

@@ -44,6 +44,22 @@
       "licensePath": "licenses/DXMT-v0.80-LICENSE.txt"
     },
     {
+      "name": "DXVK",
+      "version": "1.10.3",
+      "license": "Zlib",
+      "archiveSha256": "8d1a3c912761b450c879f98478ae64f6f6639e40ce6848170a0f6b8596fd53c6",
+      "sourceUrl": "https://github.com/doitsujin/dxvk/tree/v1.10.3",
+      "licensePath": "licenses/DXVK-v1.10.3-LICENSE.txt"
+    },
+    {
+      "name": "MoltenVK",
+      "version": "1.4.2",
+      "license": "Apache-2.0",
+      "archiveSha256": "f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e",
+      "sourceUrl": "https://github.com/KhronosGroup/MoltenVK/tree/v1.4.2",
+      "licensePath": "licenses/MoltenVK-v1.4.2-LICENSE.txt"
+    },
+    {
       "name": "FreeType",
       "version": "2.13.3",
       "license": "FTL OR GPL-2.0-or-later",

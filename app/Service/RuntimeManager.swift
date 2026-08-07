@@ -84,14 +84,24 @@ final class RuntimeManager {
         )
         let binPath = runtime.wineExecutable.deletingLastPathComponent().path
         environment["PATH"] = "\(binPath):/usr/bin:/bin:/usr/sbin:/sbin"
+        let runtimeRoot = runtime.wineExecutable
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
         switch runtime.origin {
         case .bundled:
             break
         case .sourceBuild, .environment:
-            let runtimeRoot = runtime.wineExecutable
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
             environment["DYLD_LIBRARY_PATH"] = runtimeRoot.appendingPathComponent("lib").path
+        }
+
+        // Vulkan over MoltenVK. The CrossOver-derived Wine loads Vulkan only
+        // when both variables are present; games on the wined3d GL path are
+        // unaffected because the per-launch d3d9 override still selects the
+        // builtin there, and DXMT keeps owning d3d11.
+        let moltenVK = runtimeRoot.appendingPathComponent("lib/libMoltenVK.dylib")
+        if FileManager.default.fileExists(atPath: moltenVK.path) {
+            environment["CX_LIBVULKAN"] = moltenVK.path
+            environment["CX_ACTIVE_GRAPHICS_BACKEND"] = "wined3d"
         }
         return environment
     }

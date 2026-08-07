@@ -19,6 +19,8 @@ license_sources=(
     "$SOURCE_ROOT/wine/AUTHORS"
     "$SOURCE_ROOT/wine/COPYING.LIB"
     "$REPOSITORY_ROOT/licenses/DXMT-v0.80-LICENSE.txt"
+    "$REPOSITORY_ROOT/licenses/DXVK-v1.10.3-LICENSE.txt"
+    "$REPOSITORY_ROOT/licenses/MoltenVK-v1.4.2-LICENSE.txt"
     "$SOURCE_ROOT/freetype/docs/FTL.TXT"
     "$SOURCE_ROOT/gnutls/gmp/COPYING.LESSERv3"
     "$SOURCE_ROOT/gnutls/gmp/COPYINGv3"

@@ -44,7 +44,49 @@ enum SelfCheck {
             failures: &failures
         )
         expect(GameDescriptor.skyrimSE.steamAppID == "489830", "Steam app identifier", passes: &passes, failures: &failures)
-        expect(GameDescriptor.supported == [.skyrimSE, .fallout4, .supcom2], "supported game registry", passes: &passes, failures: &failures)
+        expect(
+            GameDescriptor.supported == [
+                .skyrimSE, .fallout4, .supcom2, .blackOps2SP, .blackOps2MP, .blackOps2Zombies
+            ],
+            "supported game registry",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameDescriptor.blackOps2SP.steamAppID == "202970"
+                && GameDescriptor.blackOps2MP.steamAppID == "202990"
+                && GameDescriptor.blackOps2Zombies.steamAppID == "212910"
+                && GameDescriptor.blackOps2SP.gameImageName == "t6sp.exe"
+                && GameDescriptor.blackOps2MP.gameImageName == "t6mp.exe"
+                && GameDescriptor.blackOps2Zombies.gameImageName == "t6zm.exe",
+            "Black Ops II descriptors",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameDescriptor.blackOps2SP.d3d9Backend == .dxvk
+                && GameDescriptor.supcom2.d3d9Backend == .wined3d
+                && GameDescriptor.skyrimSE.d3d9Backend == .wined3d,
+            "per-game Direct3D 9 backends",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            DXVKService.isDXVKBinary(Data("...dxvk_config...".utf8))
+                && !DXVKService.isDXVKBinary(Data("MZ Wine builtin DLL".utf8)),
+            "DXVK binary detection",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            DXVKService.payload.map(\.destination) == [
+                "drive_c/windows/system32/d3d9.dll",
+                "drive_c/windows/syswow64/d3d9.dll"
+            ],
+            "DXVK payload covers both architectures",
+            passes: &passes,
+            failures: &failures
+        )
         expect(
             GameDescriptor.skyrimSE.vsyncKey == "iVSyncPresentInterval"
                 && GameDescriptor.fallout4.vsyncKey == "iPresentInterval",

@@ -50,7 +50,8 @@ final class BottleManager {
         runtime: RuntimeDescriptor,
         diagnostics: Bool,
         logPixels: Int = GameProfileWriter.standardLogPixels,
-        nativeVoiceAudio: Bool = false
+        nativeVoiceAudio: Bool = false,
+        d3d9Backend: D3D9Backend = .wined3d
     ) async throws {
         let environment = runtimeManager.environment(for: runtime, diagnostics: diagnostics)
         let logURL = paths.logsDirectory.appendingPathComponent("game-compatibility.log")
@@ -64,6 +65,12 @@ final class BottleManager {
                 overrides[name] = "native,builtin"
             }
         }
+
+        // Per-session Direct3D 9 backend: DXVK games load the native DXVK
+        // d3d9.dll installed in the prefix; everyone else keeps the builtin
+        // wined3d path. Vulkan availability is global, so the GL renderer is
+        // pinned to keep wined3d behavior identical either way.
+        overrides["d3d9"] = d3d9Backend == .dxvk ? "native,builtin" : "builtin"
 
         for (name, value) in overrides.sorted(by: { $0.key < $1.key }) {
             let result = try await processRunner.run(
@@ -82,19 +89,32 @@ final class BottleManager {
         }
 
         // Session DPI: 216 keeps Steam legible on Retina panels; 96 gives a
-        // native-resolution game session exact 1:1 pixel mapping.
-        let dpiResult = try await processRunner.run(
-            executable: runtime.wineExecutable,
-            arguments: runtime.wineArguments(for: [
-                "reg", "add", "HKEY_CURRENT_USER\\Control Panel\\Desktop",
-                "/v", "LogPixels", "/t", "REG_DWORD", "/d", String(logPixels), "/f"
-            ]),
-            environment: environment,
-            currentDirectory: runtime.bottleRoot,
-            logURL: logURL
-        )
-        guard dpiResult.terminationStatus == 0 else {
-            throw ProcessRunnerError.nonZeroExit(dpiResult.terminationStatus, dpiResult.logURL)
+        // native-resolution game session exact 1:1 pixel mapping. The GL pin
+        // keeps wined3d off its Vulkan backend now that MoltenVK is present.
+        let registryValues: [(key: String, name: String, type: String, value: String)] = [
+            (
+                key: "HKEY_CURRENT_USER\\Control Panel\\Desktop",
+                name: "LogPixels", type: "REG_DWORD", value: String(logPixels)
+            ),
+            (
+                key: "HKEY_CURRENT_USER\\Software\\Wine\\Direct3D",
+                name: "renderer", type: "REG_SZ", value: "gl"
+            )
+        ]
+        for entry in registryValues {
+            let result = try await processRunner.run(
+                executable: runtime.wineExecutable,
+                arguments: runtime.wineArguments(for: [
+                    "reg", "add", entry.key,
+                    "/v", entry.name, "/t", entry.type, "/d", entry.value, "/f"
+                ]),
+                environment: environment,
+                currentDirectory: runtime.bottleRoot,
+                logURL: logURL
+            )
+            guard result.terminationStatus == 0 else {
+                throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)
+            }
         }
     }
 

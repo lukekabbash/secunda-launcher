@@ -165,6 +165,7 @@ chmod 0755 "$RUNTIME_STAGE"
 mkdir -p "$RUNTIME_STAGE/lib"
 ditto "$DEPS_ROOT/lib" "$RUNTIME_STAGE/lib"
 "$REPOSITORY_ROOT/scripts/fetch-dxmt.sh" "$RUNTIME_STAGE"
+"$REPOSITORY_ROOT/scripts/fetch-vulkan-stack.sh" "$RUNTIME_STAGE"
 mkdir -p "$RUNTIME_STAGE/share/secunda"
 cp "$REPOSITORY_ROOT/packaging/runtime-provenance.json" \
     "$RUNTIME_STAGE/share/secunda/runtime-provenance.json"

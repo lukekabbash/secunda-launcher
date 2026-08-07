@@ -48,6 +48,7 @@ final class LauncherViewModel: ObservableObject {
             runtimeManager: runtimeManager
         )
         let bottleProcessInspector = BottleProcessInspector(processRunner: runner)
+        let dxvk = DXVKService(paths: paths)
         var gameServices: [String: GameService] = [:]
         var saveServices: [String: SaveService] = [:]
         for descriptor in GameDescriptor.supported {
@@ -60,6 +61,7 @@ final class LauncherViewModel: ObservableObject {
                 runtimeManager: runtimeManager,
                 processProbe: processProbe,
                 voiceAudioService: voiceAudio,
+                dxvkService: dxvk,
                 bottleProcessInspector: bottleProcessInspector
             )
             saveServices[descriptor.id] = SaveService(paths: paths, descriptor: descriptor)

@@ -55,6 +55,7 @@ final class GameService {
     private let runtimeManager: RuntimeManager
     private let processProbe: WindowsProcessProbe
     private let voiceAudioService: VoiceAudioService
+    private let dxvkService: DXVKService
     private let bottleProcessInspector: BottleProcessInspector
 
     init(
@@ -66,6 +67,7 @@ final class GameService {
         runtimeManager: RuntimeManager,
         processProbe: WindowsProcessProbe,
         voiceAudioService: VoiceAudioService,
+        dxvkService: DXVKService,
         bottleProcessInspector: BottleProcessInspector
     ) {
         self.descriptor = descriptor
@@ -77,6 +79,7 @@ final class GameService {
         self.runtimeManager = runtimeManager
         self.processProbe = processProbe
         self.voiceAudioService = voiceAudioService
+        self.dxvkService = dxvkService
         self.bottleProcessInspector = bottleProcessInspector
     }
 
@@ -150,6 +153,9 @@ final class GameService {
             try await voiceAudioService.installIfNeeded(runtime: runtime, diagnostics: diagnostics)
             voiceAudioActive = voiceAudioService.isInstalled(bottleRoot: runtime.bottleRoot)
         }
+        if descriptor.d3d9Backend == .dxvk {
+            try dxvkService.installIfNeeded(runtime: runtime, diagnostics: diagnostics)
+        }
         try await bottleManager.applyGameCompatibility(
             runtime: runtime,
             diagnostics: diagnostics,
@@ -157,7 +163,8 @@ final class GameService {
                 settings: settings,
                 screenPixelWidth: screenPixelWidth
             ),
-            nativeVoiceAudio: voiceAudioActive
+            nativeVoiceAudio: voiceAudioActive,
+            d3d9Backend: descriptor.d3d9Backend
         )
         await progress(.profile)
         try profileWriter.apply(settings, bottleRoot: runtime.bottleRoot)
