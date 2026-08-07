@@ -1,9 +1,11 @@
 # Third-party source inventory
 
-The local `sources/` directory was extracted from `crossover-sources-26.3.0.tar.gz` and is excluded from this Git repository. It contains Wine 11.0 plus component source trees including DXVK, MoltenVK, vkd3d, GStreamer, GnuTLS, GLib, FreeType, Ghostscript, BusyBox, and cabextract.
+The local `sources/` directory was extracted from `crossover-sources-26.3.0.tar.gz` and is intentionally excluded from Git. The archive is used as a source-compliance input: Secunda builds its own Wine 11.0 runtime from the included Wine and dependency sources; it does not contain or authorize use of the proprietary CrossOver application runtime.
 
-The packaged runtime uses the Wine source tree from that archive. Each component retains its upstream license files inside its source directory. Before broad distribution, Secunda must ship the required Wine license text, notices, and corresponding source or source offer.
+The Direct3D 11 bridge is open-source DXMT v0.80 from the [official tagged release](https://github.com/3Shain/dxmt/releases/tag/v0.80). The build verifies SHA-256 `8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d` before staging it. Its MIT license is stored at `licenses/DXMT-v0.80-LICENSE.txt`.
 
-The DirectX 11 graphics bridge is DXMT v0.80, downloaded from the [official release](https://github.com/3Shain/dxmt/releases/tag/v0.80). The build verifies the developer-published SHA-256 before staging it. Version 0.80 is distributed under the MIT license included at `licenses/DXMT-v0.80-LICENSE.txt`; matching source is available at the tagged repository release.
+The runtime also builds FreeType 2.13.3, GMP 6.3.0, Nettle 3.10, and GnuTLS 3.8.3 from pinned source inputs. Wine's statically included component sources and their licenses are enumerated in `packaging/runtime-provenance.json`, `packaging/runtime-sbom.spdx.json`, and `packaging/THIRD_PARTY_NOTICES.txt`.
 
-Secunda does not bundle proprietary CrossOver application code, D3DMetal, Steam, or Skyrim binaries. Steam downloads itself from Valve, and players install their separately owned game through Steam.
+The packaging pipeline stages component license texts, runtime provenance, an SPDX SBOM, a per-file integrity manifest, the exact supplied source archive, the verified Nettle archive, Secunda's Wine patches, and the runtime build scripts. The mounted-DMG verifier checks that those materials accompany the binary runtime.
+
+Secunda never bundles CrossOver.app, D3DMetal, GPTK, `d3dshared`, Steam, Skyrim, a managed prefix, account data, sessions, saves, or diagnostic logs. Players obtain Steam directly from Valve and install their own licensed game through Steam.

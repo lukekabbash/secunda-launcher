@@ -1,0 +1,47 @@
+SECUNDA SOURCE RUNTIME — THIRD-PARTY NOTICES
+
+Secunda's bundled compatibility runtime is assembled only from the free and
+open-source components listed below. The complete license texts are shipped
+next to this notice. Corresponding source, build scripts, and Secunda's Wine
+patches are included in the distribution's Sources folder.
+
+Wine 11.0
+Copyright (c) 1993-2026 the Wine project authors.
+License: GNU Lesser General Public License 2.1 or later.
+
+DXMT 0.80
+Copyright (c) 2023 Feifan He.
+License: MIT.
+Source: https://github.com/3Shain/dxmt/tree/v0.80
+
+FreeType 2.13.3
+Portions of this software are copyright 2024 The FreeType Project
+(www.freetype.org). All rights reserved.
+This product is based in part on the work of the FreeType Team.
+License selected for this distribution: FreeType License.
+
+GNU MP 6.3.0
+License selected for this distribution: GNU Lesser General Public License 3.0
+or later.
+
+GNU Nettle 3.10
+License selected for this distribution: GNU Lesser General Public License 3.0
+or later.
+
+GnuTLS 3.8.3
+License: GNU Lesser General Public License 2.1 or later.
+The built library includes the bundled libtasn1 4.19.0 implementation under
+LGPL-2.1-or-later and the bundled libunistring subset under
+LGPL-3.0-or-later OR GPL-2.0-or-later.
+
+Wine also incorporates the vendored open-source libraries Capstone,
+compiler-rt, FAudio, FluidSynth, GSM, IJG JPEG, JPEG XR, Little CMS,
+OpenLDAP, mpg123, musl, libpng, libtiff, LibTomCrypt, vkd3d, libxml2,
+libxslt, and zlib. Their unmodified notices and license texts are included in
+this directory under names beginning with "Wine-vendored-". Their exact
+source snapshots are present beneath sources/wine/libs in the corresponding
+source archive.
+
+This software is based in part on the work of the Independent JPEG Group.
+
+Secunda is an unofficial community project. Steam and Skyrim are not included.

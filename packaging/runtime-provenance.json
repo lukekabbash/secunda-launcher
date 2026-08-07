@@ -2,6 +2,7 @@
   "formatVersion": 1,
   "runtimeKind": "secunda-source-runtime",
   "architecture": "x86_64",
+  "minimumMacOS": "15.0",
   "translation": "Rosetta 2 on Apple silicon",
   "sourceArchive": {
     "file": "crossover-sources-26.3.0.tar.gz",
@@ -11,18 +12,41 @@
     {
       "name": "Wine",
       "version": "11.0",
-      "license": "LGPL-2.1-or-later"
+      "license": "LGPL-2.1-or-later",
+      "sourcePath": "sources/wine",
+      "vendoredComponents": [
+        { "name": "Capstone", "version": "5.0.3", "license": "BSD-3-Clause AND NCSA", "sourcePath": "sources/wine/libs/capstone" },
+        { "name": "compiler-rt builtins", "version": "Wine 11.0 vendored snapshot", "license": "NCSA OR MIT", "sourcePath": "sources/wine/libs/compiler-rt" },
+        { "name": "FAudio", "version": "25.12.0", "license": "Zlib", "sourcePath": "sources/wine/libs/faudio" },
+        { "name": "FluidSynth", "version": "2.4.2", "license": "LGPL-2.1-or-later", "sourcePath": "sources/wine/libs/fluidsynth" },
+        { "name": "GSM", "version": "1.0.19", "license": "TU-Berlin-2.0", "sourcePath": "sources/wine/libs/gsm" },
+        { "name": "IJG JPEG", "version": "9f", "license": "IJG", "sourcePath": "sources/wine/libs/jpeg" },
+        { "name": "JPEG XR", "version": "SDK 1.1", "license": "BSD-2-Clause", "sourcePath": "sources/wine/libs/jxr" },
+        { "name": "Little CMS 2", "version": "2.17", "license": "MIT", "sourcePath": "sources/wine/libs/lcms2" },
+        { "name": "OpenLDAP", "version": "Wine 11.0 vendored 2.x snapshot", "license": "OLDAP-2.8", "sourcePath": "sources/wine/libs/ldap" },
+        { "name": "mpg123", "version": "1.33.0", "license": "LGPL-2.1-only", "sourcePath": "sources/wine/libs/mpg123" },
+        { "name": "musl", "version": "1.2.3", "license": "MIT", "sourcePath": "sources/wine/libs/musl" },
+        { "name": "libpng", "version": "1.6.51", "license": "Libpng-2.0", "sourcePath": "sources/wine/libs/png" },
+        { "name": "libtiff", "version": "4.7.1", "license": "libtiff", "sourcePath": "sources/wine/libs/tiff" },
+        { "name": "LibTomCrypt", "version": "1.18.2", "license": "WTFPL", "sourcePath": "sources/wine/libs/tomcrypt" },
+        { "name": "vkd3d", "version": "1.18", "license": "LGPL-2.1-or-later", "sourcePath": "sources/wine/libs/vkd3d" },
+        { "name": "libxml2", "version": "2.12.10", "license": "MIT", "sourcePath": "sources/wine/libs/xml2" },
+        { "name": "libxslt", "version": "1.1.43", "license": "MIT", "sourcePath": "sources/wine/libs/xslt" },
+        { "name": "zlib", "version": "1.3.1", "license": "Zlib", "sourcePath": "sources/wine/libs/zlib" }
+      ]
     },
     {
       "name": "DXMT",
       "version": "0.80",
       "license": "MIT",
-      "archiveSha256": "8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d"
+      "archiveSha256": "8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d",
+      "sourceUrl": "https://github.com/3Shain/dxmt/tree/v0.80",
+      "licensePath": "licenses/DXMT-v0.80-LICENSE.txt"
     },
     {
       "name": "FreeType",
       "version": "2.13.3",
-      "license": "FTL OR GPL-2.0-only",
+      "license": "FTL OR GPL-2.0-or-later",
       "sourcePath": "sources/freetype"
     },
     {
@@ -35,7 +59,8 @@
       "name": "Nettle",
       "version": "3.10",
       "license": "LGPL-3.0-or-later OR GPL-2.0-or-later",
-      "sourceUrl": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.tar.gz"
+      "sourceUrl": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.tar.gz",
+      "archiveSha256": "b4c518adb174e484cb4acea54118f02380c7133771e7e9beb98a0787194ee47c"
     },
     {
       "name": "GnuTLS",
@@ -61,6 +86,14 @@
     {
       "file": "patches/wine-secunda-identity.patch",
       "sha256": "4f77957dcbcfffe2caefd86341fee36742c59111c07f61eea025645976833602"
+    },
+    {
+      "file": "patches/wine-clang-syscall-abi.patch",
+      "sha256": "e624c28638055f0c1179cfb49d3b78fe0604fcf93cee97b28a5f4722e4db5364"
+    },
+    {
+      "file": "patches/wine-secunda-cef-in-process-gpu.patch",
+      "sha256": "6364ef9ca1c173e55043232c98ad1d85601477ae3c89e26068cff565fd14204c"
     }
   ]
 }

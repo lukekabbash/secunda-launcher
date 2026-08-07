@@ -1,0 +1,350 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "Secunda Source Runtime 0.1.0",
+  "documentNamespace": "urn:uuid:91e70872-7076-4604-a48e-1fc8e0a74ddf",
+  "creationInfo": {
+    "created": "2026-08-07T00:00:00Z",
+    "creators": [
+      "Tool: Secunda distribution packaging"
+    ]
+  },
+  "packages": [
+    {
+      "name": "Secunda Source Runtime",
+      "SPDXID": "SPDXRef-Package-SecundaRuntime",
+      "versionInfo": "0.1.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "name": "Wine",
+      "SPDXID": "SPDXRef-Package-Wine",
+      "versionInfo": "11.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-2.1-or-later",
+      "licenseDeclared": "LGPL-2.1-or-later",
+      "copyrightText": "Copyright (c) 1993-2026 the Wine project authors",
+      "sourceInfo": "sources/wine in crossover-sources-26.3.0.tar.gz; Secunda patches are enumerated by runtime-provenance.json"
+    },
+    {
+      "name": "Capstone",
+      "SPDXID": "SPDXRef-Package-Capstone",
+      "versionInfo": "5.0.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause AND NCSA",
+      "licenseDeclared": "BSD-3-Clause AND NCSA",
+      "copyrightText": "Copyright (c) 2013 COSEINC",
+      "sourceInfo": "sources/wine/libs/capstone in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "compiler-rt builtins",
+      "SPDXID": "SPDXRef-Package-CompilerRt",
+      "versionInfo": "Wine 11.0 vendored snapshot",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NCSA OR MIT",
+      "licenseDeclared": "NCSA OR MIT",
+      "copyrightText": "Copyright (c) compiler-rt contributors",
+      "sourceInfo": "sources/wine/libs/compiler-rt in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "FAudio",
+      "SPDXID": "SPDXRef-Package-FAudio",
+      "versionInfo": "25.12.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Zlib",
+      "licenseDeclared": "Zlib",
+      "copyrightText": "Copyright (c) 2011-2024 Ethan Lee, Luigi Auriemma, and the MonoGame Team",
+      "sourceInfo": "sources/wine/libs/faudio in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "FluidSynth",
+      "SPDXID": "SPDXRef-Package-FluidSynth",
+      "versionInfo": "2.4.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-2.1-or-later",
+      "licenseDeclared": "LGPL-2.1-or-later",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "sources/wine/libs/fluidsynth in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "GSM",
+      "SPDXID": "SPDXRef-Package-GSM",
+      "versionInfo": "1.0.19",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "TU-Berlin-2.0",
+      "licenseDeclared": "TU-Berlin-2.0",
+      "copyrightText": "Copyright 1992-1994 Jutta Degener and Carsten Bormann",
+      "sourceInfo": "sources/wine/libs/gsm in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "IJG JPEG",
+      "SPDXID": "SPDXRef-Package-IJGJpeg",
+      "versionInfo": "9f",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "IJG",
+      "licenseDeclared": "IJG",
+      "copyrightText": "Copyright (c) Independent JPEG Group contributors",
+      "sourceInfo": "sources/wine/libs/jpeg in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "JPEG XR",
+      "SPDXID": "SPDXRef-Package-JpegXR",
+      "versionInfo": "SDK 1.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-2-Clause",
+      "licenseDeclared": "BSD-2-Clause",
+      "copyrightText": "Copyright (c) Microsoft Corp.",
+      "sourceInfo": "sources/wine/libs/jxr in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "Little CMS 2",
+      "SPDXID": "SPDXRef-Package-LittleCMS",
+      "versionInfo": "2.17",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 1998-2020 Marti Maria Saguer",
+      "sourceInfo": "sources/wine/libs/lcms2 in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "OpenLDAP",
+      "SPDXID": "SPDXRef-Package-OpenLDAP",
+      "versionInfo": "Wine 11.0 vendored 2.x snapshot",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "OLDAP-2.8",
+      "licenseDeclared": "OLDAP-2.8",
+      "copyrightText": "Copyright 1998-2024 The OpenLDAP Foundation",
+      "sourceInfo": "sources/wine/libs/ldap in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "mpg123",
+      "SPDXID": "SPDXRef-Package-mpg123",
+      "versionInfo": "1.33.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-2.1-only",
+      "licenseDeclared": "LGPL-2.1-only",
+      "copyrightText": "Copyright (c) 1995-2020 Michael Hipp and others",
+      "sourceInfo": "sources/wine/libs/mpg123 in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "musl",
+      "SPDXID": "SPDXRef-Package-musl",
+      "versionInfo": "1.2.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 2005-2020 Rich Felker and contributors",
+      "sourceInfo": "sources/wine/libs/musl in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "libpng",
+      "SPDXID": "SPDXRef-Package-libpng",
+      "versionInfo": "1.6.51",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Libpng-2.0",
+      "licenseDeclared": "Libpng-2.0",
+      "copyrightText": "Copyright (c) PNG Reference Library Authors",
+      "sourceInfo": "sources/wine/libs/png in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "libtiff",
+      "SPDXID": "SPDXRef-Package-libtiff",
+      "versionInfo": "4.7.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "libtiff",
+      "licenseDeclared": "libtiff",
+      "copyrightText": "Copyright (c) 1988-1997 Sam Leffler; Copyright (c) 1991-1997 Silicon Graphics, Inc.",
+      "sourceInfo": "sources/wine/libs/tiff in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "LibTomCrypt",
+      "SPDXID": "SPDXRef-Package-LibTomCrypt",
+      "versionInfo": "1.18.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "WTFPL",
+      "licenseDeclared": "WTFPL",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "sources/wine/libs/tomcrypt in crossover-sources-26.3.0.tar.gz; the complete dual-license text is shipped"
+    },
+    {
+      "name": "vkd3d",
+      "SPDXID": "SPDXRef-Package-vkd3d",
+      "versionInfo": "1.18",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-2.1-or-later",
+      "licenseDeclared": "LGPL-2.1-or-later",
+      "copyrightText": "Copyright (c) 2016-2025 the vkd3d project authors",
+      "sourceInfo": "sources/wine/libs/vkd3d in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "libxml2",
+      "SPDXID": "SPDXRef-Package-libxml2",
+      "versionInfo": "2.12.10",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 1998-2012 Daniel Veillard",
+      "sourceInfo": "sources/wine/libs/xml2 in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "libxslt",
+      "SPDXID": "SPDXRef-Package-libxslt",
+      "versionInfo": "1.1.43",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 2001-2002 Daniel Veillard",
+      "sourceInfo": "sources/wine/libs/xslt in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "zlib",
+      "SPDXID": "SPDXRef-Package-zlib",
+      "versionInfo": "1.3.1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Zlib",
+      "licenseDeclared": "Zlib",
+      "copyrightText": "Copyright (c) 1995-2022 Jean-loup Gailly and Mark Adler",
+      "sourceInfo": "sources/wine/libs/zlib in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "DXMT",
+      "SPDXID": "SPDXRef-Package-DXMT",
+      "versionInfo": "0.80",
+      "downloadLocation": "https://github.com/3Shain/dxmt/releases/tag/v0.80",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright (c) 2023 Feifan He",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d"
+        }
+      ]
+    },
+    {
+      "name": "FreeType",
+      "SPDXID": "SPDXRef-Package-FreeType",
+      "versionInfo": "2.13.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "FTL",
+      "licenseDeclared": "FTL OR GPL-2.0-or-later",
+      "copyrightText": "Copyright 1996-2002, 2006 David Turner, Robert Wilhelm, and Werner Lemberg",
+      "sourceInfo": "sources/freetype in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "GNU MP",
+      "SPDXID": "SPDXRef-Package-GMP",
+      "versionInfo": "6.3.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-3.0-or-later",
+      "licenseDeclared": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "sources/gnutls/gmp in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "GNU Nettle",
+      "SPDXID": "SPDXRef-Package-Nettle",
+      "versionInfo": "3.10",
+      "downloadLocation": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.tar.gz",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-3.0-or-later",
+      "licenseDeclared": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+      "copyrightText": "NOASSERTION",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "b4c518adb174e484cb4acea54118f02380c7133771e7e9beb98a0787194ee47c"
+        }
+      ]
+    },
+    {
+      "name": "GnuTLS",
+      "SPDXID": "SPDXRef-Package-GnuTLS",
+      "versionInfo": "3.8.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-2.1-or-later",
+      "licenseDeclared": "LGPL-2.1-or-later",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "sources/gnutls/gnutls in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "GNU libtasn1 bundled implementation",
+      "SPDXID": "SPDXRef-Package-Libtasn1",
+      "versionInfo": "4.19.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-2.1-or-later",
+      "licenseDeclared": "LGPL-2.1-or-later",
+      "copyrightText": "Copyright (c) Free Software Foundation, Inc.",
+      "sourceInfo": "sources/gnutls/gnutls/lib/minitasn1 in crossover-sources-26.3.0.tar.gz"
+    },
+    {
+      "name": "GNU libunistring bundled subset",
+      "SPDXID": "SPDXRef-Package-Libunistring",
+      "versionInfo": "snapshot bundled with GnuTLS 3.8.3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-3.0-or-later",
+      "licenseDeclared": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+      "copyrightText": "Copyright (c) Free Software Foundation, Inc.",
+      "sourceInfo": "sources/gnutls/gnutls/lib/unistring in crossover-sources-26.3.0.tar.gz"
+    }
+  ],
+  "relationships": [
+    { "spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-Package-SecundaRuntime" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-Wine" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-Capstone" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-CompilerRt" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-FAudio" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-FluidSynth" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-GSM" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-IJGJpeg" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-JpegXR" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-LittleCMS" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-OpenLDAP" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-mpg123" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-musl" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-libpng" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-libtiff" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-LibTomCrypt" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-vkd3d" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-libxml2" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-libxslt" },
+    { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-zlib" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-DXMT" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-FreeType" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-GMP" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-Nettle" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-GnuTLS" },
+    { "spdxElementId": "SPDXRef-Package-GnuTLS", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-Libtasn1" },
+    { "spdxElementId": "SPDXRef-Package-GnuTLS", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-Libunistring" }
+  ]
+}

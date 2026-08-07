@@ -11,6 +11,11 @@ STAGE_ROOT=$(mktemp -d /private/tmp/secunda-dxmt.XXXXXX)
 ARCHIVE="$STAGE_ROOT/dxmt.tar.gz"
 PREVERIFIED_SOURCE=${SECUNDA_DXMT_SOURCE:-}
 
+cleanup() {
+    rm -rf "$STAGE_ROOT"
+}
+trap cleanup EXIT
+
 if [[ ! -d "$RUNTIME_ROOT/lib/wine" ]]; then
     echo "Runtime library directory not found: $RUNTIME_ROOT/lib/wine" >&2
     exit 1
@@ -49,4 +54,3 @@ done
 echo "$VERSION" > "$RUNTIME_ROOT/lib/wine/.secunda-dxmt-version"
 
 echo "DXMT v${VERSION} verified and staged in $RUNTIME_ROOT"
-echo "Temporary download: $STAGE_ROOT"

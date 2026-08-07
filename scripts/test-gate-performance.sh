@@ -33,6 +33,15 @@ pass_count=$((pass_count + 1))
 run_swift "$CADENCE_PROBE" --self-test
 pass_count=$((pass_count + 1))
 
+grep -Fq 'CGPreflightScreenCaptureAccess()' "$CADENCE_PROBE"
+grep -Fq 'no access request was made' "$CADENCE_PROBE"
+if grep -Fq 'CGRequestScreenCaptureAccess' "$CADENCE_PROBE"; then
+    print -u2 -- "FAIL: window cadence probe may request Screen Recording permission"
+    exit 1
+fi
+pass_count=$((pass_count + 1))
+print -- "PASS: window cadence capture fails closed without requesting privacy access"
+
 {
     print -r -- '{"processID":4242,"subsystem":"com.apple.metal.hud","eventMessage":"metal-HUD: 10,100,200,16.0,5.0,18.0,7.0"}'
     print -r -- '{"processID":4242,"subsystem":"com.apple.metal.hud","eventMessage":"CompileShader: name: do-not-record-this compilation-time: 12345 cached: 0"}'

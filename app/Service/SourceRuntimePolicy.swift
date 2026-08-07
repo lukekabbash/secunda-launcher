@@ -24,6 +24,21 @@ enum SourceRuntimePolicy {
         "WINESERVER"
     ]
 
+    private static let inheritedEnvironmentKeys = Set([
+        "DISPLAY",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LOGNAME",
+        "MallocNanoZone",
+        "SECURITYSESSIONID",
+        "TMPDIR",
+        "USER",
+        "XAUTHORITY",
+        "__CF_USER_TEXT_ENCODING"
+    ])
+
     static func allows(executable: URL, trustedRuntimeRoot: URL?) -> Bool {
         let resolvedExecutable = executable.resolvingSymlinksInPath().standardizedFileURL
         guard !containsForbiddenReference(resolvedExecutable.path) else { return false }
@@ -46,7 +61,9 @@ enum SourceRuntimePolicy {
         base: [String: String],
         overrides: [String: String]
     ) -> [String: String] {
-        var environment = base
+        var environment = base.filter { key, _ in
+            inheritedEnvironmentKeys.contains(key) || key.hasPrefix("LC_")
+        }
         for key in removedEnvironmentKeys {
             environment.removeValue(forKey: key)
         }

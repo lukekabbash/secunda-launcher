@@ -9,5 +9,5 @@ export CLANG_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/secunda-clang-cache"
 export SWIFTPM_MODULECACHE_OVERRIDE="${TMPDIR:-/tmp}/secunda-swiftpm-cache"
 SECUNDA_REPOSITORY_ROOT="$REPOSITORY_ROOT" swift run \
     --disable-sandbox \
-    --triple arm64-apple-macosx14.0 \
+    --triple arm64-apple-macosx15.0 \
     SecundaLauncher

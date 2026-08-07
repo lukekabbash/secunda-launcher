@@ -8,7 +8,13 @@ struct GameProfileWriter {
     }
 
     func apply(_ settings: LauncherSettings, bottleRoot: URL) throws {
+        guard BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot) else {
+            throw CocoaError(.fileWriteNoPermission)
+        }
         let preferencesDirectory = preferencesDirectory(in: bottleRoot)
+        guard paths.contains(preferencesDirectory, inBottleRoot: bottleRoot) else {
+            throw CocoaError(.fileWriteNoPermission)
+        }
         let profileURL = preferencesDirectory.appendingPathComponent("SkyrimPrefs.ini")
         let existing = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
         let updated = Self.updatingDisplaySection(in: existing, settings: settings)

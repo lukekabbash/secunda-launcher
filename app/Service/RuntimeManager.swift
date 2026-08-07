@@ -20,6 +20,8 @@ struct RuntimeDescriptor: Equatable, Sendable {
 final class RuntimeManager {
     private let paths: SecundaPaths
     private let processRunner: ProcessRunner
+    private let integrityLock = NSLock()
+    private var verifiedIntegrityManifests: [String: Data] = [:]
 
     init(paths: SecundaPaths, processRunner: ProcessRunner) {
         self.paths = paths
@@ -34,6 +36,7 @@ final class RuntimeManager {
                 trustedRuntimeRoot: candidate.trustedRuntimeRoot
             ) else { continue }
             guard hasMetalGraphicsBridge(beside: candidate.url) else { continue }
+            guard await verifyRuntimeIntegrity(candidate) else { continue }
             let logURL = paths.logsDirectory.appendingPathComponent("runtime-probe.log")
             guard let result = try? await processRunner.run(
                 executable: candidate.url,
@@ -62,29 +65,44 @@ final class RuntimeManager {
             "WINEARCH": "win64",
             "WINEDLLOVERRIDES": "mscoree,mshtml=;winemenubuilder.exe=d;d3d10core,d3d11,dxgi=b",
             "WINEDEBUG": diagnostics ? "warn+all,err+all" : "-all",
-            "WINEESYNC": "1",
+            "WINEMSYNC": "1",
             "ROSETTA_ADVERTISE_AVX": "1",
             "SECUNDA_SOURCE_ONLY": "1",
+            "SECUNDA_CEF_IN_PROCESS_GPU": "1",
             "DXMT_LOG_LEVEL": diagnostics ? "info" : "none",
             "DXMT_SHADER_CACHE_PATH": paths.graphicsCacheDirectory.path
         ]
         if diagnostics {
             environment["DXMT_LOG_PATH"] = paths.logsDirectory.path
         }
+        environment.merge(
+            Self.developmentPerformanceEnvironment(
+                environment: ProcessInfo.processInfo.environment,
+                repositoryRoot: paths.repositoryRoot
+            ),
+            uniquingKeysWith: { _, developmentValue in developmentValue }
+        )
         let binPath = runtime.wineExecutable.deletingLastPathComponent().path
-        let runtimeRoot = runtime.wineExecutable
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let libraryPath = runtimeRoot.appendingPathComponent("lib").path
         environment["PATH"] = "\(binPath):/usr/bin:/bin:/usr/sbin:/sbin"
-        environment["DYLD_LIBRARY_PATH"] = libraryPath
+        switch runtime.origin {
+        case .bundled:
+            break
+        case .sourceBuild, .environment:
+            let runtimeRoot = runtime.wineExecutable
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            environment["DYLD_LIBRARY_PATH"] = runtimeRoot.appendingPathComponent("lib").path
+        }
         return environment
     }
 
     private func candidates() -> [RuntimeCandidate] {
         var values: [RuntimeCandidate] = []
 
-        if let override = ProcessInfo.processInfo.environment["SECUNDA_WINE_BIN"], !override.isEmpty {
+        if let override = Self.developmentRuntimeOverride(
+            environment: ProcessInfo.processInfo.environment,
+            repositoryRoot: paths.repositoryRoot
+        ) {
             values.append(RuntimeCandidate(
                 url: URL(fileURLWithPath: override),
                 origin: .environment,
@@ -121,6 +139,46 @@ final class RuntimeManager {
         return values.filter { seen.insert($0.url.standardizedFileURL.path).inserted }
     }
 
+    static func developmentRuntimeOverride(
+        environment: [String: String],
+        repositoryRoot: URL?
+    ) -> String? {
+        guard environment["SECUNDA_DEVELOPER_MODE"] == "1",
+              repositoryRoot != nil,
+              let override = environment["SECUNDA_WINE_BIN"],
+              !override.isEmpty
+        else {
+            return nil
+        }
+        return override
+    }
+
+    static func developmentPerformanceEnvironment(
+        environment: [String: String],
+        repositoryRoot: URL?
+    ) -> [String: String] {
+        guard environment["SECUNDA_DEVELOPER_MODE"] == "1",
+              environment["SECUNDA_PERFORMANCE_CAPTURE"] == "1",
+              repositoryRoot != nil
+        else {
+            return [:]
+        }
+
+        let requestedOpacity = environment["MTL_HUD_OPACITY"]
+            .flatMap(Double.init)
+            .flatMap { $0.isFinite ? $0 : nil }
+        let opacity = requestedOpacity.map { min(max($0, 0), 1) } ?? 0
+        var values = [
+            "MTL_HUD_ENABLED": "1",
+            "MTL_HUD_LOG_ENABLED": "1",
+            "MTL_HUD_OPACITY": String(opacity)
+        ]
+        if environment["SECUNDA_SHADER_LOGGING"] == "1" {
+            values["MTL_HUD_LOG_SHADER_ENABLED"] = "1"
+        }
+        return values
+    }
+
     private func hasMetalGraphicsBridge(beside wineExecutable: URL) -> Bool {
         let runtimeRoot = wineExecutable
             .deletingLastPathComponent()
@@ -132,12 +190,58 @@ final class RuntimeManager {
             "lib/wine/x86_64-unix/winecoreaudio.so",
             "lib/wine/x86_64-windows/d3d11.dll",
             "lib/wine/x86_64-windows/dxgi.dll",
+            "lib/wine/x86_64-windows/x3daudio1_6.dll",
+            "lib/wine/x86_64-windows/x3daudio1_7.dll",
+            "lib/wine/x86_64-windows/xaudio2_6.dll",
             "lib/wine/x86_64-windows/xaudio2_7.dll",
-            "lib/wine/x86_64-windows/xinput1_3.dll"
+            "lib/wine/x86_64-windows/xinput1_3.dll",
+            "lib/wine/x86_64-windows/tasklist.exe"
         ]
         return requiredFiles.allSatisfy {
             FileManager.default.fileExists(atPath: runtimeRoot.appendingPathComponent($0).path)
         }
+    }
+
+    private func verifyRuntimeIntegrity(_ candidate: RuntimeCandidate) async -> Bool {
+        let runtimeRoot = candidate.url
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        switch RuntimeIntegrityPolicy.inspect(runtimeRoot: runtimeRoot) {
+        case .absent:
+            return candidate.origin != .bundled
+        case .invalid:
+            return false
+        case .valid(let manifest, let data):
+            let cacheKey = runtimeRoot.resolvingSymlinksInPath().standardizedFileURL.path
+            if isRuntimeIntegrityCached(data, for: cacheKey) { return true }
+            guard RuntimeIntegrityPolicy.validatesEntries(data, runtimeRoot: runtimeRoot) else {
+                return false
+            }
+
+            guard let result = try? await processRunner.run(
+                executable: URL(fileURLWithPath: "/usr/bin/shasum"),
+                arguments: ["--status", "-a", "256", "-c", manifest.path],
+                environment: ["PATH": "/usr/bin:/bin"],
+                currentDirectory: runtimeRoot,
+                logURL: paths.logsDirectory.appendingPathComponent("runtime-integrity.log")
+            ), result.terminationStatus == 0 else {
+                return false
+            }
+            cacheRuntimeIntegrity(data, for: cacheKey)
+            return true
+        }
+    }
+
+    private func isRuntimeIntegrityCached(_ data: Data, for key: String) -> Bool {
+        integrityLock.lock()
+        defer { integrityLock.unlock() }
+        return verifiedIntegrityManifests[key] == data
+    }
+
+    private func cacheRuntimeIntegrity(_ data: Data, for key: String) {
+        integrityLock.lock()
+        defer { integrityLock.unlock() }
+        verifiedIntegrityManifests[key] = data
     }
 }
 

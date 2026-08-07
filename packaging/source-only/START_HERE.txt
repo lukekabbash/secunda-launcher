@@ -1,0 +1,35 @@
+SECUNDA — SOURCE-ONLY SKYRIM FOR APPLE SILICON
+
+This package includes Secunda and its free, open-source compatibility runtime.
+It does not include Steam, Skyrim, another player's account, game files, saves,
+or a proprietary compatibility product.
+
+YOU NEED
+• An Apple-silicon Mac running macOS 15 or newer.
+• Rosetta 2 (macOS offers to install it when an Intel worker first launches).
+• Your own Steam account and a legitimate copy of Skyrim Special Edition.
+• Internet access and enough free space for Steam and the game.
+
+SETUP
+1. Drag Secunda Launcher to Applications.
+2. Open Secunda Launcher and choose Prepare Secunda.
+3. Install Windows Steam through Secunda.
+4. Sign in only inside Steam's own window.
+5. Install Skyrim Special Edition in Steam, then use Play Skyrim in Secunda.
+
+PRIVACY AND CLEAN REMOVAL
+Secunda keeps its Windows prefix, Steam session, game installation, saves,
+backups, and logs under:
+~/Library/Application Support/Secunda Launcher
+
+The DMG contains none of that personal data. Removing the app does not remove
+that folder automatically; archive any saves you want before deleting it.
+
+OPEN-SOURCE MATERIALS
+The Sources folder in this DMG contains the exact source archive checksum,
+Secunda's Wine patches and build scripts, component notices, and an SPDX SBOM.
+
+MACOS SECURITY
+An ad-hoc-signed test build can show an extra first-open warning. A release
+signed and notarized by its publisher avoids that warning. Never disable macOS
+security to run Secunda.

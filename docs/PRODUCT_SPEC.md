@@ -2,37 +2,46 @@
 
 ## Purpose
 
-Secunda Launcher makes one legally owned Steam copy of Skyrim Special Edition feel native and dependable on Apple-silicon Macs. It is an unofficial launcher and compatibility wrapper, not a general Windows environment.
+Secunda makes a separately owned Windows Steam copy of Skyrim Special Edition feel dependable on Apple-silicon Macs. It is an unofficial narrow launcher, not a general Windows environment or game library.
 
 ## Product boundary
 
-Secunda owns one isolated bottle, its runtime configuration, local backups, and diagnostic logs. It may coordinate with a separately installed compatibility engine but never copies or redistributes that engine. Steam owns authentication, entitlement, download, verification, and cloud sync. Bethesda and Valve game/client files are never bundled or redistributed.
+Secunda owns one redistributable source-built Wine/DXMT runtime, one isolated prefix, its runtime configuration, local backups, caches, and diagnostic logs. It never discovers or depends on a proprietary compatibility application.
 
-A recipient handoff contains only Secunda, setup instructions, and an Applications shortcut. It never transfers another person's bottle, Steam session, game content, saves, compatibility-engine license, or diagnostic data.
+Steam owns authentication, entitlement, download, verification, updates, and cloud sync. Steam and Skyrim binaries, another player's session, game content, saves, and diagnostics are never embedded in the app or DMG.
+
+The compatibility path is:
+
+```text
+Secunda.app -> source-built x86-64 Wine/DXMT -> Rosetta -> private Windows prefix -> Steam -> Skyrim -> macOS Metal/CoreAudio
+```
 
 ## Primary experience
 
-1. Confirm the Mac and runtime are ready.
-2. Create one managed 64-bit bottle.
-3. Download the Windows Steam installer directly from Valve.
-4. Open Steam for the player to authenticate.
-5. Detect Skyrim Special Edition after Steam installs it.
-6. Launch Skyrim through Steam.
-7. Protect saves and expose actionable recovery evidence.
+1. Confirm the Apple-silicon Mac, Rosetta, bundled runtime, and free disk space are ready.
+2. Create one private managed 64-bit prefix.
+3. Apply the tested display, graphics, synchronization, and audio profile.
+4. Download the Windows Steam installer directly from Valve.
+5. Open Steam's own visible login UI for the player to authenticate.
+6. Let Steam install or detect Skyrim Special Edition.
+7. Launch Skyrim through Steam, then keep saves and recovery evidence within Secunda's managed boundary.
 
 ## Quality bar
 
-- One dominant action at every stage.
+- One dominant, truthful action at every setup stage.
+- Persistent progress for long downloads/installs and staged progress for launch handoffs.
 - Original moonlit visual language with no copied game assets or marks.
 - No credential capture or launcher-managed authentication.
-- Managed writes remain beneath Secunda's application-support directory.
-- Destructive recovery actions must name and validate their exact target.
-- Gameplay acceptance covers the Helgen sequence, audio, rendering, input, save, quit, and reload.
+- Managed writes remain beneath `~/Library/Application Support/Secunda Launcher`.
+- Destructive recovery actions name and validate their exact target.
+- Gameplay acceptance covers visible Steam, rendering, audio, keyboard/mouse input, actual gameplay, save, clean quit, relaunch, and load.
+- Performance claims are measured with frame cadence, shader, resource, and repeat-launch evidence.
 
-## Explicit non-goals for the first testable release
+## Explicit non-goals for the first release
 
 - Generic Windows application installation.
 - Mod-manager or script-extender support.
 - A multi-game library.
-- Bundling Steam, Skyrim, or a Steam session.
+- Bundling Steam, Skyrim, a Steam session, or user saves.
+- Requiring or redistributing a proprietary compatibility application.
 - App Store distribution.

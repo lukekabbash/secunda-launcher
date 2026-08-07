@@ -48,6 +48,7 @@ enum ComponentState: Equatable, Sendable {
 }
 
 struct LauncherSnapshot: Equatable, Sendable {
+    var host: ComponentState = .working("Checking this Mac")
     var runtime: ComponentState = .missing("Runtime not found")
     var bottle: ComponentState = .missing("Not created")
     var steam: ComponentState = .missing("Not installed")
@@ -55,6 +56,7 @@ struct LauncherSnapshot: Equatable, Sendable {
     var saveCount = 0
     var backupCount = 0
     var freeDiskBytes: Int64 = 0
+    var lowPowerModeEnabled = false
     var runtimePath: String?
     var bottlePath: String
     var gamePath: String?
@@ -74,7 +76,7 @@ enum PrimaryAction: Equatable {
 
     var title: String {
         switch self {
-        case .locateRuntime: "Restore Secunda Engine"
+        case .locateRuntime: "Open Setup Help"
         case .createBottle: "Prepare Secunda"
         case .installSteam: "Install Steam"
         case .openSteam: "Open Steam"
@@ -117,10 +119,59 @@ struct SetupProgress: Equatable, Sendable {
 
     var fraction: Double {
         guard totalSteps > 0 else { return 0 }
-        return Double(min(max(step, 0), totalSteps)) / Double(totalSteps)
+        let completedSteps = min(max(step - 1, 0), totalSteps)
+        return Double(completedSteps) / Double(totalSteps)
     }
 
     var stepLabel: String {
         "Step \(step) of \(totalSteps)"
     }
+}
+
+struct SetupJourney: Equatable, Sendable {
+    let completedSteps: Int
+    let totalSteps: Int
+    let title: String
+    let detail: String
+
+    init(snapshot: LauncherSnapshot) {
+        let states = [snapshot.runtime, snapshot.bottle, snapshot.steam, snapshot.game]
+        completedSteps = states.prefix(while: \.isReady).count
+        totalSteps = states.count
+
+        switch completedSteps {
+        case 0:
+            title = "Secunda Engine"
+            detail = "Checking the free, source-built engine included with Secunda."
+        case 1:
+            title = "Separate Windows Space"
+            detail = "Next, create a separate managed place for Steam, Skyrim, and game settings."
+        case 2:
+            title = "Steam Client"
+            detail = "Next, install Steam directly from Valve."
+        case 3:
+            title = "Finish in Steam"
+            detail = "Sign in if asked, then install Skyrim Special Edition. Steam shows the download progress."
+        default:
+            title = "Ready to Launch"
+            detail = "The required files are installed. Secunda applies its compatibility profile each time you press Play."
+        }
+    }
+
+    var fraction: Double {
+        guard totalSteps > 0 else { return 0 }
+        return Double(completedSteps) / Double(totalSteps)
+    }
+
+    var label: String {
+        completedSteps == totalSteps ? "Setup complete" : "\(completedSteps) of \(totalSteps) ready"
+    }
+}
+
+enum SkyrimLaunchStage: CaseIterable, Sendable {
+    case checking
+    case compatibility
+    case profile
+    case steam
+    case game
 }

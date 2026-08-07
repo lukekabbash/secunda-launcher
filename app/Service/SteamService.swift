@@ -9,6 +9,7 @@ final class SteamService {
         "-no-cef-sandbox",
         "-cef-allow-browser-underlays"
     ]
+    static let interactiveOutput: ProcessOutput = .discard
     private let paths: SecundaPaths
     private let processRunner: ProcessRunner
     private let runtimeManager: RuntimeManager
@@ -25,7 +26,7 @@ final class SteamService {
             bottleRoot.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe"),
             bottleRoot.appendingPathComponent("drive_c/Program Files/Steam/steam.exe")
         ]
-        return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
+        return candidates.first { isSafeRegularFile($0, in: bottleRoot) }
     }
 
     func downloadInstaller() async throws -> URL {
@@ -75,8 +76,20 @@ final class SteamService {
             ] + Self.compatibilityArguments + arguments),
             environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
             currentDirectory: executable.deletingLastPathComponent(),
-            logURL: paths.logsDirectory.appendingPathComponent("steam-launch.log")
+            output: Self.interactiveOutput
         )
+    }
+
+    private func isSafeRegularFile(_ candidate: URL, in bottleRoot: URL) -> Bool {
+        guard paths.contains(candidate, inBottleRoot: bottleRoot),
+              let values = try? candidate.resourceValues(forKeys: [
+                .isRegularFileKey,
+                .isSymbolicLinkKey
+              ])
+        else {
+            return false
+        }
+        return values.isRegularFile == true && values.isSymbolicLink != true
     }
 
 }

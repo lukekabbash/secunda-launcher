@@ -1,12 +1,17 @@
 import Foundation
 
 struct SecundaPaths: Sendable {
+    static let defaultBottleName = "SkyrimSE"
+
     let applicationSupport: URL
     let repositoryRoot: URL?
+    let bottleName: String
+    let bottleOverrideError: String?
 
     init(
         applicationSupport: URL? = nil,
-        repositoryRoot: URL? = SecundaPaths.discoverRepositoryRoot()
+        repositoryRoot: URL? = SecundaPaths.discoverRepositoryRoot(),
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) {
         let supportRoot = applicationSupport ?? FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -18,11 +23,51 @@ struct SecundaPaths: Sendable {
             isDirectory: true
         )
         self.repositoryRoot = repositoryRoot
+        if let requestedName = environment["SECUNDA_BOTTLE_NAME"] {
+            if environment["SECUNDA_DEVELOPER_MODE"] != "1" || repositoryRoot == nil {
+                self.bottleName = Self.defaultBottleName
+                self.bottleOverrideError = "SECUNDA_BOTTLE_NAME is available only in explicit source-development mode."
+            } else if let validatedName = Self.validatedBottleName(requestedName) {
+                self.bottleName = validatedName
+                self.bottleOverrideError = nil
+            } else {
+                self.bottleName = Self.defaultBottleName
+                self.bottleOverrideError = "SECUNDA_BOTTLE_NAME must be one safe folder name inside Secunda’s managed Bottles directory."
+            }
+        } else {
+            self.bottleName = Self.defaultBottleName
+            self.bottleOverrideError = nil
+        }
     }
 
     var bottleRoot: URL {
         bottlesDirectory
-            .appendingPathComponent("SkyrimSE", isDirectory: true)
+            .appendingPathComponent(bottleName, isDirectory: true)
+    }
+
+    var usesBottleOverride: Bool {
+        bottleName != Self.defaultBottleName
+    }
+
+    func isManagedBottleRoot(_ candidate: URL) -> Bool {
+        guard bottleOverrideError == nil else { return false }
+        let managedSupport = applicationSupport.resolvingSymlinksInPath().standardizedFileURL.path
+        let managedBottles = bottlesDirectory.resolvingSymlinksInPath().standardizedFileURL.path
+        let resolvedCandidate = candidate.resolvingSymlinksInPath().standardizedFileURL.path
+        let lexicalCandidate = candidate.standardizedFileURL
+        let resolvedName = URL(fileURLWithPath: resolvedCandidate).lastPathComponent
+
+        return managedBottles.hasPrefix(managedSupport + "/")
+            && lexicalCandidate.deletingLastPathComponent() == bottlesDirectory.standardizedFileURL
+            && resolvedCandidate.hasPrefix(managedBottles + "/")
+            && Self.validatedBottleName(resolvedName) != nil
+    }
+
+    func contains(_ candidate: URL, inBottleRoot bottleRoot: URL) -> Bool {
+        guard isManagedBottleRoot(bottleRoot) else { return false }
+        let resolvedBottle = bottleRoot.resolvingSymlinksInPath().standardizedFileURL.path
+        let resolvedCandidate = candidate.resolvingSymlinksInPath().standardizedFileURL.path
+        return resolvedCandidate.hasPrefix(resolvedBottle + "/")
     }
 
     var bottlesDirectory: URL {
@@ -131,5 +176,26 @@ struct SecundaPaths: Sendable {
             candidate.deleteLastPathComponent()
         }
         return nil
+    }
+
+    static func validatedBottleName(_ candidate: String?) -> String? {
+        guard let candidate,
+              !candidate.isEmpty,
+              candidate.utf8.count <= 64,
+              candidate.first != ".",
+              !candidate.contains("..")
+        else {
+            return nil
+        }
+
+        let allowed = CharacterSet(
+            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
+        )
+        guard candidate.unicodeScalars.allSatisfy(allowed.contains) else { return nil }
+
+        let normalized = candidate.lowercased()
+        let forbiddenFragments = ["crossover", "cross-over", "cross_over", "codeweavers", "cxbottle"]
+        guard !forbiddenFragments.contains(where: normalized.contains) else { return nil }
+        return candidate
     }
 }

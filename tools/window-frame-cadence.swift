@@ -1,3 +1,5 @@
+import AppKit
+import CoreGraphics
 import CoreMedia
 import CoreVideo
 import Darwin
@@ -31,6 +33,26 @@ private struct CaptureSnapshot {
     let sampledWidth: Int
     let sampledHeight: Int
     let stoppedError: String?
+}
+
+private final class HardWatchdog: @unchecked Sendable {
+    private let timer: DispatchSourceTimer
+
+    init(timeoutSeconds: Double) {
+        timer = DispatchSource.makeTimerSource(queue: .global(qos: .userInitiated))
+        timer.schedule(deadline: .now() + timeoutSeconds)
+        timer.setEventHandler {
+            let message = "Window cadence probe exceeded its hard deadline.\n"
+            FileHandle.standardError.write(Data(message.utf8))
+            _exit(124)
+        }
+        timer.resume()
+    }
+
+    func cancel() {
+        timer.setEventHandler {}
+        timer.cancel()
+    }
 }
 
 private func fail(_ message: String, code: Int32 = 64) -> Never {
@@ -105,6 +127,16 @@ private func summarize(_ values: [Double]) -> NumericSummary? {
 
 private func fixed(_ value: Double) -> String {
     String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), value)
+}
+
+private func waitForSignal(_ semaphore: DispatchSemaphore, timeoutSeconds: Double) -> Bool {
+    let deadline = Date().addingTimeInterval(timeoutSeconds)
+
+    while Date() < deadline {
+        if semaphore.wait(timeout: .now() + 0.05) == .success { return true }
+        _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+    }
+    return false
 }
 
 private func metricLines(prefix: String, summary: NumericSummary?) -> [String] {
@@ -333,6 +365,13 @@ private func main() {
         runSelfTest()
     }
     let options = parseOptions(arguments)
+    let watchdog = HardWatchdog(timeoutSeconds: options.duration + 30)
+    defer { watchdog.cancel() }
+
+    guard CGPreflightScreenCaptureAccess() else {
+        fail("Screen Recording permission is not already granted; no access request was made", code: 77)
+    }
+    _ = NSApplication.shared.setActivationPolicy(.prohibited)
 
     let contentSemaphore = DispatchSemaphore(value: 0)
     var shareableContent: SCShareableContent?
@@ -342,7 +381,9 @@ private func main() {
         contentError = error
         contentSemaphore.signal()
     }
-    contentSemaphore.wait()
+    guard waitForSignal(contentSemaphore, timeoutSeconds: 10) else {
+        fail("ScreenCaptureKit content discovery timed out", code: 124)
+    }
     if contentError != nil { fail("ScreenCaptureKit content discovery failed", code: 69) }
 
     guard let window = shareableContent?.windows.first(where: {
@@ -371,14 +412,18 @@ private func main() {
         startError = error
         startSemaphore.signal()
     }
-    startSemaphore.wait()
+    guard waitForSignal(startSemaphore, timeoutSeconds: 10) else {
+        fail("screen capture start timed out", code: 124)
+    }
     if startError != nil { fail("screen capture could not start", code: 69) }
 
     RunLoop.current.run(until: Date().addingTimeInterval(options.duration))
 
     let stopSemaphore = DispatchSemaphore(value: 0)
     stream.stopCapture { _ in stopSemaphore.signal() }
-    _ = stopSemaphore.wait(timeout: .now() + 5)
+    guard waitForSignal(stopSemaphore, timeoutSeconds: 5) else {
+        fail("screen capture stop timed out", code: 124)
+    }
 
     let report = buildReport(options: options, snapshot: collector.snapshot())
     do {

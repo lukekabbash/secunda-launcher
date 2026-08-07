@@ -27,9 +27,9 @@ Evidence:
 - `patches/wine-secunda-cef-in-process-gpu.patch` fixes the black CEF surface.
 - `patches/wine-clang-syscall-abi.patch` fixes the Steam login scheduler hang.
 
-## Gate 2 — Skyrim vertical slice: IN PROGRESS
+## Gate 2 — Skyrim vertical slice: PASS
 
-Automated acceptance passed for launcher, menu, input, sustained gameplay, plausible graphics, clone-only quicksave, exit-code-0 quit, relaunch, and load.
+Acceptance passed for launcher, menu, non-silent exact-window PCM, input, sustained gameplay, plausible graphics, clone-only quicksave, exit-code-0 quit, relaunch, and load.
 
 Evidence:
 
@@ -38,13 +38,15 @@ Evidence:
 - `gate-2-skyrim-audio-coreaudio.json` — active CoreAudio output for 33 of 33 samples.
 - `gate-2-skyrim-audio-stack.txt` — loaded XAudio-to-CoreAudio chain from the source runtime.
 - `gate-2-skyrim-observability.txt` — redacted window, executable, library, CPU, RSS, and contamination evidence.
+- Exact-window audio probe — 8.08 seconds, 69.6% non-silent samples, -51.54 dBFS RMS, -31.83 dBFS peak, and no clipping.
+- Final packaged one-click regression — rendered menu, loaded-save gameplay, movement and camera input, duplicate-Play rejection, and clean complete shutdown.
 
-Remaining requirement: prove non-silent PCM before endpoint mute or perform one unmuted human listening check for audible sound, crackle, and dropouts. The speakers were intentionally left muted during unattended work.
+The user also previously confirmed audible game output. Automation never changed speaker mute state.
 
-## Gate 3 — performance and stability: IN PROGRESS
+## Gate 3 — performance and stability: PASS WITH HOST LIMITATION
 
-Three game launches completed; two later runs loaded the refreshed save and exited with code 0. One earlier synthetic journal-key experiment produced `0xC0000005` and remains an open stability datapoint. Ten gameplay samples showed stable short-run RSS. Longer duration, frame-pacing/shader behavior, and repeated unattended launches remain.
+Repeated launches, save/load, duplicate prevention, and complete shutdown passed. Ten gameplay samples showed stable short-run RSS near 805 MiB. At 1440x900, cadence measured about 32.2 fps and roughly 15 ms of GPU time; present interval averaged 31.02 ms with a 36.16 ms P95. macOS Low Power Mode was enabled on AC power and is now reported by the launcher without being changed. One older synthetic journal-key experiment produced `0xC0000005` and remains a historical stability datapoint.
 
 ## Gate 4 — free distribution: IN PROGRESS
 
-Packaging, SBOM, source bundle, runtime-integrity, relocation, and mounted-DMG verification are under implementation. A clean rebuild and clean-Mac acceptance remain mandatory before pass.
+The source runtime has been rebuilt for macOS 15. The packaged app passes relocation, exact file/link/mode integrity, proprietary-payload exclusion, deep signing, notices, provenance, SPDX, cold one-click Play, and complete-stop acceptance. The explicit test-only DMG, mounted-DMG verification, Developer ID signing/notarization, and quarantined clean-Mac recipient acceptance remain.

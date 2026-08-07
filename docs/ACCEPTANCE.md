@@ -1,45 +1,51 @@
-# Secunda acceptance run
+# Secunda acceptance contract
 
-## Automated gates
+The concise live status is in `source-only/GATES.md`. This file defines what a release candidate must prove; unchecked work is not implied to have passed.
 
-- `./scripts/verify.sh` passes all launcher-core contracts.
-- `swift build -c release` passes.
-- The packaged app passes `codesign --verify --deep --strict`.
-- Runtime discovery identifies either the complete external Apple-silicon engine or the executable bundled fallback.
-- `./scripts/smoke-test-runtime.sh` boots Windows and creates a Direct3D 11.1 device through Metal.
-- Every managed path resolves beneath `~/Library/Application Support/Secunda Launcher`.
+## Source-only fence
+
+- The launcher selects only a bundled or repository source runtime with valid provenance.
+- No executable, mapped library, loader override, or child process references CrossOver.app, D3DMetal, GPTK, `d3dshared`, or another proprietary compatibility payload.
+- Child environments are allowlisted and do not inherit developer tokens, credential sockets, or foreign loader paths.
+- Every live Steam and Skyrim run records the exact executable and mapped-library provenance.
 
 ## Steam handoff
 
-- A fresh bottle initializes without an existing Wine prefix.
-- SteamSetup is downloaded from Valve over HTTPS.
-- Secunda's Open Steam action opens Steam's own visible login surface.
-- Secunda never receives or stores credentials.
-- Steam restarts and self-updates successfully.
-- Skyrim Special Edition can be installed or discovered.
+- A fresh, private managed prefix initializes without an existing Wine prefix.
+- SteamSetup downloads directly from Valve over HTTPS.
+- Steam renders a visibly usable login/store/library interface rather than a black surface.
+- Authentication remains entirely within Steam; Secunda neither receives nor stores credentials.
+- Steam reconnects after a clean source-runtime restart and can install or detect Skyrim Special Edition.
 
-## Gameplay pass
+## Skyrim vertical slice
 
-- The launcher reaches Skyrim's main menu.
-- New game reaches the end of the Helgen intro without a crash.
-- Music, voices, effects, and ambient audio are present without sustained crackle.
-- Mouse and keyboard work; controller is detected when connected.
-- No black or missing textures appear.
-- Frame pacing is playable without sustained presentation hitching.
-- A new save survives quit and relaunch.
-- Steam Cloud status is checked after the local save exists.
+- Secunda launches Skyrim through Steam app 489830.
+- The launcher, main menu, and sustained 3D gameplay render plausibly through DXMT/Metal.
+- Music/effects/voices reach CoreAudio without sustained silence, crackle, or dropouts.
+- Keyboard movement and actual mouse camera input work.
+- A save is created or refreshed only in the private Secunda prefix.
+- The game quits cleanly, relaunches, and loads that save.
+- The acceptance run passes the source-only provenance fence while the game is live.
 
-## Recovery pass
+## Performance and stability
+
+- Startup and repeated-launch outcomes are recorded, including every abnormal exit.
+- Present cadence, long-frame counts, shader compilation/cache behavior, CPU, and memory are measured during gameplay.
+- A bounded soak shows no pathological memory growth, major rendering corruption, sustained presentation hitching, or recurring crash.
+- Performance evidence is captured without storing window titles, account data, raw audio, command lines, or process environments.
+
+## Recipient handoff
+
+- The mounted DMG contains Secunda.app, its source runtime, an Applications shortcut, recipient instructions, notices, SPDX SBOM, integrity hashes, build scripts, patches, and corresponding source.
+- It contains no Steam client, Skyrim files, prefix, session, credentials, saves, logs, CrossOver app, D3DMetal, GPTK, or other proprietary runtime payload.
+- Runtime Mach-O files are x86-64, target macOS 15 or earlier, and contain only relocatable or system library paths.
+- App, runtime, source bundle, and DMG checksum verifiers pass after mounting the final artifact read-only.
+- A clean Apple-silicon Mac can install the DMG, create its prefix, log into Steam, install Skyrim, and repeat the complete vertical slice.
+- Developer ID signing/notarization is a publisher trust step, not a paid compatibility-runtime dependency; ad-hoc artifacts are labeled as local testing builds.
+
+## Recovery boundary
 
 - Save backup produces a separate dated copy.
 - Steam file verification opens for app 489830.
-- Logs identify runtime, bottle, Steam, and game launch failures.
-- Removing Secunda data, when implemented, cannot target anything outside Secunda's managed root.
-
-## Recipient handoff pass
-
-- The share DMG contains only Secunda Launcher, an Applications shortcut, and the setup guide.
-- The share build contains no fallback runtime, CrossOver app, Steam client, game files, bottle, logs, saves, or account data.
-- The DMG passes `hdiutil verify`, and its SHA-256 companion file matches.
-- A recipient with their own Apple-silicon Mac, CrossOver installation, Steam account, and game ownership can complete first-run setup without a runtime picker.
-- A production handoff uses Developer ID signing plus Apple notarization; an ad-hoc build is labeled as a testing artifact.
+- Logs identify actionable runtime, prefix, Steam, and game launch failures.
+- Any cleanup or uninstall action resolves and names an exact target beneath Secunda's managed application-support root before changing data.

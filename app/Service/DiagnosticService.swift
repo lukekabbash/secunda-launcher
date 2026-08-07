@@ -16,17 +16,27 @@ final class DiagnosticService {
         macOS: \(process.operatingSystemVersionString)
         Architecture: \(Self.architecture)
         Runtime: \(snapshot.runtime.detail ?? "Unavailable")
-        Runtime path: \(snapshot.runtimePath ?? "Unavailable")
-        Bottle: \(snapshot.bottlePath)
+        Runtime path: \(redacted(snapshot.runtimePath))
+        Managed game space: \(redacted(snapshot.bottlePath))
         Steam: \(snapshot.steam.detail ?? "Unavailable")
-        Skyrim: \(snapshot.gamePath ?? "Not installed")
+        Skyrim: \(redacted(snapshot.gamePath, fallback: "Not installed"))
         Saves: \(snapshot.saveCount)
         Backups: \(snapshot.backupCount)
         Free disk bytes: \(snapshot.freeDiskBytes)
-        Logs: \(paths.logsDirectory.path)
+        Logs: \(redacted(paths.logsDirectory.path))
 
         Secunda does not collect Steam credentials, session data, or personal documents.
         """
+    }
+
+    private func redacted(_ path: String?, fallback: String = "Unavailable") -> String {
+        guard let path else { return fallback }
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        if path == home { return "~" }
+        if path.hasPrefix(home + "/") {
+            return "~" + String(path.dropFirst(home.count))
+        }
+        return path
     }
 
     func latestLogExcerpt(maxCharacters: Int = 12_000) -> String {
@@ -34,7 +44,11 @@ final class DiagnosticService {
             at: paths.logsDirectory,
             includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles]
-        ), let latest = logs.max(by: {
+        ) else {
+            return "No runtime logs yet."
+        }
+        let safeLogs = logs.filter { Self.isSafeSupportLog($0) }
+        guard let latest = safeLogs.max(by: {
             let left = try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
             let right = try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
             return (left ?? .distantPast) < (right ?? .distantPast)
@@ -43,6 +57,13 @@ final class DiagnosticService {
             return "No runtime logs yet."
         }
         return String(contents.suffix(maxCharacters))
+    }
+
+    static func isSafeSupportLog(_ url: URL) -> Bool {
+        let name = url.lastPathComponent.lowercased()
+        return name != "steam-launch.log"
+            && !name.contains("interactive-launch")
+            && !name.contains("game-launch")
     }
 
     private static var architecture: String {

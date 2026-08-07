@@ -8,17 +8,16 @@ final class SaveService {
     }
 
     func saveDirectory(in bottleRoot: URL) -> URL? {
-        let users = bottleRoot.appendingPathComponent("drive_c/users", isDirectory: true)
-        guard let children = try? FileManager.default.contentsOfDirectory(
-            at: users,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else { return nil }
-
-        return children
-            .filter { !["Public", "All Users", "Default User"].contains($0.lastPathComponent) }
-            .map { $0.appendingPathComponent("Documents/My Games/Skyrim Special Edition/Saves") }
-            .first { FileManager.default.fileExists(atPath: $0.path) }
+        guard BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot) else {
+            return nil
+        }
+        let saves = paths.activeWindowsUserDirectory(in: bottleRoot)
+            .appendingPathComponent(
+                "Documents/My Games/Skyrim Special Edition/Saves",
+                isDirectory: true
+            )
+        return paths.contains(saves, inBottleRoot: bottleRoot)
+            && FileManager.default.fileExists(atPath: saves.path) ? saves : nil
     }
 
     func saveCount(in bottleRoot: URL) -> Int {
