@@ -34,16 +34,29 @@ struct GameDetailView: View {
                     .frame(width: 300)
                 }
 
-                FlatSection(title: "Display & Audio", detail: "Applied at launch") {
-                    displaySettings
+                if descriptor.supportsDisplayProfile {
+                    FlatSection(title: "Display & Audio", detail: "Applied at launch") {
+                        displaySettings
+                    }
+                } else {
+                    FlatSection(title: "Display & Audio", detail: "In-game") {
+                        Text("\(descriptor.shortTitle) manages its own display and audio options. Set resolution and windowed mode inside the game's settings menu.")
+                            .font(.caption)
+                            .foregroundStyle(SecundaTheme.secondaryText)
+                            .frame(maxWidth: 560, alignment: .leading)
+                    }
                 }
 
-                FlatSection(title: "Add-ons", detail: "Managed through Steam") {
-                    dlcList
+                if !descriptor.dlc.isEmpty {
+                    FlatSection(title: "Add-ons", detail: "Managed through Steam") {
+                        dlcList
+                    }
                 }
 
-                FlatSection(title: "Saves", detail: "Local and reversible") {
-                    savesContent
+                if !descriptor.saveFileExtensions.isEmpty {
+                    FlatSection(title: "Saves", detail: "Local and reversible") {
+                        savesContent
+                    }
                 }
             }
             .padding(.horizontal, 42)

@@ -93,7 +93,7 @@ final class GameService {
             steamRoot: steam.deletingLastPathComponent()
         ).inspect(
             appID: descriptor.steamAppID,
-            executableName: descriptor.gameImageName,
+            executableName: descriptor.executableRelativePath,
             baselineDataFile: descriptor.baselineDataFile,
             displayName: descriptor.shortTitle
         )

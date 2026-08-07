@@ -37,15 +37,24 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     let steamAppID: String
     let gameImageName: String
     let launcherImageName: String
+    /// Path of the game binary inside the Steam install directory. Defaults
+    /// to the image name; games like Supreme Commander 2 keep it in bin/.
+    let executableRelativePath: String
     let documentsFolderName: String
-    let prefsFileName: String
-    let customIniFileName: String
+    /// Bethesda-style prefs/custom ini names. Nil means the game has no
+    /// Secunda-writable profile; display settings stay in the game itself.
+    let prefsFileName: String?
+    let customIniFileName: String?
+    /// The [Display] key controlling vsync; Skyrim and Fallout 4 disagree.
+    let vsyncKey: String
     let saveFileExtensions: [String]
     let defaultFieldOfView: Int
     /// File that proves the game data is really present (Steam manifests can
     /// claim completion before content lands). Nil skips the check.
     let baselineDataFile: String?
     let dlc: [DLCDescriptor]
+
+    var supportsDisplayProfile: Bool { prefsFileName != nil }
 
     /// Steam's own artwork CDN. Fetched at runtime for the player's library
     /// presentation and never redistributed inside Secunda.
@@ -70,9 +79,11 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         steamAppID: "489830",
         gameImageName: "SkyrimSE.exe",
         launcherImageName: "SkyrimSELauncher.exe",
+        executableRelativePath: "SkyrimSE.exe",
         documentsFolderName: "Skyrim Special Edition",
         prefsFileName: "SkyrimPrefs.ini",
         customIniFileName: "SkyrimCustom.ini",
+        vsyncKey: "iVSyncPresentInterval",
         saveFileExtensions: ["ess"],
         defaultFieldOfView: 80,
         baselineDataFile: "Data/Skyrim.esm",
@@ -114,9 +125,11 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         steamAppID: "377160",
         gameImageName: "Fallout4.exe",
         launcherImageName: "Fallout4Launcher.exe",
+        executableRelativePath: "Fallout4.exe",
         documentsFolderName: "Fallout4",
         prefsFileName: "Fallout4Prefs.ini",
         customIniFileName: "Fallout4Custom.ini",
+        vsyncKey: "iPresentInterval",
         saveFileExtensions: ["fos"],
         defaultFieldOfView: 80,
         baselineDataFile: "Data/Fallout4.esm",
@@ -167,7 +180,27 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         ]
     )
 
-    static let supported: [GameDescriptor] = [.skyrimSE, .fallout4]
+    static let supcom2 = GameDescriptor(
+        id: "supcom2",
+        title: "Supreme Commander 2",
+        shortTitle: "Supreme Commander 2",
+        tagline: "Thousand-unit armies, one supreme commander.",
+        symbol: "flag.2.crossed.fill",
+        steamAppID: "40100",
+        gameImageName: "SupCom2.exe",
+        launcherImageName: "SupCom2.exe",
+        executableRelativePath: "bin/SupCom2.exe",
+        documentsFolderName: "Gas Powered Games/Supreme Commander 2",
+        prefsFileName: nil,
+        customIniFileName: nil,
+        vsyncKey: "iPresentInterval",
+        saveFileExtensions: [],
+        defaultFieldOfView: 90,
+        baselineDataFile: nil,
+        dlc: []
+    )
+
+    static let supported: [GameDescriptor] = [.skyrimSE, .fallout4, .supcom2]
 
     static func descriptor(for id: String) -> GameDescriptor? {
         supported.first { $0.id == id }

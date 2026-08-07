@@ -44,7 +44,22 @@ enum SelfCheck {
             failures: &failures
         )
         expect(GameDescriptor.skyrimSE.steamAppID == "489830", "Steam app identifier", passes: &passes, failures: &failures)
-        expect(GameDescriptor.supported == [.skyrimSE, .fallout4], "supported game registry", passes: &passes, failures: &failures)
+        expect(GameDescriptor.supported == [.skyrimSE, .fallout4, .supcom2], "supported game registry", passes: &passes, failures: &failures)
+        expect(
+            GameDescriptor.skyrimSE.vsyncKey == "iVSyncPresentInterval"
+                && GameDescriptor.fallout4.vsyncKey == "iPresentInterval",
+            "per-game vsync keys",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameDescriptor.supcom2.executableRelativePath == "bin/SupCom2.exe"
+                && GameDescriptor.supcom2.gameImageName == "SupCom2.exe"
+                && !GameDescriptor.supcom2.supportsDisplayProfile,
+            "Supreme Commander 2 descriptor",
+            passes: &passes,
+            failures: &failures
+        )
         expect(GameDescriptor.skyrimSE.gameImageName == "SkyrimSE.exe", "descriptor game image", passes: &passes, failures: &failures)
         expect(GameDescriptor.fallout4.steamAppID == "377160", "Fallout 4 app identifier", passes: &passes, failures: &failures)
         expect(GameDescriptor.fallout4.gameImageName == "Fallout4.exe", "Fallout 4 game image", passes: &passes, failures: &failures)
@@ -363,6 +378,14 @@ enum SelfCheck {
         expect(customProfile.contains("fDefaultWorldFOV=95"), "world FOV profile", passes: &passes, failures: &failures)
         expect(customProfile.contains("fDefault1stPersonFOV=95"), "first-person FOV profile", passes: &passes, failures: &failures)
         expect(customProfile.contains("sLanguage=ENGLISH"), "custom ini preservation", passes: &passes, failures: &failures)
+
+        let falloutProfile = GameProfileWriter.updatingDisplaySection(
+            in: "[Display]\r\n",
+            settings: settings,
+            vsyncKey: GameDescriptor.fallout4.vsyncKey
+        )
+        expect(falloutProfile.contains("iPresentInterval=1"), "Fallout vsync key", passes: &passes, failures: &failures)
+        expect(!falloutProfile.contains("iVSyncPresentInterval"), "no Skyrim vsync key in Fallout profile", passes: &passes, failures: &failures)
 
         let legacySettings = try? JSONDecoder().decode(
             LauncherSettings.self,

@@ -27,6 +27,9 @@ struct GameProfileWriter {
     }
 
     func apply(_ settings: GameSettings, bottleRoot: URL) throws {
+        // Games without a Secunda-writable profile manage display settings
+        // themselves; nothing to write.
+        guard descriptor.supportsDisplayProfile else { return }
         guard BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot) else {
             throw CocoaError(.fileWriteNoPermission)
         }
@@ -39,22 +42,31 @@ struct GameProfileWriter {
             withIntermediateDirectories: true
         )
 
-        let profileURL = preferencesDirectory.appendingPathComponent(descriptor.prefsFileName)
-        let existingPrefs = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
-        let updatedPrefs = Self.updatingDisplaySection(in: existingPrefs, settings: settings)
-        try updatedPrefs.write(to: profileURL, atomically: true, encoding: .utf8)
+        if let prefsFileName = descriptor.prefsFileName {
+            let profileURL = preferencesDirectory.appendingPathComponent(prefsFileName)
+            let existingPrefs = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
+            let updatedPrefs = Self.updatingDisplaySection(
+                in: existingPrefs,
+                settings: settings,
+                vsyncKey: descriptor.vsyncKey
+            )
+            try updatedPrefs.write(to: profileURL, atomically: true, encoding: .utf8)
+        }
 
         // FOV lives in the game's Custom ini, which the engine reads as an
         // override and the vendor launcher never rewrites.
-        let customURL = preferencesDirectory.appendingPathComponent(descriptor.customIniFileName)
-        let existingCustom = (try? String(contentsOf: customURL, encoding: .utf8)) ?? ""
-        let updatedCustom = Self.updatingCustomDisplaySection(in: existingCustom, settings: settings)
-        try updatedCustom.write(to: customURL, atomically: true, encoding: .utf8)
+        if let customIniFileName = descriptor.customIniFileName {
+            let customURL = preferencesDirectory.appendingPathComponent(customIniFileName)
+            let existingCustom = (try? String(contentsOf: customURL, encoding: .utf8)) ?? ""
+            let updatedCustom = Self.updatingCustomDisplaySection(in: existingCustom, settings: settings)
+            try updatedCustom.write(to: customURL, atomically: true, encoding: .utf8)
+        }
     }
 
     static func updatingDisplaySection(
         in contents: String,
-        settings: GameSettings
+        settings: GameSettings,
+        vsyncKey: String = "iVSyncPresentInterval"
     ) -> String {
         // Borderless windowed is the default: exclusive fullscreen through
         // Wine's Mac driver cannot reliably regain the display after Cmd-Tab.
@@ -76,7 +88,7 @@ struct GameProfileWriter {
             "bFull Screen": fullscreen,
             "iSize H": String(settings.height),
             "iSize W": String(settings.width),
-            "iVSyncPresentInterval": settings.verticalSync ? "1" : "0"
+            vsyncKey: settings.verticalSync ? "1" : "0"
         ]
         return mergingDisplayValues(values, into: contents)
     }
