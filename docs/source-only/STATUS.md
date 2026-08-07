@@ -13,6 +13,7 @@ Updated: 2026-08-07
 - The packaged one-click path now advances through five truthful stages, detects only the exact target Windows processes, starts Skyrim after Steam authorization, and confirms that the game stays running.
 - The final packaged regression reached a correctly rendered 1440x900 menu, loaded the existing save into gameplay, accepted movement and camera input, rejected a duplicate Play request, and cleanly stopped Skyrim, Steam, and the Wine server.
 - A packaged-app first-run test under a blank temporary home created a new prefix, waited for Wine initialization to settle, and advanced directly to `Install Steam` without a manual Refresh.
+- The rebuilt `Secunda Launcher-0.1.0-TEST-ONLY.dmg` passed SHA-256 verification, read-only mounting, mounted-app self-check, source/runtime/package audits, and a second blank-home preparation test from the mounted copy.
 - Interactive Steam/game output is discarded. The legacy `steam-launch.log` retained the exact same size and modification time across the packaged regression.
 - Exact-window ScreenCaptureKit audio acceptance measured 8.08 seconds of PCM, 69.6% non-silent samples, -51.54 dBFS RMS, -31.83 dBFS peak, and no clipping. The speakers were never unmuted by automation.
 - The launcher self-check passes 84 contracts; the no-execution Skyrim readiness suite passes 37 contracts.
@@ -46,5 +47,5 @@ Updated: 2026-08-07
 
 ## Next action
 
-1. Rebuild the explicit test-only DMG from the first-run fix and verify its mounted app, checksum, corresponding-source inventory, and blank-home preparation flow locally.
-2. For broad sharing, sign and notarize the same candidate and run a quarantined clean-Apple-Silicon install/login/download/play test.
+1. For broad sharing, sign and notarize the validated candidate with a Developer ID identity.
+2. Run the notarized, quarantined candidate through first-run Steam login, game download, Play, audio/input/gameplay, save/load, Stop, and uninstall acceptance on a separate clean Apple-Silicon Mac.
