@@ -12,3 +12,5 @@ swift run \
     --triple arm64-apple-macosx14.0 \
     SecundaLauncher \
     --self-test
+
+"$REPOSITORY_ROOT/scripts/test-source-only-provenance.sh"

@@ -90,7 +90,7 @@ final class LauncherViewModel: ObservableObject {
 
     var headline: String {
         switch primaryAction {
-        case .locateRuntime: "Secunda needs its game engine."
+        case .locateRuntime: "Secunda’s free game engine is missing."
         case .createBottle: "Prepare a clean realm."
         case .installSteam: "Bring Steam into Secunda."
         case .openSteam: "Install Skyrim through Steam."
@@ -102,7 +102,7 @@ final class LauncherViewModel: ObservableObject {
     var supportingText: String {
         switch primaryAction {
         case .locateRuntime:
-            "Install CrossOver separately in Applications, then return here and choose Refresh. Secunda never packages its game engine with your account or saves."
+            "This build should include Secunda’s source-built engine. Reinstall the complete Secunda package or use the source build instructions."
         case .createBottle:
             "Secunda keeps Steam, Skyrim, settings, and logs inside one isolated managed bottle."
         case .installSteam:
@@ -117,7 +117,7 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func refresh() async {
-        let locatedRuntime = await runtimeManager.locate(settings: settings)
+        let locatedRuntime = await runtimeManager.locate()
         runtime = locatedRuntime
 
         var updated = LauncherSnapshot.empty(paths: paths)
@@ -148,7 +148,7 @@ final class LauncherViewModel: ObservableObject {
     func performPrimaryAction() {
         switch primaryAction {
         case .locateRuntime:
-            openCrossOverDownload()
+            presentedError = "Secunda’s source-built runtime is unavailable. Reinstall the complete app or build Runtime/wine from the included source instructions."
         case .createBottle:
             runTask(
                 label: "Preparing the Skyrim bottle",
@@ -235,11 +235,6 @@ final class LauncherViewModel: ObservableObject {
     func revealLogs() {
         try? paths.prepareManagedDirectories()
         NSWorkspace.shared.activateFileViewerSelecting([paths.logsDirectory])
-    }
-
-    func openCrossOverDownload() {
-        NSWorkspace.shared.open(SecundaLinks.crossOverDownload)
-        addActivity("Opened the official CrossOver download page.", kind: .info)
     }
 
     var diagnosticReport: String {

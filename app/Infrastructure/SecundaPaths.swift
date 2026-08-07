@@ -29,12 +29,6 @@ struct SecundaPaths: Sendable {
         applicationSupport.appendingPathComponent("Bottles", isDirectory: true)
     }
 
-    var crossOverBottleName: String { "SkyrimSE-CrossOver" }
-
-    var crossOverBottleRoot: URL {
-        bottlesDirectory.appendingPathComponent(crossOverBottleName, isDirectory: true)
-    }
-
     var downloadsDirectory: URL {
         applicationSupport.appendingPathComponent("Downloads", isDirectory: true)
     }
@@ -74,7 +68,7 @@ struct SecundaPaths: Sendable {
     }
 
     func activeWindowsUserDirectory(in bottleRoot: URL) -> URL {
-        let preferredNames = ["crossover", "steamuser", NSUserName()]
+        let preferredNames = ["steamuser", NSUserName(), "secunda"]
         let manager = FileManager.default
         let windowsUsersDirectory = windowsUsersDirectory(in: bottleRoot)
 
@@ -97,7 +91,7 @@ struct SecundaPaths: Sendable {
             return discovered
         }
 
-        return windowsUsersDirectory.appendingPathComponent("crossover", isDirectory: true)
+        return windowsUsersDirectory.appendingPathComponent("secunda", isDirectory: true)
     }
 
     func activeWindowsUserDirectory() -> URL {

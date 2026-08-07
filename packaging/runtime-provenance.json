@@ -1,0 +1,66 @@
+{
+  "formatVersion": 1,
+  "runtimeKind": "secunda-source-runtime",
+  "architecture": "x86_64",
+  "translation": "Rosetta 2 on Apple silicon",
+  "sourceArchive": {
+    "file": "crossover-sources-26.3.0.tar.gz",
+    "sha256": "ac99c8ca4b3848f3e81784135f023df266b61c2345726ea55a50b3e030dd6872"
+  },
+  "components": [
+    {
+      "name": "Wine",
+      "version": "11.0",
+      "license": "LGPL-2.1-or-later"
+    },
+    {
+      "name": "DXMT",
+      "version": "0.80",
+      "license": "MIT",
+      "archiveSha256": "8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d"
+    },
+    {
+      "name": "FreeType",
+      "version": "2.13.3",
+      "license": "FTL OR GPL-2.0-only",
+      "sourcePath": "sources/freetype"
+    },
+    {
+      "name": "GMP",
+      "version": "6.3.0",
+      "license": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+      "sourcePath": "sources/gnutls/gmp"
+    },
+    {
+      "name": "Nettle",
+      "version": "3.10",
+      "license": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+      "sourceUrl": "https://ftp.gnu.org/gnu/nettle/nettle-3.10.tar.gz"
+    },
+    {
+      "name": "GnuTLS",
+      "version": "3.8.3",
+      "license": "LGPL-2.1-or-later",
+      "sourcePath": "sources/gnutls/gnutls",
+      "bundledCode": ["libtasn1 4.19.0", "libunistring snapshot supplied with GnuTLS 3.8.3"]
+    }
+  ],
+  "appliedPatches": [
+    {
+      "file": "patches/wine-arm64-d3dmetal-event.patch",
+      "sha256": "6a56b236f861728199504d99a264c20eacb6cdbb39282766f6de1204d42f728b"
+    },
+    {
+      "file": "patches/wine-arm64-metal-layer.patch",
+      "sha256": "a539de50a8b278a83e97f442f9abeae066ba0b7d40e2016cd459a494fb24b7f7"
+    },
+    {
+      "file": "patches/wine-optional-vulkan-loader.patch",
+      "sha256": "ab20d71c4587c8e1b66e6d31512c83ce9c9836d9f7e3715f518ae2a2387e50e0"
+    },
+    {
+      "file": "patches/wine-secunda-identity.patch",
+      "sha256": "4f77957dcbcfffe2caefd86341fee36742c59111c07f61eea025645976833602"
+    }
+  ]
+}

@@ -72,15 +72,11 @@ final class SteamService {
             executable: runtime.wineExecutable,
             arguments: runtime.wineArguments(for: [
                 executable.path
-            ] + compatibilityArguments(for: runtime) + arguments),
+            ] + Self.compatibilityArguments + arguments),
             environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
             currentDirectory: executable.deletingLastPathComponent(),
             logURL: paths.logsDirectory.appendingPathComponent("steam-launch.log")
         )
-    }
-
-    private func compatibilityArguments(for runtime: RuntimeDescriptor) -> [String] {
-        runtime.isCrossOver ? [] : Self.compatibilityArguments
     }
 
 }

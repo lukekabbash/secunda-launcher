@@ -100,7 +100,10 @@ final class ProcessRunner {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+        process.environment = SourceRuntimePolicy.sanitizedEnvironment(
+            base: ProcessInfo.processInfo.environment,
+            overrides: environment
+        )
         process.currentDirectoryURL = currentDirectory
         process.standardOutput = handle
         process.standardError = handle

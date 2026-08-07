@@ -25,19 +25,12 @@ final class BottleManager {
             return
         }
 
-        if runtime.isCrossOver {
-            try await createCrossOverBottle(runtime: runtime, diagnostics: diagnostics)
-        } else {
-            try await createWineBottle(runtime: runtime, diagnostics: diagnostics)
-        }
+        try await createWineBottle(runtime: runtime, diagnostics: diagnostics)
 
         try await configureMacDisplay(runtime: runtime, diagnostics: diagnostics)
     }
 
     func applyGameCompatibility(runtime: RuntimeDescriptor, diagnostics: Bool) async throws {
-        guard runtime.isCrossOver else { return }
-        // Prefer the legacy Microsoft implementations required by this title,
-        // while retaining CrossOver's Apple-Silicon implementation as a safe fallback.
         let values = ["x3daudio1_6", "x3daudio1_7", "xaudio2_6", "xaudio2_7"]
         let environment = runtimeManager.environment(for: runtime, diagnostics: diagnostics)
         let logURL = paths.logsDirectory.appendingPathComponent("game-compatibility.log")
@@ -47,7 +40,7 @@ final class BottleManager {
                 executable: runtime.wineExecutable,
                 arguments: runtime.wineArguments(for: [
                     "reg", "add", "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides",
-                    "/v", name, "/t", "REG_SZ", "/d", "native,builtin", "/f"
+                    "/v", name, "/t", "REG_SZ", "/d", "builtin", "/f"
                 ]),
                 environment: environment,
                 currentDirectory: runtime.bottleRoot,
@@ -67,30 +60,6 @@ final class BottleManager {
             arguments: ["wineboot", "--init"],
             environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
             currentDirectory: runtime.bottleRoot,
-            logURL: paths.logsDirectory.appendingPathComponent("bottle-initialize.log")
-        )
-        guard result.terminationStatus == 0 else {
-            throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)
-        }
-    }
-
-    private func createCrossOverBottle(runtime: RuntimeDescriptor, diagnostics: Bool) async throws {
-        guard let bottleExecutable = runtime.bottleExecutable,
-              let bottleName = runtime.bottleName
-        else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-
-        let result = try await processRunner.run(
-            executable: bottleExecutable,
-            arguments: [
-                "--bottle", bottleName,
-                "--create",
-                "--template", "win10_64",
-                "--description", "Secunda Skyrim Special Edition"
-            ],
-            environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
-            currentDirectory: runtime.bottleContainer,
             logURL: paths.logsDirectory.appendingPathComponent("bottle-initialize.log")
         )
         guard result.terminationStatus == 0 else {

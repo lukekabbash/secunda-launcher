@@ -4,33 +4,16 @@ struct RuntimeDescriptor: Equatable, Sendable {
     let wineExecutable: URL
     let version: String
     let origin: Origin
-    let engine: Engine
     let bottleRoot: URL
-    let bottleContainer: URL
-    let bottleName: String?
-    let bottleExecutable: URL?
-
-    enum Engine: String, Equatable, Sendable {
-        case bundledWine = "Bundled Wine"
-        case crossOver = "CrossOver"
-    }
 
     enum Origin: String, Sendable {
         case bundled = "Bundled runtime"
         case sourceBuild = "Source build"
-        case configured = "Selected runtime"
         case environment = "Environment override"
-        case crossOver = "CrossOver runtime"
-        case crossOverDevelopment = "CrossOver local runtime"
-    }
-
-    var isCrossOver: Bool {
-        engine == .crossOver
     }
 
     func wineArguments(for command: [String]) -> [String] {
-        guard let bottleName else { return command }
-        return ["--bottle", bottleName] + command
+        command
     }
 }
 
@@ -43,22 +26,13 @@ final class RuntimeManager {
         self.processRunner = processRunner
     }
 
-    func locate(settings: LauncherSettings) async -> RuntimeDescriptor? {
-        if let crossOver = CrossOverRuntimeLocator(paths: paths).locate() {
-            return RuntimeDescriptor(
-                wineExecutable: crossOver.wineExecutable,
-                version: crossOver.version,
-                origin: crossOver.origin,
-                engine: .crossOver,
-                bottleRoot: paths.crossOverBottleRoot,
-                bottleContainer: paths.bottlesDirectory,
-                bottleName: paths.crossOverBottleName,
-                bottleExecutable: crossOver.bottleExecutable
-            )
-        }
-
-        for candidate in candidates(settings: settings) {
+    func locate() async -> RuntimeDescriptor? {
+        for candidate in candidates() {
             guard FileManager.default.isExecutableFile(atPath: candidate.url.path) else { continue }
+            guard SourceRuntimePolicy.allows(
+                executable: candidate.url,
+                trustedRuntimeRoot: candidate.trustedRuntimeRoot
+            ) else { continue }
             guard hasMetalGraphicsBridge(beside: candidate.url) else { continue }
             let logURL = paths.logsDirectory.appendingPathComponent("runtime-probe.log")
             guard let result = try? await processRunner.run(
@@ -76,29 +50,13 @@ final class RuntimeManager {
                 wineExecutable: candidate.url,
                 version: version?.isEmpty == false ? version! : "Wine runtime",
                 origin: candidate.origin,
-                engine: .bundledWine,
-                bottleRoot: paths.bottleRoot,
-                bottleContainer: paths.bottlesDirectory,
-                bottleName: nil,
-                bottleExecutable: nil
+                bottleRoot: paths.bottleRoot
             )
         }
         return nil
     }
 
     func environment(for runtime: RuntimeDescriptor, diagnostics: Bool) -> [String: String] {
-        if runtime.isCrossOver {
-            var environment: [String: String] = [
-                "CX_BOTTLE_PATH": runtime.bottleContainer.path,
-                "ROSETTA_ADVERTISE_AVX": "1",
-                "WINEDEBUG": diagnostics ? "warn+all,err+all" : "-all"
-            ]
-            if diagnostics {
-                environment["DXMT_LOG_LEVEL"] = "info"
-            }
-            return environment
-        }
-
         var environment: [String: String] = [
             "WINEPREFIX": runtime.bottleRoot.path,
             "WINEARCH": "win64",
@@ -106,6 +64,7 @@ final class RuntimeManager {
             "WINEDEBUG": diagnostics ? "warn+all,err+all" : "-all",
             "WINEESYNC": "1",
             "ROSETTA_ADVERTISE_AVX": "1",
+            "SECUNDA_SOURCE_ONLY": "1",
             "DXMT_LOG_LEVEL": diagnostics ? "info" : "none",
             "DXMT_SHADER_CACHE_PATH": paths.graphicsCacheDirectory.path
         ]
@@ -117,37 +76,49 @@ final class RuntimeManager {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let libraryPath = runtimeRoot.appendingPathComponent("lib").path
-        environment["PATH"] = "\(binPath):\(ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin")"
-        environment["DYLD_LIBRARY_PATH"] = [
-            libraryPath,
-            ProcessInfo.processInfo.environment["DYLD_LIBRARY_PATH"]
-        ]
-        .compactMap { $0 }
-        .filter { !$0.isEmpty }
-        .joined(separator: ":")
+        environment["PATH"] = "\(binPath):/usr/bin:/bin:/usr/sbin:/sbin"
+        environment["DYLD_LIBRARY_PATH"] = libraryPath
         return environment
     }
 
-    private func candidates(settings: LauncherSettings) -> [(url: URL, origin: RuntimeDescriptor.Origin)] {
-        var values: [(URL, RuntimeDescriptor.Origin)] = []
+    private func candidates() -> [RuntimeCandidate] {
+        var values: [RuntimeCandidate] = []
 
         if let override = ProcessInfo.processInfo.environment["SECUNDA_WINE_BIN"], !override.isEmpty {
-            values.append((URL(fileURLWithPath: override), .environment))
+            values.append(RuntimeCandidate(
+                url: URL(fileURLWithPath: override),
+                origin: .environment,
+                trustedRuntimeRoot: nil
+            ))
         }
         if let bundled = Bundle.main.resourceURL {
-            values.append((bundled.appendingPathComponent("runtime/bin/wine64"), .bundled))
-            values.append((bundled.appendingPathComponent("runtime/bin/wine"), .bundled))
+            let runtimeRoot = bundled.appendingPathComponent("runtime", isDirectory: true)
+            values.append(RuntimeCandidate(
+                url: runtimeRoot.appendingPathComponent("bin/wine64"),
+                origin: .bundled,
+                trustedRuntimeRoot: runtimeRoot
+            ))
+            values.append(RuntimeCandidate(
+                url: runtimeRoot.appendingPathComponent("bin/wine"),
+                origin: .bundled,
+                trustedRuntimeRoot: runtimeRoot
+            ))
         }
         if let sourceRuntime = paths.sourceRuntime {
-            values.append((sourceRuntime.appendingPathComponent("bin/wine64"), .sourceBuild))
-            values.append((sourceRuntime.appendingPathComponent("bin/wine"), .sourceBuild))
-        }
-        if let configured = settings.runtimeExecutablePath, !configured.isEmpty {
-            values.append((URL(fileURLWithPath: configured), .configured))
+            values.append(RuntimeCandidate(
+                url: sourceRuntime.appendingPathComponent("bin/wine64"),
+                origin: .sourceBuild,
+                trustedRuntimeRoot: sourceRuntime
+            ))
+            values.append(RuntimeCandidate(
+                url: sourceRuntime.appendingPathComponent("bin/wine"),
+                origin: .sourceBuild,
+                trustedRuntimeRoot: sourceRuntime
+            ))
         }
 
         var seen = Set<String>()
-        return values.filter { seen.insert($0.0.standardizedFileURL.path).inserted }
+        return values.filter { seen.insert($0.url.standardizedFileURL.path).inserted }
     }
 
     private func hasMetalGraphicsBridge(beside wineExecutable: URL) -> Bool {
@@ -168,4 +139,10 @@ final class RuntimeManager {
             FileManager.default.fileExists(atPath: runtimeRoot.appendingPathComponent($0).path)
         }
     }
+}
+
+private struct RuntimeCandidate {
+    let url: URL
+    let origin: RuntimeDescriptor.Origin
+    let trustedRuntimeRoot: URL?
 }

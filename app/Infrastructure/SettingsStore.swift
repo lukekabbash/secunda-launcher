@@ -1,7 +1,6 @@
 import Foundation
 
 struct LauncherSettings: Codable, Equatable, Sendable {
-    var runtimeExecutablePath: String?
     var launchInWindow = false
     var width = 1920
     var height = 1080

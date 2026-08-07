@@ -1,0 +1,4 @@
+SECUNDA_SOURCE_ONLY=1
+PROVENANCE_FORMAT=1
+CHECKED_AT_UTC=2026-08-07T03:39:42Z
+RUNTIME_EXECUTABLE=/Users/lukekabbash/Documents/AI Integrator/Projects/Northstar Runner/Runtime/wine/bin/wine

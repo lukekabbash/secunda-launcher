@@ -9,8 +9,27 @@ BUILD_ROOT="$REPOSITORY_ROOT/build/runtime-wine-x86_64"
 TOOLCHAIN_ROOT="$REPOSITORY_ROOT/build/toolchain-bin"
 STAGE_ROOT="/private/tmp/secunda-wine-runtime-x86"
 RUNTIME_ROOT="$REPOSITORY_ROOT/Runtime/wine"
-IDENTITY_PATCH="$REPOSITORY_ROOT/patches/wine-secunda-identity.patch"
 DEPS_ROOT=${SECUNDA_DEPENDENCY_PREFIX:-"$REPOSITORY_ROOT/build/runtime-dependencies-x86_64/prefix"}
+RUNTIME_PATCHES=(
+    "$REPOSITORY_ROOT/patches/wine-arm64-d3dmetal-event.patch"
+    "$REPOSITORY_ROOT/patches/wine-arm64-metal-layer.patch"
+    "$REPOSITORY_ROOT/patches/wine-optional-vulkan-loader.patch"
+    "$REPOSITORY_ROOT/patches/wine-secunda-identity.patch"
+)
+
+apply_runtime_patch() {
+    local patch_file=$1
+    if patch -d "$SOURCE_ROOT" -p1 --dry-run --forward < "$patch_file" >/dev/null 2>&1; then
+        patch -d "$SOURCE_ROOT" -p1 --forward < "$patch_file"
+        return
+    fi
+    if patch -d "$SOURCE_ROOT" -p1 --dry-run --reverse < "$patch_file" >/dev/null 2>&1; then
+        echo "Already applied: ${patch_file:t}"
+        return
+    fi
+    echo "Patch does not apply cleanly: $patch_file" >&2
+    exit 1
+}
 
 relocate_runtime_libraries() {
     local runtime_root=$1
@@ -50,9 +69,9 @@ if [[ ! -f "$DEPS_ROOT/lib/libfreetype.6.dylib" || ! -f "$DEPS_ROOT/lib/libgnutl
     "$REPOSITORY_ROOT/scripts/build-runtime-dependencies.sh"
 fi
 
-if grep -q 'com.codeweavers.CrossOver.wineloader' "$SOURCE_ROOT/loader/wine_info.plist.in"; then
-    patch -d "$SOURCE_ROOT" -p1 --forward < "$IDENTITY_PATCH"
-fi
+for runtime_patch in "${RUNTIME_PATCHES[@]}"; do
+    apply_runtime_patch "$runtime_patch"
+done
 
 LLVM_ROOT=$(brew --prefix llvm)
 LLD_ROOT=$(brew --prefix lld)
@@ -95,6 +114,9 @@ ditto "$STAGE_ROOT" "$RUNTIME_ROOT"
 mkdir -p "$RUNTIME_ROOT/lib"
 ditto "$DEPS_ROOT/lib" "$RUNTIME_ROOT/lib"
 "$REPOSITORY_ROOT/scripts/fetch-dxmt.sh" "$RUNTIME_ROOT"
+mkdir -p "$RUNTIME_ROOT/share/secunda"
+cp "$REPOSITORY_ROOT/packaging/runtime-provenance.json" \
+    "$RUNTIME_ROOT/share/secunda/runtime-provenance.json"
 relocate_runtime_libraries "$RUNTIME_ROOT"
 
 while IFS= read -r -d '' runtime_file; do

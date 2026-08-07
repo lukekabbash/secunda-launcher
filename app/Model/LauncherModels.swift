@@ -74,7 +74,7 @@ enum PrimaryAction: Equatable {
 
     var title: String {
         switch self {
-        case .locateRuntime: "Get CrossOver"
+        case .locateRuntime: "Restore Secunda Engine"
         case .createBottle: "Prepare Secunda"
         case .installSteam: "Install Steam"
         case .openSteam: "Open Steam"

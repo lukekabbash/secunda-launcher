@@ -38,18 +38,14 @@ struct SettingsView: View {
                         .foregroundStyle(SecundaTheme.secondaryText)
                         .textSelection(.enabled)
 
-                    Text("Secunda automatically uses a separately installed CrossOver app. There is no player-facing runtime picker.")
+                    Text("Secunda uses only its bundled, source-built compatibility engine. There is no player-facing runtime picker.")
                         .font(.caption)
                         .foregroundStyle(SecundaTheme.secondaryText)
 
                     if !model.snapshot.runtime.isReady {
-                        Text("Install CrossOver in Applications, then return to Play and select Refresh.")
+                        Text("The engine is missing from this copy. Reinstall the complete Secunda package or rebuild the runtime from source.")
                             .font(.caption)
                             .foregroundStyle(SecundaTheme.secondaryText)
-
-                        Button("Get CrossOver") { model.openCrossOverDownload() }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(SecundaTheme.frost)
                     }
 
                     Button("Reveal Secunda Data") { model.revealApplicationData() }
