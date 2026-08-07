@@ -61,7 +61,13 @@ private struct GameCard: View {
     @State private var isHovering = false
 
     var body: some View {
-        Button(action: open) {
+        card
+            .onTapGesture(perform: open)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("\(descriptor.title), \(state.isReady ? "installed" : "not installed")")
+    }
+
+    private var card: some View {
             GameArtwork(url: descriptor.cardArtworkURL, fallbackSymbol: descriptor.symbol)
                 .aspectRatio(2 / 3, contentMode: .fit)
                 .overlay {
@@ -129,10 +135,7 @@ private struct GameCard: View {
                 .scaleEffect(isHovering ? 1.04 : 1)
                 .animation(.spring(response: 0.34, dampingFraction: 0.72), value: isHovering)
                 .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .accessibilityLabel("\(descriptor.title), \(state.isReady ? "installed" : "not installed")")
+                .onHover { isHovering = $0 }
     }
 
     private var statusText: String {

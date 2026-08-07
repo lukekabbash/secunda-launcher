@@ -6,13 +6,17 @@ struct GameDetailView: View {
 
     @State private var showsCloseConfirmation = false
     @State private var showsUninstallConfirmation = false
+    @State private var contentAppeared = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 40) {
-                hero
+            VStack(alignment: .leading, spacing: 0) {
+                heroBanner
 
-                HStack(alignment: .top, spacing: 40) {
+                VStack(alignment: .leading, spacing: 40) {
+                    heroActions
+
+                    HStack(alignment: .top, spacing: 40) {
                     FlatSection(title: "Setup", detail: "One separate installation") {
                         VStack(alignment: .leading, spacing: 4) {
                             StatusRow(title: "This Mac", symbol: "desktopcomputer", state: model.snapshot.host)
@@ -58,43 +62,78 @@ struct GameDetailView: View {
                         savesContent
                     }
                 }
+                }
+                .padding(.horizontal, 42)
+                .padding(.top, 26)
+                .padding(.bottom, 48)
+                .frame(maxWidth: 980, alignment: .leading)
+                .opacity(contentAppeared ? 1 : 0)
+                .offset(y: contentAppeared ? 0 : 16)
             }
-            .padding(.horizontal, 42)
-            .padding(.bottom, 48)
-            .frame(maxWidth: 980, alignment: .leading)
         }
         .ignoresSafeArea(edges: .top)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.4).delay(0.08)) {
+                contentAppeared = true
+            }
+        }
     }
 
     // MARK: - Hero
 
-    private var hero: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            GameArtwork(url: descriptor.heroArtworkURL, fallbackSymbol: descriptor.symbol)
-                .frame(height: 250)
-                .overlay {
-                    LinearGradient(
-                        colors: [.clear, SecundaTheme.void.opacity(0.55), SecundaTheme.void],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+    /// Full-bleed banner: the artwork spans the whole pane and dissolves
+    /// into the night background on every edge.
+    private var heroBanner: some View {
+        GameArtwork(url: descriptor.heroArtworkURL, fallbackSymbol: descriptor.symbol)
+            .frame(maxWidth: .infinity)
+            .frame(height: 300)
+            .overlay {
+                LinearGradient(
+                    stops: [
+                        .init(color: SecundaTheme.void.opacity(0.55), location: 0),
+                        .init(color: .clear, location: 0.28),
+                        .init(color: SecundaTheme.void.opacity(0.35), location: 0.72),
+                        .init(color: SecundaTheme.void, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .overlay {
+                LinearGradient(
+                    stops: [
+                        .init(color: SecundaTheme.void.opacity(0.9), location: 0),
+                        .init(color: .clear, location: 0.22),
+                        .init(color: .clear, location: 0.78),
+                        .init(color: SecundaTheme.void.opacity(0.9), location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            }
+            .overlay(alignment: .bottomLeading) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(descriptor.title.uppercased())
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(2.4)
+                        .foregroundStyle(SecundaTheme.frost)
+                    Text(model.headline(for: descriptor))
+                        .font(.system(size: 36, weight: .medium, design: .serif))
+                        .tracking(-0.5)
+                        .shadow(color: .black.opacity(0.55), radius: 10, y: 2)
+                    Text(descriptor.tagline)
+                        .font(.system(size: 13, weight: .regular, design: .serif))
+                        .italic()
+                        .foregroundStyle(SecundaTheme.secondaryText)
                 }
-                .overlay(alignment: .bottomLeading) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(descriptor.title.uppercased())
-                            .font(.system(size: 10, weight: .semibold))
-                            .tracking(2.4)
-                            .foregroundStyle(SecundaTheme.frost)
-                        Text(model.headline(for: descriptor))
-                            .font(.system(size: 34, weight: .medium, design: .serif))
-                            .tracking(-0.5)
-                    }
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 18)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .padding(.top, 24)
+                .padding(.horizontal, 42)
+                .padding(.bottom, 20)
+            }
+            .clipped()
+    }
 
+    private var heroActions: some View {
+        VStack(alignment: .leading, spacing: 18) {
             Text(model.supportingText(for: descriptor))
                 .font(.system(size: 15))
                 .foregroundStyle(SecundaTheme.secondaryText)
