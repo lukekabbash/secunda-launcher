@@ -222,28 +222,41 @@ struct SetupProgressRail: View {
 /// Steam CDN artwork with a stylized gradient fallback so the library looks
 /// intentional even offline.
 struct GameArtwork: View {
-    let url: URL?
+    /// Tried in order; a player-supplied file URL belongs first.
+    let candidates: [URL]
     let fallbackSymbol: String
+    /// Wide art in a portrait frame is letterboxed over a blurred copy of
+    /// itself rather than cropped to nothing.
+    var cropsToFill = false
+
+    @ObservedObject private var store = ArtworkStore.shared
+
+    private var key: String {
+        candidates.first?.absoluteString ?? fallbackSymbol
+    }
 
     var body: some View {
         Color.clear
             .overlay {
-                if let url {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        default:
-                            fallback
-                        }
+                if let image = store.image(forKey: key) {
+                    ZStack {
+                        Image(nsImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .blur(radius: 26)
+                            .opacity(0.6)
+                        Image(nsImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: cropsToFill ? .fill : .fit)
                     }
+                    .transition(.opacity)
                 } else {
                     fallback
                 }
             }
             .clipped()
+            .animation(.easeOut(duration: 0.25), value: store.revision)
+            .onAppear { store.load(key: key, candidates: candidates) }
     }
 
     private var fallback: some View {

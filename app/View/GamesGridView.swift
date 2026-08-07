@@ -24,6 +24,7 @@ struct GamesGridView: View {
                         let component = model.defaultComponent(for: group)
                         GameCard(
                             descriptor: component,
+                            artwork: model.artworkCandidates(for: component, hero: false),
                             displayTitle: group.shortTitle,
                             state: groupCardState(group),
                             isRunning: model.runningComponent(in: group) != nil,
@@ -90,6 +91,7 @@ struct GamesGridView: View {
 
 private struct GameCard: View {
     let descriptor: GameDescriptor
+    let artwork: [URL]
     var displayTitle: String?
     let state: ComponentState
     var isRunning = false
@@ -108,7 +110,7 @@ private struct GameCard: View {
     }
 
     private var card: some View {
-            GameArtwork(url: descriptor.cardArtworkURL, fallbackSymbol: descriptor.symbol)
+            GameArtwork(candidates: artwork, fallbackSymbol: descriptor.symbol)
                 .aspectRatio(2 / 3, contentMode: .fit)
                 .overlay {
                     LinearGradient(

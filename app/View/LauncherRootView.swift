@@ -77,7 +77,13 @@ struct LauncherRootView: View {
                             { model.forceStopGame(component) }
                         },
                         icon: {
-                            SidebarGameThumb(descriptor: model.defaultComponent(for: group))
+                            SidebarGameThumb(
+                                descriptor: model.defaultComponent(for: group),
+                                candidates: model.artworkCandidates(
+                                    for: model.defaultComponent(for: group),
+                                    hero: false
+                                )
+                            )
                         }
                     ) {
                         select(.game(group.id))
@@ -170,46 +176,27 @@ private struct SidebarSymbol: View {
     }
 }
 
-/// Small poster thumbnail for a game row, with a symbol fallback.
+/// Small poster thumbnail for a game row. Backed by the shared artwork
+/// cache so it loads once and never flickers back to a placeholder when
+/// the sidebar re-renders on tab changes.
 private struct SidebarGameThumb: View {
     let descriptor: GameDescriptor
+    let candidates: [URL]
 
     var body: some View {
-        Color.clear
-            .frame(width: 30, height: 40)
-            .overlay {
-                if let url = descriptor.cardArtworkURL {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().aspectRatio(contentMode: .fill)
-                        default:
-                            fallback
-                        }
-                    }
-                } else {
-                    fallback
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(SecundaTheme.hairline)
-            }
-    }
-
-    private var fallback: some View {
-        ZStack {
-            LinearGradient(
-                colors: [SecundaTheme.slate, SecundaTheme.midnight],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            Image(systemName: descriptor.symbol)
-                .font(.system(size: 12))
-                .foregroundStyle(SecundaTheme.frost)
+        GameArtwork(
+            candidates: candidates,
+            fallbackSymbol: descriptor.symbol,
+            cropsToFill: true
+        )
+        .frame(width: 30, height: 40)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(SecundaTheme.hairline)
         }
     }
+
 }
 
 /// Full-width sidebar row with a large forgiving hit area, hover state,

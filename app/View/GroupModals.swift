@@ -129,7 +129,7 @@ private struct ComponentRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            GameArtwork(url: component.cardArtworkURL, fallbackSymbol: component.symbol)
+            GameArtwork(candidates: component.cardArtworkCandidates, fallbackSymbol: component.symbol)
                 .frame(width: 34, height: 46)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay {

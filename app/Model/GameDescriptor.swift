@@ -138,6 +138,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     let baselineDataFile: String?
     let qualityOptions: [QualityOption]
     let dlc: [DLCDescriptor]
+    /// Steam app whose artwork stands in when this one publishes none of
+    /// its own (Black Ops II's mode entries borrow the base game's).
+    var artworkFallbackAppID: String?
 
     var supportsDisplayProfile: Bool { prefsFileName != nil }
 
@@ -216,16 +219,34 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
 
     /// Steam's own artwork CDN. Fetched at runtime for the player's library
     /// presentation and never redistributed inside Secunda.
-    var cardArtworkURL: URL? {
-        URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(steamAppID)/library_600x900.jpg")
+    ///
+    /// Candidates are tried in order: many older apps (Black Ops II's
+    /// multiplayer and zombies entries among them) publish only a wide
+    /// header image, so the chain ends at the base app's artwork.
+    var cardArtworkCandidates: [URL] {
+        artworkURLs(
+            paths: ["library_600x900.jpg", "header.jpg"],
+            fallbackPaths: ["library_600x900.jpg", "header.jpg"]
+        )
     }
 
-    var heroArtworkURL: URL? {
-        URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(steamAppID)/library_hero.jpg")
+    var heroArtworkCandidates: [URL] {
+        artworkURLs(
+            paths: ["library_hero.jpg", "header.jpg"],
+            fallbackPaths: ["library_hero.jpg", "header.jpg"]
+        )
     }
 
-    var logoArtworkURL: URL? {
-        URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(steamAppID)/logo.png")
+    private func artworkURLs(paths: [String], fallbackPaths: [String]) -> [URL] {
+        var urls = paths.compactMap {
+            URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(steamAppID)/\($0)")
+        }
+        if let fallbackAppID = artworkFallbackAppID {
+            urls += fallbackPaths.compactMap {
+                URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(fallbackAppID)/\($0)")
+            }
+        }
+        return urls
     }
 
     static let skyrimSE = GameDescriptor(
@@ -549,7 +570,8 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             defaultFieldOfView: 80,
             baselineDataFile: nil,
             qualityOptions: [],
-            dlc: []
+            dlc: [],
+            artworkFallbackAppID: "202970"
         )
     }
 

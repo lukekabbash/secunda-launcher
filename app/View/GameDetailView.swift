@@ -152,7 +152,11 @@ struct GameDetailView: View {
     /// Full-bleed banner: the artwork spans the whole pane and dissolves
     /// into the night background on every edge.
     private var heroBanner: some View {
-        GameArtwork(url: descriptor.heroArtworkURL, fallbackSymbol: descriptor.symbol)
+        GameArtwork(
+            candidates: model.artworkCandidates(for: descriptor, hero: true),
+            fallbackSymbol: descriptor.symbol,
+            cropsToFill: true
+        )
             .frame(maxWidth: .infinity)
             .frame(height: 300)
             .overlay {

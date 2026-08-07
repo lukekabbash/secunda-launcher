@@ -98,6 +98,12 @@ struct SecundaPaths: Sendable {
         applicationSupport.appendingPathComponent("Backups", isDirectory: true)
     }
 
+    /// Player-supplied cover art, named after a game's identifier. Used in
+    /// preference to Steam's CDN so anyone can restyle their library.
+    var artworkDirectory: URL {
+        applicationSupport.appendingPathComponent("Artwork", isDirectory: true)
+    }
+
     var settingsFile: URL {
         applicationSupport.appendingPathComponent("settings.json")
     }
@@ -151,6 +157,7 @@ struct SecundaPaths: Sendable {
             downloadsDirectory,
             logsDirectory,
             backupsDirectory,
+            artworkDirectory,
             cachesDirectory,
             graphicsCacheDirectory
         ] {

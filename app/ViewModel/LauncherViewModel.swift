@@ -213,6 +213,41 @@ final class LauncherViewModel: ObservableObject {
         group.components.first { isGameRunning($0) }
     }
 
+    /// Artwork candidates for a game: any player-supplied image in the
+    /// managed Artwork folder wins, then Steam's CDN chain.
+    func artworkCandidates(for descriptor: GameDescriptor, hero: Bool) -> [URL] {
+        var candidates = customArtwork(for: descriptor, hero: hero)
+        candidates += hero ? descriptor.heroArtworkCandidates : descriptor.cardArtworkCandidates
+        return candidates
+    }
+
+    /// `<managed data>/Artwork/<game-id>.png` (or .jpg/.jpeg), plus an
+    /// optional `-hero` variant for the banner.
+    private func customArtwork(for descriptor: GameDescriptor, hero: Bool) -> [URL] {
+        let directory = paths.artworkDirectory
+        let names = hero
+            ? ["\(descriptor.id)-hero", descriptor.id]
+            : [descriptor.id]
+        var urls: [URL] = []
+        for name in names {
+            for ext in ["png", "jpg", "jpeg"] {
+                let candidate = directory.appendingPathComponent("\(name).\(ext)")
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    urls.append(candidate)
+                }
+            }
+        }
+        return urls
+    }
+
+    func revealArtworkFolder() {
+        try? FileManager.default.createDirectory(
+            at: paths.artworkDirectory,
+            withIntermediateDirectories: true
+        )
+        NSWorkspace.shared.activateFileViewerSelecting([paths.artworkDirectory])
+    }
+
     func dlcStates(for descriptor: GameDescriptor) -> [DLCState] {
         gameServices[descriptor.id]?.dlcStates(in: runtime)
             ?? descriptor.dlc.map { DLCState(descriptor: $0, isInstalled: false) }
