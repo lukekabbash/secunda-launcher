@@ -3,6 +3,8 @@ import SwiftUI
 struct GamesGridView: View {
     @ObservedObject var model: LauncherViewModel
     @State private var appeared = false
+    @State private var launchSheetGroup: GameGroup?
+    @State private var manageSheetGroup: GameGroup?
 
     private let columns = [
         GridItem(.adaptive(minimum: 216, maximum: 280), spacing: 28)
@@ -18,20 +20,22 @@ struct GamesGridView: View {
                 )
 
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 30) {
-                    ForEach(Array(GameDescriptor.supported.enumerated()), id: \.element.id) { index, descriptor in
+                    ForEach(Array(GameGroup.all.enumerated()), id: \.element.id) { index, group in
+                        let component = model.defaultComponent(for: group)
                         GameCard(
-                            descriptor: descriptor,
-                            state: model.snapshot.game(descriptor).state,
-                            isRunning: model.isGameRunning(descriptor),
-                            primaryAction: model.primaryAction(for: descriptor),
+                            descriptor: component,
+                            displayTitle: group.shortTitle,
+                            state: groupCardState(group),
+                            isRunning: model.runningComponent(in: group) != nil,
+                            primaryAction: model.primaryAction(for: component),
                             isBusy: model.isBusy,
                             open: {
                                 withAnimation(.easeOut(duration: 0.18)) {
-                                    model.selection = .game(descriptor.id)
+                                    model.selection = .game(group.id)
                                 }
                             },
                             quickAction: {
-                                model.performPrimaryAction(for: descriptor)
+                                quickAction(for: group)
                             }
                         )
                         .opacity(appeared ? 1 : 0)
@@ -48,11 +52,45 @@ struct GamesGridView: View {
             .frame(maxWidth: 1120, alignment: .leading)
         }
         .onAppear { appeared = true }
+        .sheet(item: $launchSheetGroup) { group in
+            LaunchModeSheet(model: model, group: group) {
+                launchSheetGroup = nil
+            }
+        }
+        .sheet(item: $manageSheetGroup) { group in
+            ManageInstallSheet(model: model, group: group) {
+                manageSheetGroup = nil
+            }
+        }
+    }
+
+    /// Multi-component groups get their chooser modals; single games act
+    /// directly, exactly as before.
+    private func quickAction(for group: GameGroup) {
+        guard group.isMultiComponent else {
+            model.performPrimaryAction(for: model.defaultComponent(for: group))
+            return
+        }
+        if model.anyComponentInstalled(in: group) {
+            launchSheetGroup = group
+        } else if model.snapshot.steam.isReady {
+            manageSheetGroup = group
+        } else {
+            model.performPrimaryAction(for: model.defaultComponent(for: group))
+        }
+    }
+
+    private func groupCardState(_ group: GameGroup) -> ComponentState {
+        if model.anyComponentInstalled(in: group) {
+            return .ready("Installed")
+        }
+        return model.snapshot.game(model.defaultComponent(for: group)).state
     }
 }
 
 private struct GameCard: View {
     let descriptor: GameDescriptor
+    var displayTitle: String?
     let state: ComponentState
     var isRunning = false
     let primaryAction: PrimaryAction
@@ -85,7 +123,7 @@ private struct GameCard: View {
                 }
                 .overlay(alignment: .bottomLeading) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(descriptor.shortTitle)
+                        Text(displayTitle ?? descriptor.shortTitle)
                             .font(.system(size: 16, weight: .semibold, design: .serif))
                             .foregroundStyle(.white)
                         Text(statusText)

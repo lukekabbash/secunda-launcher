@@ -72,6 +72,32 @@ enum SelfCheck {
             failures: &failures
         )
         expect(
+            GameGroup.all.count == 4
+                && GameGroup.group(for: "black-ops-2")?.componentIDs
+                    == ["bo2-campaign", "bo2-multiplayer", "bo2-zombies"]
+                && GameGroup.group(for: "black-ops-2")?.isMultiComponent == true
+                && GameGroup.group(for: "skyrim-se")?.isMultiComponent == false,
+            "library groups unify Black Ops II",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameGroup.group(containing: "bo2-zombies")?.id == "black-ops-2"
+                && GameGroup.all.flatMap(\.componentIDs).sorted()
+                    == GameDescriptor.supported.map(\.id).sorted(),
+            "every game belongs to exactly one group",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameDescriptor.blackOps2Zombies.modeTitle == "Zombies"
+                && GameDescriptor.blackOps2MP.modeTitle == "Multiplayer"
+                && GameDescriptor.supcom2.modeTitle == "Supreme Commander 2",
+            "component mode titles",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
             DXVKService.isDXVKBinary(Data("...dxvk_config...".utf8))
                 && !DXVKService.isDXVKBinary(Data("MZ Wine builtin DLL".utf8)),
             "DXVK binary detection",
@@ -280,8 +306,8 @@ enum SelfCheck {
         ).environment(for: bundledRuntime, diagnostics: false)
         expect(
             runtimeEnvironment["DYLD_LIBRARY_PATH"] != nil
-                && bundledEnvironment["DYLD_LIBRARY_PATH"] == nil,
-            "packaged runtime avoids DYLD environment dependency",
+                && bundledEnvironment["DYLD_LIBRARY_PATH"] == "/tmp/secunda-bundled/lib",
+            "every runtime origin exposes its library path for soname dlopens",
             passes: &passes,
             failures: &failures
         )

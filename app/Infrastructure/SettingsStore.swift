@@ -50,6 +50,8 @@ struct GameSettings: Codable, Equatable, Sendable {
 struct LauncherSettings: Codable, Equatable, Sendable {
     var enableDiagnostics = false
     var games: [String: GameSettings] = [:]
+    /// Selected default component per multi-component group (groupID → descriptorID).
+    var groupDefaults: [String: String] = [:]
 
     init() {}
 
@@ -66,6 +68,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case enableDiagnostics
         case games
+        case groupDefaults
         // Legacy flat keys from the single-game settings file.
         case displayMode
         case launchInWindow
@@ -78,6 +81,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enableDiagnostics = try container.decodeIfPresent(Bool.self, forKey: .enableDiagnostics) ?? false
+        groupDefaults = try container.decodeIfPresent([String: String].self, forKey: .groupDefaults) ?? [:]
         if let games = try container.decodeIfPresent([String: GameSettings].self, forKey: .games) {
             self.games = games
             return
@@ -101,6 +105,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(enableDiagnostics, forKey: .enableDiagnostics)
         try container.encode(games, forKey: .games)
+        try container.encode(groupDefaults, forKey: .groupDefaults)
     }
 }
 

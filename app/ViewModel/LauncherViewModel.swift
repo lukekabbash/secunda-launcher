@@ -188,6 +188,31 @@ final class LauncherViewModel: ObservableObject {
             && FileManager.default.fileExists(atPath: prefs.path)
     }
 
+    // MARK: - Groups
+
+    /// The component a group's card and page act on by default.
+    func defaultComponent(for group: GameGroup) -> GameDescriptor {
+        if let storedID = settings.groupDefaults[group.id],
+           group.componentIDs.contains(storedID),
+           let stored = GameDescriptor.descriptor(for: storedID) {
+            return stored
+        }
+        return group.components.first ?? .skyrimSE
+    }
+
+    func setDefaultComponent(_ descriptor: GameDescriptor, for group: GameGroup) {
+        settings.groupDefaults[group.id] = descriptor.id
+        persistSettings()
+    }
+
+    func anyComponentInstalled(in group: GameGroup) -> Bool {
+        group.components.contains { snapshot.game($0).state.isReady }
+    }
+
+    func runningComponent(in group: GameGroup) -> GameDescriptor? {
+        group.components.first { isGameRunning($0) }
+    }
+
     func dlcStates(for descriptor: GameDescriptor) -> [DLCState] {
         gameServices[descriptor.id]?.dlcStates(in: runtime)
             ?? descriptor.dlc.map { DLCState(descriptor: $0, isInstalled: false) }

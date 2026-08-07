@@ -2,11 +2,25 @@ import SwiftUI
 
 struct GameDetailView: View {
     @ObservedObject var model: LauncherViewModel
-    let descriptor: GameDescriptor
+    let group: GameGroup
 
     @State private var showsCloseConfirmation = false
     @State private var showsUninstallConfirmation = false
+    @State private var showsManageSheet = false
     @State private var contentAppeared = false
+    @State private var selectedComponentID: String?
+
+    /// The component every section of this page acts on. For single-game
+    /// groups this is just the game; for Black Ops II it follows the mode
+    /// picker and persists as the group default.
+    private var descriptor: GameDescriptor {
+        if let id = selectedComponentID,
+           group.componentIDs.contains(id),
+           let selected = GameDescriptor.descriptor(for: id) {
+            return selected
+        }
+        return model.defaultComponent(for: group)
+    }
 
     var body: some View {
         ScrollView {
@@ -109,10 +123,28 @@ struct GameDetailView: View {
         }
         .ignoresSafeArea(edges: .top)
         .onAppear {
+            selectedComponentID = model.defaultComponent(for: group).id
             withAnimation(.easeOut(duration: 0.45)) {
                 contentAppeared = true
             }
         }
+        .sheet(isPresented: $showsManageSheet) {
+            ManageInstallSheet(model: model, group: group) {
+                showsManageSheet = false
+            }
+        }
+    }
+
+    private var modeBinding: Binding<String> {
+        Binding(
+            get: { descriptor.id },
+            set: { newID in
+                selectedComponentID = newID
+                if let component = GameDescriptor.descriptor(for: newID) {
+                    model.setDefaultComponent(component, for: group)
+                }
+            }
+        )
     }
 
     // MARK: - Hero
@@ -170,6 +202,27 @@ struct GameDetailView: View {
 
     private var heroActions: some View {
         VStack(alignment: .leading, spacing: 18) {
+            if group.isMultiComponent {
+                HStack(spacing: 12) {
+                    Picker("Mode", selection: modeBinding) {
+                        ForEach(group.components) { component in
+                            Text(component.modeTitle).tag(component.id)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 340)
+
+                    Button {
+                        showsManageSheet = true
+                    } label: {
+                        Label("Edit Installation", systemImage: "square.and.arrow.down.on.square")
+                    }
+                    .buttonStyle(SecundaActionButtonStyle())
+                    .disabled(model.isBusy || !model.snapshot.steam.isReady)
+                }
+            }
+
             Text(model.supportingText(for: descriptor))
                 .font(.system(size: 15))
                 .foregroundStyle(SecundaTheme.secondaryText)
@@ -189,9 +242,9 @@ struct GameDetailView: View {
                         }
                         Text(model.primaryAction(for: descriptor).title(for: descriptor))
                     }
-                    .frame(minWidth: 170)
+                    .frame(minWidth: 150)
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 13)
+                    .frame(height: SecundaTheme.controlHeight)
                 }
                 .buttonStyle(SecundaPrimaryButtonStyle())
                 .disabled(model.isBusy)

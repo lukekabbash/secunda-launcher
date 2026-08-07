@@ -587,6 +587,76 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         .skyrimSE, .fallout4, .supcom2, .blackOps2SP, .blackOps2MP, .blackOps2Zombies
     ]
 
+}
+
+/// One library surface entry. Most groups wrap a single game; Black Ops II
+/// groups its three Steam components (campaign, multiplayer, zombies) behind
+/// one card with mode selection.
+struct GameGroup: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let shortTitle: String
+    let symbol: String
+    let componentIDs: [String]
+
+    var isMultiComponent: Bool { componentIDs.count > 1 }
+
+    var components: [GameDescriptor] {
+        componentIDs.compactMap { GameDescriptor.descriptor(for: $0) }
+    }
+
+    static let all: [GameGroup] = [
+        GameGroup(
+            id: "skyrim-se",
+            title: GameDescriptor.skyrimSE.title,
+            shortTitle: GameDescriptor.skyrimSE.shortTitle,
+            symbol: GameDescriptor.skyrimSE.symbol,
+            componentIDs: ["skyrim-se"]
+        ),
+        GameGroup(
+            id: "fallout-4",
+            title: GameDescriptor.fallout4.title,
+            shortTitle: GameDescriptor.fallout4.shortTitle,
+            symbol: GameDescriptor.fallout4.symbol,
+            componentIDs: ["fallout-4"]
+        ),
+        GameGroup(
+            id: "supcom2",
+            title: GameDescriptor.supcom2.title,
+            shortTitle: GameDescriptor.supcom2.shortTitle,
+            symbol: GameDescriptor.supcom2.symbol,
+            componentIDs: ["supcom2"]
+        ),
+        GameGroup(
+            id: "black-ops-2",
+            title: "Call of Duty: Black Ops II",
+            shortTitle: "Black Ops II",
+            symbol: "scope",
+            componentIDs: ["bo2-campaign", "bo2-multiplayer", "bo2-zombies"]
+        )
+    ]
+
+    static func group(for id: String) -> GameGroup? {
+        all.first { $0.id == id }
+    }
+
+    /// The group a descriptor belongs to.
+    static func group(containing descriptorID: String) -> GameGroup? {
+        all.first { $0.componentIDs.contains(descriptorID) }
+    }
+}
+
+extension GameDescriptor {
+    /// Mode label inside a multi-component group (e.g. "Campaign").
+    var modeTitle: String {
+        switch id {
+        case "bo2-campaign": "Campaign"
+        case "bo2-multiplayer": "Multiplayer"
+        case "bo2-zombies": "Zombies"
+        default: shortTitle
+        }
+    }
+
     static func descriptor(for id: String) -> GameDescriptor? {
         supported.first { $0.id == id }
     }

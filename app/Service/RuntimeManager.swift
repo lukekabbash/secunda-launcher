@@ -87,12 +87,10 @@ final class RuntimeManager {
         let runtimeRoot = runtime.wineExecutable
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        switch runtime.origin {
-        case .bundled:
-            break
-        case .sourceBuild, .environment:
-            environment["DYLD_LIBRARY_PATH"] = runtimeRoot.appendingPathComponent("lib").path
-        }
+        // Every origin needs this, including the bundled runtime: winebus dlopens
+        // libSDL2 by soname for controller support, and dlopen resolves a bare
+        // soname through DYLD_LIBRARY_PATH rather than the loader's @rpath.
+        environment["DYLD_LIBRARY_PATH"] = runtimeRoot.appendingPathComponent("lib").path
 
         // Vulkan over MoltenVK. The CrossOver-derived Wine loads Vulkan only
         // when both variables are present; games on the wined3d GL path are

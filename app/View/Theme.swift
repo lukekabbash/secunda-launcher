@@ -14,6 +14,8 @@ enum SecundaTheme {
     static let text = Color(red: 0.92, green: 0.94, blue: 0.96)
     static let secondaryText = Color(red: 0.62, green: 0.67, blue: 0.73)
     static let hairline = Color.white.opacity(0.10)
+    /// Every capsule control in an action row shares this height.
+    static let controlHeight: CGFloat = 40
 
     static let panel = LinearGradient(
         colors: [Color.white.opacity(0.075), Color.white.opacity(0.035)],
@@ -86,8 +88,7 @@ struct SecundaActionButtonStyle: ButtonStyle {
             .font(.system(size: 12.5, weight: .medium))
             .foregroundStyle(prominent ? SecundaTheme.void : SecundaTheme.text)
             .padding(.horizontal, 16)
-            .padding(.vertical, 9)
-            .frame(minHeight: 34)
+            .frame(height: SecundaTheme.controlHeight)
             .background {
                 if prominent {
                     Capsule().fill(SecundaTheme.moon)
@@ -122,8 +123,7 @@ struct SecundaDestructiveButtonStyle: ButtonStyle {
             .font(.system(size: 12.5, weight: .medium))
             .foregroundStyle(isHovering ? Color.white : SecundaTheme.danger)
             .padding(.horizontal, 16)
-            .padding(.vertical, 9)
-            .frame(minHeight: 34)
+            .frame(height: SecundaTheme.controlHeight)
             .background {
                 Capsule().fill(
                     isHovering
@@ -149,7 +149,7 @@ struct SecundaIconButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 14, weight: .medium))
             .foregroundStyle(isHovering ? SecundaTheme.text : SecundaTheme.secondaryText)
-            .frame(width: 34, height: 34)
+            .frame(width: SecundaTheme.controlHeight, height: SecundaTheme.controlHeight)
             .background {
                 Circle().fill(Color.white.opacity(
                     configuration.isPressed ? 0.15 : (isHovering ? 0.09 : 0)

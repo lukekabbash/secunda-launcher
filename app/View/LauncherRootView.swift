@@ -65,19 +65,22 @@ struct LauncherRootView: View {
                     .padding(.top, 18)
                     .padding(.bottom, 4)
 
-                ForEach(GameDescriptor.supported) { descriptor in
+                ForEach(GameGroup.all) { group in
+                    let running = model.runningComponent(in: group)
                     SidebarRow(
-                        title: descriptor.shortTitle,
-                        subtitle: sidebarSubtitle(for: descriptor),
-                        isSelected: model.selection == .game(descriptor.id),
-                        isRunning: model.isGameRunning(descriptor),
-                        forceStopTitle: "Force stop \(descriptor.shortTitle)?",
-                        onForceStop: model.isGameRunning(descriptor)
-                            ? { model.forceStopGame(descriptor) }
-                            : nil,
-                        icon: { SidebarGameThumb(descriptor: descriptor) }
+                        title: group.shortTitle,
+                        subtitle: sidebarSubtitle(for: group),
+                        isSelected: model.selection == .game(group.id),
+                        isRunning: running != nil,
+                        forceStopTitle: "Force stop \(group.shortTitle)?",
+                        onForceStop: running.map { component in
+                            { model.forceStopGame(component) }
+                        },
+                        icon: {
+                            SidebarGameThumb(descriptor: model.defaultComponent(for: group))
+                        }
                     ) {
-                        select(.game(descriptor.id))
+                        select(.game(group.id))
                     }
                 }
             }
@@ -117,13 +120,14 @@ struct LauncherRootView: View {
         .background(Color.black.opacity(0.16))
     }
 
-    private func sidebarSubtitle(for descriptor: GameDescriptor) -> String? {
-        if model.isGameRunning(descriptor) { return "Running" }
-        return switch model.snapshot.game(descriptor).state {
-        case .ready: nil
-        case .working: nil
-        default: "Not installed"
+    private func sidebarSubtitle(for group: GameGroup) -> String? {
+        if model.runningComponent(in: group) != nil { return "Running" }
+        if model.anyComponentInstalled(in: group) { return nil }
+        let anyChecking = group.components.contains {
+            if case .working = model.snapshot.game($0).state { return true }
+            return false
         }
+        return anyChecking ? nil : "Not installed"
     }
 
     private func select(_ item: SidebarItem) {
@@ -137,9 +141,9 @@ struct LauncherRootView: View {
         switch model.selection {
         case .games:
             GamesGridView(model: model)
-        case .game(let gameID):
-            if let descriptor = GameDescriptor.descriptor(for: gameID) {
-                GameDetailView(model: model, descriptor: descriptor)
+        case .game(let groupID):
+            if let group = GameGroup.group(for: groupID) {
+                GameDetailView(model: model, group: group)
             } else {
                 GamesGridView(model: model)
             }
