@@ -170,10 +170,10 @@ final class LauncherViewModel: ObservableObject {
     /// Whether the game has written its Lua prefs file yet — tuning options
     /// can only take effect after that first run.
     func luaPrefsDetected(for descriptor: GameDescriptor) -> Bool {
-        guard let fileName = descriptor.luaPrefsFileName else { return false }
+        guard let relativePath = descriptor.luaPrefsRelativePath else { return false }
         let bottleRoot = runtime?.bottleRoot ?? paths.bottleRoot
         let prefs = paths.activeWindowsUserDirectory(in: bottleRoot)
-            .appendingPathComponent("Documents/\(descriptor.documentsRelativePath)/\(fileName)")
+            .appendingPathComponent(relativePath)
         return paths.contains(prefs, inBottleRoot: bottleRoot)
             && FileManager.default.fileExists(atPath: prefs.path)
     }

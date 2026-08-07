@@ -12,6 +12,8 @@ struct GameDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 heroBanner
+                    .opacity(contentAppeared ? 1 : 0)
+                    .offset(y: contentAppeared ? 0 : 10)
 
                 VStack(alignment: .leading, spacing: 40) {
                     heroActions
@@ -41,6 +43,23 @@ struct GameDetailView: View {
                 if descriptor.supportsDisplayProfile {
                     FlatSection(title: "Display & Audio", detail: "Applied at launch") {
                         displaySettings
+                    }
+                } else if descriptor.usesWindowedResolutionArguments {
+                    FlatSection(title: "Display", detail: "Applied at launch") {
+                        VStack(alignment: .leading, spacing: 22) {
+                            settingRow(
+                                label: "Resolution",
+                                caption: "Runs as a window at this size. This engine's exclusive fullscreen fails on macOS, so Secunda always launches it windowed."
+                            ) {
+                                Picker("Resolution", selection: resolutionBinding) {
+                                    ForEach(resolutionOptions) { option in
+                                        Text(option.label).tag(option.id)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 230)
+                            }
+                        }
                     }
                 } else {
                     FlatSection(title: "Display & Audio", detail: "In-game") {
@@ -85,12 +104,12 @@ struct GameDetailView: View {
                 .padding(.bottom, 48)
                 .frame(maxWidth: 980, alignment: .leading)
                 .opacity(contentAppeared ? 1 : 0)
-                .offset(y: contentAppeared ? 0 : 16)
+                .offset(y: contentAppeared ? 0 : 10)
             }
         }
         .ignoresSafeArea(edges: .top)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.4).delay(0.08)) {
+            withAnimation(.easeOut(duration: 0.45)) {
                 contentAppeared = true
             }
         }

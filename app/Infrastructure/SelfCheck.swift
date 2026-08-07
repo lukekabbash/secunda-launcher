@@ -53,10 +53,33 @@ enum SelfCheck {
             failures: &failures
         )
         expect(
-            GameDescriptor.supcom2.executableRelativePath == "bin/SupCom2.exe"
-                && GameDescriptor.supcom2.gameImageName == "SupCom2.exe"
-                && !GameDescriptor.supcom2.supportsDisplayProfile,
+            GameDescriptor.supcom2.executableRelativePath == "bin/SupremeCommander2.exe"
+                && GameDescriptor.supcom2.gameImageName == "SupremeCommander2.exe"
+                && !GameDescriptor.supcom2.supportsDisplayProfile
+                && GameDescriptor.supcom2.usesWindowedResolutionArguments,
             "Supreme Commander 2 descriptor",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameDescriptor.supcom2.luaPrefsRelativePath
+                == "AppData/Local/Gas Powered Games/Supreme Commander 2/Game.prefs",
+            "Supreme Commander 2 prefs location",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameService.gameArguments(descriptor: .supcom2, settings: GameSettings())
+                == ["/windowed", "1920", "1080"]
+                && GameService.gameArguments(descriptor: .skyrimSE, settings: GameSettings()).isEmpty,
+            "windowed resolution arguments",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameDescriptor.supcom2.luaTuningOptions.contains { $0.id == "fidelity-preset" }
+                && GameDescriptor.supcom2.luaTuningOptions.contains { $0.id == "unit-cap" },
+            "Supreme Commander 2 tuning options",
             passes: &passes,
             failures: &failures
         )
@@ -496,7 +519,7 @@ enum SelfCheck {
 
         expect(
             GameDescriptor.skyrimSE.documentsRelativePath == "My Games/Skyrim Special Edition"
-                && GameDescriptor.supcom2.documentsRelativePath == "Gas Powered Games/Supreme Commander 2",
+                && GameDescriptor.supcom2.documentsRelativePath == "My Games/Gas Powered Games/Supreme Commander 2",
             "per-game documents paths",
             passes: &passes,
             failures: &failures

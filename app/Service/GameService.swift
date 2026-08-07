@@ -169,7 +169,8 @@ final class GameService {
         await progress(.steam)
         try steamService.launch(
             runtime: runtime,
-            arguments: ["-applaunch", descriptor.steamAppID],
+            arguments: ["-applaunch", descriptor.steamAppID]
+                + Self.gameArguments(descriptor: descriptor, settings: settings),
             diagnostics: diagnostics
         )
 
@@ -194,7 +195,7 @@ final class GameService {
         }
 
         await progress(.game)
-        try launchGameExecutable(game, runtime: runtime, diagnostics: diagnostics)
+        try launchGameExecutable(game, runtime: runtime, settings: settings, diagnostics: diagnostics)
         guard try await processProbe.waitForGame(
             runtime: runtime,
             diagnostics: diagnostics,
@@ -280,6 +281,7 @@ final class GameService {
     private func launchGameExecutable(
         _ executable: URL,
         runtime: RuntimeDescriptor,
+        settings: GameSettings,
         diagnostics: Bool
     ) throws {
         let environment = Self.gameEnvironment(
@@ -288,10 +290,20 @@ final class GameService {
         )
         try processRunner.launch(
             executable: runtime.wineExecutable,
-            arguments: runtime.wineArguments(for: [executable.path]),
+            arguments: runtime.wineArguments(
+                for: [executable.path] + Self.gameArguments(descriptor: descriptor, settings: settings)
+            ),
             environment: environment,
             currentDirectory: executable.deletingLastPathComponent(),
             output: Self.interactiveOutput
         )
+    }
+
+    /// Extra command-line arguments a game needs every launch. Exclusive
+    /// fullscreen fails under the Mac display driver for wined3d titles, so
+    /// those run windowed at the player's chosen resolution.
+    static func gameArguments(descriptor: GameDescriptor, settings: GameSettings) -> [String] {
+        guard descriptor.usesWindowedResolutionArguments else { return [] }
+        return ["/windowed", String(settings.width), String(settings.height)]
     }
 }

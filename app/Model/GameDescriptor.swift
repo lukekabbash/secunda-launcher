@@ -106,10 +106,14 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// Path of the game's settings/saves folder under the Windows user's
     /// Documents directory (Bethesda uses My Games/, Gas Powered doesn't).
     let documentsRelativePath: String
-    /// Lua-style prefs file inside that folder, for games configured that
-    /// way instead of via INI (nil for Bethesda titles).
-    let luaPrefsFileName: String?
+    /// Lua-style prefs file, relative to the Windows user directory, for
+    /// games configured that way instead of via INI (nil for Bethesda
+    /// titles). Supreme Commander 2 keeps it under AppData\Local.
+    let luaPrefsRelativePath: String?
     let luaTuningOptions: [LuaTuningOption]
+    /// Games whose fullscreen mode fails under the Mac display driver run
+    /// windowed via command line: /windowed <width> <height>.
+    let usesWindowedResolutionArguments: Bool
     /// Bethesda-style prefs/custom ini names. Nil means the game has no
     /// Secunda-writable profile; display settings stay in the game itself.
     let prefsFileName: String?
@@ -224,8 +228,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         launcherImageName: "SkyrimSELauncher.exe",
         executableRelativePath: "SkyrimSE.exe",
         documentsRelativePath: "My Games/Skyrim Special Edition",
-        luaPrefsFileName: nil,
+        luaPrefsRelativePath: nil,
         luaTuningOptions: [],
+        usesWindowedResolutionArguments: false,
         prefsFileName: "SkyrimPrefs.ini",
         customIniFileName: "SkyrimCustom.ini",
         vsyncKey: "iVSyncPresentInterval",
@@ -294,8 +299,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         launcherImageName: "Fallout4Launcher.exe",
         executableRelativePath: "Fallout4.exe",
         documentsRelativePath: "My Games/Fallout4",
-        luaPrefsFileName: nil,
+        luaPrefsRelativePath: nil,
         luaTuningOptions: [],
+        usesWindowedResolutionArguments: false,
         prefsFileName: "Fallout4Prefs.ini",
         customIniFileName: "Fallout4Custom.ini",
         vsyncKey: "iPresentInterval",
@@ -399,16 +405,84 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         tagline: "Thousand-unit armies, one supreme commander.",
         symbol: "flag.2.crossed.fill",
         steamAppID: "40100",
-        gameImageName: "SupCom2.exe",
-        launcherImageName: "SupCom2.exe",
-        executableRelativePath: "bin/SupCom2.exe",
-        documentsRelativePath: "Gas Powered Games/Supreme Commander 2",
-        luaPrefsFileName: "Game.prefs",
+        gameImageName: "SupremeCommander2.exe",
+        launcherImageName: "SupremeCommander2.exe",
+        executableRelativePath: "bin/SupremeCommander2.exe",
+        documentsRelativePath: "My Games/Gas Powered Games/Supreme Commander 2",
+        luaPrefsRelativePath: "AppData/Local/Gas Powered Games/Supreme Commander 2/Game.prefs",
         luaTuningOptions: [
+            LuaTuningOption(
+                id: "fidelity-preset",
+                title: "Overall quality",
+                caption: "The game's own Low/Medium/High preset.",
+                keyCandidates: ["fidelity_presets"],
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, value: ""),
+                    .init(label: "Low", value: "0"),
+                    .init(label: "Medium", value: "1"),
+                    .init(label: "High", value: "2")
+                ]
+            ),
+            LuaTuningOption(
+                id: "shadow-quality",
+                title: "Shadows",
+                keyCandidates: ["shadow_quality"],
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, value: ""),
+                    .init(label: "Off", value: "0"),
+                    .init(label: "Low", value: "1"),
+                    .init(label: "Medium", value: "2"),
+                    .init(label: "High", value: "3")
+                ]
+            ),
+            LuaTuningOption(
+                id: "water-fidelity",
+                title: "Water quality",
+                keyCandidates: ["water_fidelity"],
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, value: ""),
+                    .init(label: "Low", value: "1"),
+                    .init(label: "Medium", value: "2"),
+                    .init(label: "High", value: "3")
+                ]
+            ),
+            LuaTuningOption(
+                id: "anisotropic",
+                title: "Anisotropic filtering",
+                keyCandidates: ["anisotropic_filtering"],
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, value: ""),
+                    .init(label: "Off", value: "1"),
+                    .init(label: "8x", value: "8"),
+                    .init(label: "16x", value: "16")
+                ]
+            ),
+            LuaTuningOption(
+                id: "antialiasing",
+                title: "Anti-aliasing",
+                caption: "Multisampling. Costly through the OpenGL bridge; Off is the safe default.",
+                keyCandidates: ["antialiasing"],
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, value: ""),
+                    .init(label: "Off", value: "0"),
+                    .init(label: "2x", value: "64"),
+                    .init(label: "4x", value: "128")
+                ]
+            ),
+            LuaTuningOption(
+                id: "vsync",
+                title: "Vertical sync",
+                keyCandidates: ["vsync"],
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, value: ""),
+                    .init(label: "Off", value: "0"),
+                    .init(label: "On", value: "1")
+                ]
+            ),
             LuaTuningOption(
                 id: "unit-cap",
                 title: "Unit cap",
-                caption: "Maximum army size. Applies after the game has written this setting once (host any skirmish, then quit). Higher caps are CPU-heavy under Rosetta.",
+                caption: "Maximum army size. The game records this after you host one skirmish; until then Secunda leaves it alone. Higher caps are CPU-heavy under Rosetta.",
                 keyCandidates: ["UnitCap", "unit_cap", "unitCap"],
                 choices: [
                     .init(label: QualityOption.gameDefaultLabel, value: ""),
@@ -419,6 +493,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
                 ]
             )
         ],
+        usesWindowedResolutionArguments: true,
         prefsFileName: nil,
         customIniFileName: nil,
         vsyncKey: "iPresentInterval",

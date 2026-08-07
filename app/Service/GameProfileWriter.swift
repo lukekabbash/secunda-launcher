@@ -29,7 +29,7 @@ struct GameProfileWriter {
     func apply(_ settings: GameSettings, bottleRoot: URL) throws {
         // Games without any Secunda-writable profile manage settings
         // themselves; nothing to write.
-        let writesLuaPrefs = descriptor.luaPrefsFileName != nil && !descriptor.luaTuningOptions.isEmpty
+        let writesLuaPrefs = descriptor.luaPrefsRelativePath != nil && !descriptor.luaTuningOptions.isEmpty
         guard descriptor.supportsDisplayProfile || writesLuaPrefs else { return }
         guard BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot) else {
             throw CocoaError(.fileWriteNoPermission)
@@ -70,9 +70,12 @@ struct GameProfileWriter {
         // Lua-style prefs (Game.prefs): rewrite only keys the game itself
         // has already written — never invent structure. Absent file or
         // absent keys are silently skipped, so a launch can't fail here.
-        if writesLuaPrefs, let luaFileName = descriptor.luaPrefsFileName {
-            let luaURL = preferencesDirectory.appendingPathComponent(luaFileName)
-            guard let existing = try? String(contentsOf: luaURL, encoding: .utf8) else { return }
+        if writesLuaPrefs, let luaRelativePath = descriptor.luaPrefsRelativePath {
+            let luaURL = paths.activeWindowsUserDirectory(in: bottleRoot)
+                .appendingPathComponent(luaRelativePath)
+            guard paths.contains(luaURL, inBottleRoot: bottleRoot),
+                  let existing = try? String(contentsOf: luaURL, encoding: .utf8)
+            else { return }
             var updated = existing
             for option in descriptor.luaTuningOptions {
                 guard let chosenLabel = settings.tuning[option.id],
