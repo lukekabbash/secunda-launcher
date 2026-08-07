@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Freeze the validated one-click source-only app, produce and mount-verify an explicit test-only DMG, then checkpoint the implementation.
+Publish and mount-verify the explicit test-only DMG from the validated one-click source-only app and fresh-prefix fix.
 
 ## Completed milestones
 
@@ -16,12 +16,12 @@ Freeze the validated one-click source-only app, produce and mount-verify an expl
 8. Implement five-stage one-click Play, bounded targeted Windows-process detection, duplicate protection, private interactive output, and clean Stop.
 9. Pass the packaged cold-start, menu, loaded-save gameplay, input, duplicate-Play, and complete-stop regression.
 10. Harden static readiness and its synthetic no-execution/non-mutation suite to 37 contracts.
+11. Prove packaged first-run preparation under a blank home automatically advances to Steam installation after complete Wine initialization.
 
 ## Remaining distribution milestones
 
-1. Produce the explicit TEST-ONLY ad-hoc DMG and verify the mounted app and corresponding-source archive.
-2. Create the validated Git checkpoint.
-3. Supply Developer ID credentials, sign and notarize a recipient candidate, then test a quarantined clean-Mac install.
-4. On a clean recipient Mac, verify first-run Steam login, game download/detection, Play, audio/input/gameplay, save/load, Stop, and uninstall boundaries.
+1. Regenerate the explicit TEST-ONLY ad-hoc DMG and verify its checksum, mounted app, corresponding-source archive, and blank-home preparation flow.
+2. Supply Developer ID credentials, sign and notarize a recipient candidate, then test a quarantined clean-Mac install.
+3. On a clean recipient Mac, verify first-run Steam login, game download/detection, Play, audio/input/gameplay, save/load, Stop, and uninstall boundaries.
 
 Every meaningful result is recorded in `STATUS.md` and `GATES.md`.

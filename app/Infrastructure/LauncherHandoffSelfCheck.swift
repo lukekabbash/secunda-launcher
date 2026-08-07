@@ -169,6 +169,10 @@ enum LauncherHandoffSelfCheck {
             ],
             "prefix shutdown terminates remaining apps and the desktop"
         )
+        checks.expect(
+            BottleManager.initializationWaitArguments == ["-w"],
+            "fresh prefix waits for Wine initialization"
+        )
     }
 
     private static func checkRuntimeIntegrity(checks: inout LauncherHandoffCheckSummary) {

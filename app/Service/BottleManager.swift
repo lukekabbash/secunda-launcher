@@ -13,6 +13,7 @@ final class BottleManager {
         "--shutdown"
     ]
     static let forcedShutdownArguments = ["wineboot", "--kill", "--shutdown"]
+    static let initializationWaitArguments = ["-w"]
 
     private let paths: SecundaPaths
     private let processRunner: ProcessRunner
@@ -160,6 +161,27 @@ final class BottleManager {
             environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
             currentDirectory: runtime.bottleRoot,
             logURL: paths.logsDirectory.appendingPathComponent("bottle-initialize.log")
+        )
+        guard result.terminationStatus == 0 else {
+            throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)
+        }
+        try await waitForWineInitialization(runtime: runtime, diagnostics: diagnostics)
+    }
+
+    private func waitForWineInitialization(
+        runtime: RuntimeDescriptor,
+        diagnostics: Bool
+    ) async throws {
+        let wineserver = runtime.wineExecutable
+            .deletingLastPathComponent()
+            .appendingPathComponent("wineserver")
+        let result = try await processRunner.run(
+            executable: wineserver,
+            arguments: Self.initializationWaitArguments,
+            environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
+            currentDirectory: runtime.bottleRoot,
+            logURL: paths.logsDirectory.appendingPathComponent("bottle-initialize-wait.log"),
+            timeoutSeconds: 30
         )
         guard result.terminationStatus == 0 else {
             throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)

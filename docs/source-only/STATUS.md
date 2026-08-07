@@ -12,9 +12,10 @@ Updated: 2026-08-07
 - Gate 2 passed: the source-only path renders the launcher and menu, produces non-silent audio, accepts keyboard/mouse input, enters sustained gameplay, saves, quits, relaunches, and loads the save.
 - The packaged one-click path now advances through five truthful stages, detects only the exact target Windows processes, starts Skyrim after Steam authorization, and confirms that the game stays running.
 - The final packaged regression reached a correctly rendered 1440x900 menu, loaded the existing save into gameplay, accepted movement and camera input, rejected a duplicate Play request, and cleanly stopped Skyrim, Steam, and the Wine server.
+- A packaged-app first-run test under a blank temporary home created a new prefix, waited for Wine initialization to settle, and advanced directly to `Install Steam` without a manual Refresh.
 - Interactive Steam/game output is discarded. The legacy `steam-launch.log` retained the exact same size and modification time across the packaged regression.
 - Exact-window ScreenCaptureKit audio acceptance measured 8.08 seconds of PCM, 69.6% non-silent samples, -51.54 dBFS RMS, -31.83 dBFS peak, and no clipping. The speakers were never unmuted by automation.
-- The launcher self-check passes 83 contracts; the no-execution Skyrim readiness suite passes 37 contracts.
+- The launcher self-check passes 84 contracts; the no-execution Skyrim readiness suite passes 37 contracts.
 - The bundled app audit covers 3,733 runtime files, 12 symlinks, 3,765 modes, 42 Mach-O workers, a macOS 15.0 floor, deep code signing, relocatability, notices, provenance, and SPDX metadata.
 
 ## Accepted runtime and launcher fixes
@@ -27,6 +28,7 @@ Updated: 2026-08-07
 - Process capture uses a bounded nonblocking dispatch source, finishes on the exact foreground process, and does not wait for inherited background pipe handles.
 - Windows process checks use filtered `tasklist` queries for only `SkyrimSE.exe` and `SkyrimSELauncher.exe`.
 - Install readiness requires completed Steam state, a plausible contained PE executable, and baseline game data before Play becomes available.
+- Fresh-prefix preparation waits for the bundled Wine server to finish initialization before selecting the private Windows user directory or reporting success.
 
 ## Performance and stability
 
@@ -44,6 +46,5 @@ Updated: 2026-08-07
 
 ## Next action
 
-1. Build the explicit test-only DMG and verify its mounted app plus corresponding-source inventory locally.
-2. Commit the validated source-only launcher, runtime packaging, readiness, and evidence milestone.
-3. For broad sharing, sign and notarize the same candidate and run a quarantined clean-Apple-Silicon install/login/download/play test.
+1. Rebuild the explicit test-only DMG from the first-run fix and verify its mounted app, checksum, corresponding-source inventory, and blank-home preparation flow locally.
+2. For broad sharing, sign and notarize the same candidate and run a quarantined clean-Apple-Silicon install/login/download/play test.

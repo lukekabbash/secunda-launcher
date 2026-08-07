@@ -49,4 +49,4 @@ Repeated launches, save/load, duplicate prevention, and complete shutdown passed
 
 ## Gate 4 — free distribution: IN PROGRESS
 
-The source runtime has been rebuilt for macOS 15. The packaged app passes relocation, exact file/link/mode integrity, proprietary-payload exclusion, deep signing, notices, provenance, SPDX, cold one-click Play, and complete-stop acceptance. The explicit test-only DMG, mounted-DMG verification, Developer ID signing/notarization, and quarantined clean-Mac recipient acceptance remain.
+The source runtime has been rebuilt for macOS 15. The packaged app passes relocation, exact file/link/mode integrity, proprietary-payload exclusion, deep signing, notices, provenance, SPDX, cold one-click Play, complete-stop acceptance, and blank-home prefix creation that advances automatically to Steam installation. Regeneration and mounted verification of the fixed test-only DMG, Developer ID signing/notarization, and quarantined clean-Mac recipient acceptance remain.
