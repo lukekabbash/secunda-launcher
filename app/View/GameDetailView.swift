@@ -54,12 +54,13 @@ struct GameDetailView: View {
                     .frame(width: 300)
                 }
 
-                if descriptor.supportsDisplayProfile {
-                    FlatSection(title: "Display & Audio", detail: "Applied at launch") {
+                // Every game shows the same four sections in the same order.
+                // Titles that have nothing to offer say so plainly rather
+                // than leaving a hole in the layout.
+                FlatSection(title: "Display", detail: displaySectionDetail) {
+                    if descriptor.supportsDisplayProfile {
                         displaySettings
-                    }
-                } else if descriptor.usesWindowedResolutionArguments {
-                    FlatSection(title: "Display", detail: "Applied at launch") {
+                    } else if descriptor.usesWindowedResolutionArguments {
                         VStack(alignment: .leading, spacing: 22) {
                             settingRow(
                                 label: "Resolution",
@@ -71,44 +72,35 @@ struct GameDetailView: View {
                                     }
                                 }
                                 .labelsHidden()
-                                .frame(width: 230)
                             }
                         }
-                    }
-                } else {
-                    FlatSection(title: "Display & Audio", detail: "In-game") {
-                        Text("\(descriptor.shortTitle) manages its own display and audio options. Set resolution and windowed mode inside the game's settings menu.")
-                            .font(.caption)
-                            .foregroundStyle(SecundaTheme.secondaryText)
-                            .frame(maxWidth: 560, alignment: .leading)
+                    } else {
+                        emptyNote("\(descriptor.shortTitle) manages its own display and audio options. Set resolution and windowed mode inside the game's settings menu.")
                     }
                 }
 
-                if descriptor.supportsDisplayProfile && !descriptor.qualityOptions.isEmpty {
-                    FlatSection(title: "Graphics Quality", detail: "Applied at launch") {
+                FlatSection(title: "Graphics", detail: graphicsSectionDetail) {
+                    if descriptor.supportsDisplayProfile && !descriptor.qualityOptions.isEmpty {
                         qualitySettings
-                    }
-                }
-
-                if !descriptor.luaTuningOptions.isEmpty {
-                    FlatSection(
-                        title: "Game Tuning",
-                        detail: model.luaPrefsDetected(for: descriptor)
-                            ? "Applied at launch"
-                            : "Awaiting first run"
-                    ) {
+                    } else if !descriptor.luaTuningOptions.isEmpty {
                         tuningSettings
+                    } else {
+                        emptyNote("Secunda has no tested graphics overrides for \(descriptor.shortTitle) yet. Use the game's own video options.")
                     }
                 }
 
-                if !descriptor.dlc.isEmpty {
-                    FlatSection(title: "Add-ons", detail: "Managed through Steam") {
+                FlatSection(title: "Add-ons", detail: descriptor.dlc.isEmpty ? "None" : "Managed through Steam") {
+                    if descriptor.dlc.isEmpty {
+                        emptyNote("\(descriptor.shortTitle) has no add-ons Secunda tracks. Anything you own still installs through Steam as usual.")
+                    } else {
                         dlcList
                     }
                 }
 
-                if !descriptor.saveFileExtensions.isEmpty {
-                    FlatSection(title: "Saves", detail: "Local and reversible") {
+                FlatSection(title: "Saves", detail: descriptor.saveFileExtensions.isEmpty ? "Handled by the game" : "Local and reversible") {
+                    if descriptor.saveFileExtensions.isEmpty {
+                        emptyNote("\(descriptor.shortTitle) stores progress in its own format or through Steam Cloud, so Secunda does not back it up.")
+                    } else {
                         savesContent
                     }
                 }
@@ -391,7 +383,7 @@ struct GameDetailView: View {
                     Text("Windowed").tag(DisplayMode.windowed)
                 }
                 .labelsHidden()
-                .frame(width: 200)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             settingRow(
@@ -404,7 +396,7 @@ struct GameDetailView: View {
                     }
                 }
                 .labelsHidden()
-                .frame(width: 230)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             settingRow(
@@ -462,7 +454,7 @@ struct GameDetailView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 170)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
@@ -487,7 +479,7 @@ struct GameDetailView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 170)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
             Text("Secunda only rewrites values the game has already saved itself — it never invents settings, so a mistuned entry can't corrupt the file.")
@@ -532,6 +524,34 @@ struct GameDetailView: View {
         )
     }
 
+    /// Uniform control column: every setting's control occupies the same
+    /// trailing width, so rows line up across all games and sections.
+    private static let controlWidth: CGFloat = 230
+
+    private var displaySectionDetail: String {
+        descriptor.supportsDisplayProfile || descriptor.usesWindowedResolutionArguments
+            ? "Applied at launch"
+            : "In-game"
+    }
+
+    private var graphicsSectionDetail: String {
+        if descriptor.supportsDisplayProfile && !descriptor.qualityOptions.isEmpty {
+            return "Applied at launch"
+        }
+        if !descriptor.luaTuningOptions.isEmpty {
+            return model.luaPrefsDetected(for: descriptor) ? "Applied at launch" : "Awaiting first run"
+        }
+        return "In-game"
+    }
+
+    private func emptyNote(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(SecundaTheme.secondaryText)
+            .lineSpacing(3)
+            .frame(maxWidth: 560, alignment: .leading)
+    }
+
     private func settingRow<Control: View>(
         label: String,
         caption: String,
@@ -543,6 +563,7 @@ struct GameDetailView: View {
                     .font(.system(size: 13, weight: .medium))
                 Spacer()
                 control()
+                    .frame(width: Self.controlWidth, alignment: .trailing)
             }
             if !caption.isEmpty {
                 Text(caption)

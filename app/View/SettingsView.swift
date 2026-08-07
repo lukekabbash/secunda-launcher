@@ -64,6 +64,23 @@ struct SettingsView: View {
                     runningProcesses
                 }
 
+                FlatSection(title: "Cover Art", detail: "Optional") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Secunda loads cover art from Steam. To use your own, drop an image into the Artwork folder named after the game — \(artworkExampleNames) — as .png or .jpg. Add “-hero” to the name for the wide banner. Your images always win over Steam's.")
+                            .font(.caption)
+                            .foregroundStyle(SecundaTheme.secondaryText)
+                            .lineSpacing(3)
+                            .frame(maxWidth: 560, alignment: .leading)
+
+                        Button {
+                            model.revealArtworkFolder()
+                        } label: {
+                            Label("Open Artwork Folder", systemImage: "photo.on.rectangle")
+                        }
+                        .buttonStyle(SecundaActionButtonStyle())
+                    }
+                }
+
                 FlatSection(title: "Diagnostics", detail: "Off by default") {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Write detailed Wine logs", isOn: diagnosticsBinding)
@@ -216,6 +233,10 @@ struct SettingsView: View {
         } message: {
             Text("Immediately kills every Windows process in Secunda's game space — games, Steam, and Wine workers. Unsaved progress is lost.")
         }
+    }
+
+    private var artworkExampleNames: String {
+        GameDescriptor.supported.prefix(2).map { "\($0.id).jpg" }.joined(separator: ", ")
     }
 
     private var diagnosticsBinding: Binding<Bool> {
