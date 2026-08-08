@@ -312,13 +312,22 @@ enum LauncherHandoffSelfCheck {
         )
         let gameEnvironment = GameService.gameEnvironment(
             base: ["WINEPREFIX": "/tmp/prefix"],
-            appID: GameDescriptor.skyrimSE.steamAppID
+            descriptor: .skyrimSE
         )
         checks.expect(
             gameEnvironment["SteamAppId"] == GameDescriptor.skyrimSE.steamAppID
                 && gameEnvironment["SteamGameId"] == GameDescriptor.skyrimSE.steamAppID
-                && gameEnvironment["WINEPREFIX"] == "/tmp/prefix",
+                && gameEnvironment["WINEPREFIX"] == "/tmp/prefix"
+                && gameEnvironment["DXMT_CONFIG"] == nil,
             "direct game environment"
+        )
+        let falloutEnvironment = GameService.gameEnvironment(
+            base: ["WINEPREFIX": "/tmp/prefix"],
+            descriptor: .fallout4
+        )
+        checks.expect(
+            falloutEnvironment["DXMT_CONFIG"] == "d3d11.preferredMaxFrameRate=60;",
+            "Fallout 4 DXMT frame-rate cap"
         )
         checks.expect(
             SteamService.interactiveOutput == .discard

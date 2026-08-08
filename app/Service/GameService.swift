@@ -136,6 +136,7 @@ final class GameService {
         settings: GameSettings,
         diagnostics: Bool,
         screenPixelWidth: Int,
+        screenPixelHeight: Int = 0,
         progress: @escaping (GameLaunchStage) async -> Void = { _ in }
     ) async throws -> GameLaunchOutcome {
         guard let game = validatedGameExecutable(in: runtime) else {
@@ -156,29 +157,43 @@ final class GameService {
         if descriptor.d3d9Backend == .dxvk {
             try dxvkService.installIfNeeded(runtime: runtime, diagnostics: diagnostics)
         }
+        let logPixels = GameProfileWriter.sessionLogPixels(
+            settings: settings,
+            screenPixelWidth: screenPixelWidth,
+            prefersNative: descriptor.prefersNativeSessionDPI
+        )
         try await bottleManager.applyGameCompatibility(
             runtime: runtime,
             diagnostics: diagnostics,
-            logPixels: GameProfileWriter.sessionLogPixels(
-                settings: settings,
-                screenPixelWidth: screenPixelWidth
-            ),
+            logPixels: logPixels,
             nativeVoiceAudio: voiceAudioActive,
             d3d9Backend: descriptor.d3d9Backend
         )
         await progress(.profile)
-        try profileWriter.apply(settings, bottleRoot: runtime.bottleRoot)
+        let sessionSettings = GameProfileWriter.sessionSettings(
+            settings,
+            descriptor: descriptor,
+            logPixels: logPixels,
+            screenPixelWidth: screenPixelWidth,
+            screenPixelHeight: screenPixelHeight
+        )
+        try profileWriter.apply(sessionSettings, bottleRoot: runtime.bottleRoot)
 
         if try await isGameRunning(runtime: runtime, diagnostics: diagnostics) {
             return .alreadyRunning
         }
 
+        let launchEnvironment = Self.gameEnvironment(
+            base: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
+            descriptor: descriptor
+        )
         await progress(.steam)
         try steamService.launch(
             runtime: runtime,
             arguments: ["-applaunch", descriptor.steamAppID]
-                + Self.gameArguments(descriptor: descriptor, settings: settings),
-            diagnostics: diagnostics
+                + Self.gameArguments(descriptor: descriptor, settings: sessionSettings),
+            diagnostics: diagnostics,
+            extraEnvironment: Self.dxmtEnvironmentOverrides(for: descriptor)
         )
 
         let handoff = try await processProbe.waitForHandoff(
@@ -190,6 +205,12 @@ final class GameService {
         )
         switch handoff {
         case .game:
+            // Warm Steam clients keep their original Unix environment, so a
+            // game that needs a DXMT present cap must be restarted under ours.
+            if descriptor.preferredMaxFrameRate != nil {
+                _ = try await forceStop(runtime: runtime)
+                break
+            }
             return .started
         case .none:
             throw GameLaunchError.steamAuthorizationTimedOut(descriptor.shortTitle)
@@ -197,12 +218,19 @@ final class GameService {
             break
         }
 
-        if try await isGameRunning(runtime: runtime, diagnostics: diagnostics) {
+        if descriptor.preferredMaxFrameRate == nil,
+           try await isGameRunning(runtime: runtime, diagnostics: diagnostics) {
             return .started
         }
 
         await progress(.game)
-        try launchGameExecutable(game, runtime: runtime, settings: settings, diagnostics: diagnostics)
+        try launchGameExecutable(
+            game,
+            runtime: runtime,
+            settings: sessionSettings,
+            diagnostics: diagnostics,
+            environment: launchEnvironment
+        )
         guard try await processProbe.waitForGame(
             runtime: runtime,
             diagnostics: diagnostics,
@@ -251,11 +279,23 @@ final class GameService {
         )
     }
 
-    static func gameEnvironment(base: [String: String], appID: String) -> [String: String] {
+    static func gameEnvironment(
+        base: [String: String],
+        descriptor: GameDescriptor
+    ) -> [String: String] {
         var environment = base
-        environment["SteamAppId"] = appID
-        environment["SteamGameId"] = appID
+        environment["SteamAppId"] = descriptor.steamAppID
+        environment["SteamGameId"] = descriptor.steamAppID
+        environment.merge(dxmtEnvironmentOverrides(for: descriptor)) { _, new in new }
         return environment
+    }
+
+    /// DXMT config fragments that must land on the game process itself.
+    static func dxmtEnvironmentOverrides(for descriptor: GameDescriptor) -> [String: String] {
+        guard let frameRate = descriptor.preferredMaxFrameRate, frameRate > 0 else {
+            return [:]
+        }
+        return ["DXMT_CONFIG": "d3d11.preferredMaxFrameRate=\(frameRate);"]
     }
 
     private func validatedGameExecutable(in runtime: RuntimeDescriptor) -> URL? {
@@ -289,18 +329,19 @@ final class GameService {
         _ executable: URL,
         runtime: RuntimeDescriptor,
         settings: GameSettings,
-        diagnostics: Bool
+        diagnostics: Bool,
+        environment: [String: String]? = nil
     ) throws {
-        let environment = Self.gameEnvironment(
+        let resolvedEnvironment = environment ?? Self.gameEnvironment(
             base: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
-            appID: descriptor.steamAppID
+            descriptor: descriptor
         )
         try processRunner.launch(
             executable: runtime.wineExecutable,
             arguments: runtime.wineArguments(
                 for: [executable.path] + Self.gameArguments(descriptor: descriptor, settings: settings)
             ),
-            environment: environment,
+            environment: resolvedEnvironment,
             currentDirectory: executable.deletingLastPathComponent(),
             output: Self.interactiveOutput
         )

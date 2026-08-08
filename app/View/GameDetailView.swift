@@ -178,15 +178,15 @@ struct GameDetailView: View {
             .overlay(alignment: .bottomLeading) {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(descriptor.title.uppercased())
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: SecundaTheme.FontSize.small, weight: .semibold))
                         .tracking(2.4)
                         .foregroundStyle(SecundaTheme.frost)
                     Text(model.headline(for: descriptor))
-                        .font(.system(size: 36, weight: .medium, design: .serif))
+                        .font(.system(size: SecundaTheme.FontSize.hero, weight: .medium, design: .serif))
                         .tracking(-0.5)
                         .shadow(color: .black.opacity(0.55), radius: 10, y: 2)
                     Text(descriptor.tagline)
-                        .font(.system(size: 13, weight: .regular, design: .serif))
+                        .font(.system(size: SecundaTheme.FontSize.body, weight: .regular, design: .serif))
                         .italic()
                         .foregroundStyle(SecundaTheme.secondaryText)
                 }
@@ -220,7 +220,7 @@ struct GameDetailView: View {
             }
 
             Text(model.supportingText(for: descriptor))
-                .font(.system(size: 15))
+                .font(.system(size: SecundaTheme.FontSize.lead))
                 .foregroundStyle(SecundaTheme.secondaryText)
                 .lineSpacing(4)
                 .frame(maxWidth: 590, alignment: .leading)
@@ -239,10 +239,8 @@ struct GameDetailView: View {
                         Text(model.primaryAction(for: descriptor).title(for: descriptor))
                     }
                     .frame(minWidth: 150)
-                    .padding(.horizontal, 20)
-                    .frame(height: SecundaTheme.controlHeight)
                 }
-                .buttonStyle(SecundaPrimaryButtonStyle())
+                .buttonStyle(SecundaActionButtonStyle(prominent: true))
                 .disabled(model.isBusy)
 
                 if model.isGameRunning(descriptor) {
@@ -330,7 +328,7 @@ struct GameDetailView: View {
         if model.activities.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Quiet for now")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                 Text("Setup and launch events will appear here.")
                     .font(.caption)
                     .foregroundStyle(SecundaTheme.secondaryText)
@@ -346,7 +344,7 @@ struct GameDetailView: View {
                             .padding(.top, 5)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(activity.message)
-                                .font(.system(size: 12))
+                                .font(.system(size: SecundaTheme.FontSize.body))
                                 .lineLimit(2)
                             Text(activity.date, style: .time)
                                 .font(.caption2)
@@ -365,7 +363,7 @@ struct GameDetailView: View {
         case .info: SecundaTheme.frost
         case .success: SecundaTheme.aurora
         case .warning: SecundaTheme.ember
-        case .error: .red.opacity(0.8)
+        case .error: SecundaTheme.danger
         }
     }
 
@@ -412,15 +410,26 @@ struct GameDetailView: View {
                 .fixedSize()
             }
 
-            settingRow(
-                label: "Vertical sync",
-                caption: model.gameSettings(for: descriptor).verticalSync
-                    ? "Caps the frame rate to your display for smooth, tear-free play."
-                    : "Uncapped frame rate can cause screen tearing and physics glitches in this engine."
-            ) {
-                Toggle("Vertical sync", isOn: gameSetting(\.verticalSync))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
+            if let frameRate = descriptor.preferredMaxFrameRate {
+                settingRow(
+                    label: "Frame pacing",
+                    caption: "Locked to \(frameRate) fps through Metal so camera look stays stable. The game's own vsync stays off so the two waits don't stack into sticky aim."
+                ) {
+                    Text("\(frameRate) fps")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(SecundaTheme.secondaryText)
+                }
+            } else {
+                settingRow(
+                    label: "Vertical sync",
+                    caption: model.gameSettings(for: descriptor).verticalSync
+                        ? "Caps the frame rate to your display for smooth, tear-free play."
+                        : "Uncapped frame rate can cause screen tearing and physics glitches in this engine."
+                ) {
+                    Toggle("Vertical sync", isOn: gameSetting(\.verticalSync))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
             }
 
             settingRow(
@@ -560,7 +569,7 @@ struct GameDetailView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text(label)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                 Spacer()
                 control()
                     .frame(width: Self.controlWidth, alignment: .trailing)
@@ -627,10 +636,10 @@ struct GameDetailView: View {
     private func stat(value: Int, label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(value)")
-                .font(.system(size: 30, weight: .medium, design: .serif))
+                .font(.system(size: SecundaTheme.FontSize.display, weight: .medium, design: .serif))
                 .contentTransition(.numericText())
             Text(label.uppercased())
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: SecundaTheme.FontSize.micro, weight: .semibold))
                 .tracking(1.4)
                 .foregroundStyle(SecundaTheme.secondaryText)
         }
@@ -736,7 +745,7 @@ private struct DLCRow: View {
                 .foregroundStyle(dlc.isInstalled ? SecundaTheme.aurora : SecundaTheme.secondaryText)
             VStack(alignment: .leading, spacing: 2) {
                 Text(dlc.descriptor.title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                 if let note = dlc.descriptor.note {
                     Text(note)
                         .font(.caption)
@@ -761,7 +770,7 @@ private struct DLCRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous)
                 .fill(Color.white.opacity(isHovering ? 0.045 : 0))
         }
         .animation(.easeOut(duration: 0.14), value: isHovering)

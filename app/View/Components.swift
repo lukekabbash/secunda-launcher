@@ -1,17 +1,34 @@
 import SwiftUI
 
-struct SectionHeading: View {
+/// Composed, reusable views. Tokens and control styles live in Theme.swift.
+
+/// Flat content section: an uppercase heading over a hairline, no box.
+/// The restrained alternative to nesting panels.
+struct FlatSection<Content: View>: View {
     let title: String
-    let detail: String
+    var detail: String?
+    @ViewBuilder var content: Content
 
     var body: some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-            Spacer()
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(SecundaTheme.secondaryText)
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title.uppercased())
+                        .font(.system(size: SecundaTheme.FontSize.small, weight: .semibold))
+                        .tracking(2.0)
+                        .foregroundStyle(SecundaTheme.frost)
+                    Spacer()
+                    if let detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(SecundaTheme.secondaryText)
+                    }
+                }
+                Rectangle()
+                    .fill(SecundaTheme.hairline)
+                    .frame(height: 1)
+            }
+            content
         }
     }
 }
@@ -24,41 +41,17 @@ struct PageHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
             Text(eyebrow)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: SecundaTheme.FontSize.small, weight: .semibold))
                 .tracking(2.2)
                 .foregroundStyle(SecundaTheme.frost)
             Text(title)
-                .font(.system(size: 34, weight: .medium, design: .serif))
+                .font(.system(size: SecundaTheme.FontSize.hero, weight: .medium, design: .serif))
             Text(detail)
-                .font(.system(size: 14))
+                .font(.system(size: SecundaTheme.FontSize.lead))
                 .foregroundStyle(SecundaTheme.secondaryText)
                 .lineSpacing(4)
                 .frame(maxWidth: 620, alignment: .leading)
         }
-    }
-}
-
-struct MetricPanel: View {
-    let value: String
-    let label: String
-    let symbol: String
-
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: symbol)
-                .font(.system(size: 20))
-                .foregroundStyle(SecundaTheme.frost)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value)
-                    .font(.system(size: 28, weight: .medium, design: .serif))
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(SecundaTheme.secondaryText)
-            }
-            Spacer()
-        }
-        .secundaPanel()
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -74,7 +67,7 @@ struct StatusRow: View {
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                 if let detail = state.detail {
                     Text(detail)
                         .font(.caption)
@@ -105,7 +98,7 @@ struct StatusRow: View {
         case .ready: SecundaTheme.aurora
         case .working: SecundaTheme.frost
         case .warning: SecundaTheme.ember
-        case .failed: .red.opacity(0.8)
+        case .failed: SecundaTheme.danger
         case .missing: SecundaTheme.secondaryText
         }
     }
@@ -121,40 +114,6 @@ struct StatusRow: View {
     }
 }
 
-struct SecundaPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(SecundaTheme.void)
-            .background(
-                LinearGradient(
-                    colors: [SecundaTheme.moon, SecundaTheme.frost],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .shadow(color: SecundaTheme.frost.opacity(configuration.isPressed ? 0.12 : 0.25), radius: 14, y: 5)
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-    }
-}
-
-struct SecundaSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(SecundaTheme.text)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .background(Color.white.opacity(configuration.isPressed ? 0.11 : 0.065))
-            .overlay {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(SecundaTheme.hairline)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-    }
-}
-
 struct SetupJourneyRail: View {
     let journey: SetupJourney
 
@@ -162,10 +121,10 @@ struct SetupJourneyRail: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(journey.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: SecundaTheme.FontSize.body, weight: .semibold))
                 Spacer()
                 Text(journey.label)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(size: SecundaTheme.FontSize.small, weight: .medium, design: .monospaced))
                     .foregroundStyle(SecundaTheme.frost)
             }
 
@@ -179,10 +138,10 @@ struct SetupJourneyRail: View {
         .padding(16)
         .background(Color.white.opacity(0.035))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous)
                 .stroke(SecundaTheme.hairline)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous))
         .frame(maxWidth: 590)
     }
 }
@@ -194,10 +153,10 @@ struct SetupProgressRail: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(progress.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: SecundaTheme.FontSize.body, weight: .semibold))
                 Spacer()
                 Text(progress.stepLabel)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(size: SecundaTheme.FontSize.small, weight: .medium, design: .monospaced))
                     .foregroundStyle(SecundaTheme.frost)
             }
 
@@ -211,10 +170,10 @@ struct SetupProgressRail: View {
         .padding(16)
         .background(Color.white.opacity(0.045))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous)
                 .stroke(SecundaTheme.hairline)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous))
         .frame(maxWidth: 590)
     }
 }

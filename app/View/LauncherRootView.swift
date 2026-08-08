@@ -49,11 +49,13 @@ struct LauncherRootView: View {
                 MoonMark(size: 35)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("SECUNDA")
-                        .font(.system(size: 16, weight: .semibold, design: .serif))
+                        .font(.system(size: SecundaTheme.FontSize.lead, weight: .semibold, design: .serif))
                         .tracking(2.3)
                     Text("WINDOWS GAMES ON MAC")
-                        .font(.system(size: 8, weight: .medium))
-                        .tracking(1.5)
+                        .font(.system(size: SecundaTheme.FontSize.micro, weight: .medium))
+                        // 1.5 overflows the 145pt the mark leaves in a
+                        // 236pt sidebar and silently wraps to two lines.
+                        .tracking(0.9)
                         .foregroundStyle(SecundaTheme.secondaryText)
                 }
             }
@@ -69,7 +71,7 @@ struct LauncherRootView: View {
                 }
 
                 Text("LIBRARY")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: SecundaTheme.FontSize.micro, weight: .semibold))
                     .tracking(1.8)
                     .foregroundStyle(SecundaTheme.secondaryText)
                     .padding(.horizontal, 24)
@@ -111,7 +113,7 @@ struct LauncherRootView: View {
                     .frame(height: 1)
                 HStack {
                     Text("v0.1 · Unofficial")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: SecundaTheme.FontSize.micro, weight: .medium))
                         .tracking(0.6)
                         .foregroundStyle(SecundaTheme.secondaryText.opacity(0.8))
                     Spacer()
@@ -201,9 +203,9 @@ private struct SidebarGameThumb: View {
             cropsToFill: true
         )
         .frame(width: 30, height: 40)
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SecundaTheme.Radius.sm, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: SecundaTheme.Radius.sm, style: .continuous)
                 .stroke(SecundaTheme.hairline)
         }
     }
@@ -231,12 +233,12 @@ private struct SidebarRow<Icon: View>: View {
                 icon
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                        .font(.system(size: SecundaTheme.FontSize.body, weight: isSelected ? .semibold : .medium))
                         .foregroundStyle(isSelected ? SecundaTheme.text : SecundaTheme.secondaryText)
                         .lineLimit(1)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 9.5))
+                            .font(.system(size: SecundaTheme.FontSize.micro))
                             .foregroundStyle(SecundaTheme.secondaryText.opacity(0.7))
                     }
                 }
@@ -270,10 +272,10 @@ private struct SidebarRow<Icon: View>: View {
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous)
                     .fill(Color.white.opacity(isSelected ? 0.09 : (isHovering ? 0.05 : 0)))
             }
-            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous))
         }
         .buttonStyle(.plain)
         .animation(.easeOut(duration: 0.14), value: isHovering)

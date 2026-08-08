@@ -22,6 +22,9 @@ final class RuntimeManager {
     private let processRunner: ProcessRunner
     private let integrityLock = NSLock()
     private var verifiedIntegrityManifests: [String: Data] = [:]
+    /// Mirrors the player's fast-sync setting. Every process in a game space
+    /// must agree with the running wineserver, so this is launcher-wide.
+    var useFastSync = true
 
     init(paths: SecundaPaths, processRunner: ProcessRunner) {
         self.paths = paths
@@ -65,7 +68,7 @@ final class RuntimeManager {
             "WINEARCH": "win64",
             "WINEDLLOVERRIDES": "mscoree,mshtml=;winemenubuilder.exe=d;d3d10core,d3d11,dxgi=b",
             "WINEDEBUG": diagnostics ? "warn+all,err+all" : "-all",
-            "WINEMSYNC": "1",
+            "WINEMSYNC": useFastSync ? "1" : "0",
             "ROSETTA_ADVERTISE_AVX": "1",
             "SECUNDA_SOURCE_ONLY": "1",
             "SECUNDA_CEF_IN_PROCESS_GPU": "1",

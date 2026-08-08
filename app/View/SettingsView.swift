@@ -81,6 +81,20 @@ struct SettingsView: View {
                     }
                 }
 
+                FlatSection(title: "Compatibility", detail: "Game space wide") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Toggle("Fast synchronization", isOn: fastSyncBinding)
+                            .toggleStyle(.switch)
+                        Text(model.settings.useFastSync
+                            ? "Wine's fast macOS synchronization is on. It helps frame pacing, but a few titles fault while starting under it. If a game closes immediately with an initialization error, turn this off, close the game space, and try again."
+                            : "Fast synchronization is off — slower, but more compatible. Close the game space for this to take effect, then launch again.")
+                            .font(.caption)
+                            .foregroundStyle(SecundaTheme.secondaryText)
+                            .lineSpacing(3)
+                            .frame(maxWidth: 560, alignment: .leading)
+                    }
+                }
+
                 FlatSection(title: "Diagnostics", detail: "Off by default") {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Write detailed Wine logs", isOn: diagnosticsBinding)
@@ -121,29 +135,29 @@ struct SettingsView: View {
                         }
 
                         Text(model.diagnosticReport)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.system(size: SecundaTheme.FontSize.small, design: .monospaced))
                             .foregroundStyle(SecundaTheme.secondaryText)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(14)
                             .background(Color.black.opacity(0.25))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous))
 
                         DisclosureGroup("Latest runtime log") {
                             Text(model.latestLogExcerpt)
-                                .font(.system(size: 10, design: .monospaced))
+                                .font(.system(size: SecundaTheme.FontSize.small, design: .monospaced))
                                 .foregroundStyle(SecundaTheme.secondaryText)
                                 .textSelection(.enabled)
                                 .padding(.top, 12)
                         }
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                     }
                 }
 
                 FlatSection(title: "About", detail: "v0.1") {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Unofficial launcher", systemImage: "checkmark.shield")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                         Text("Secunda is an unofficial community project, unaffiliated with Valve, Bethesda, or any game publisher. Each game requires your own separately purchased Steam copy. Secunda never bundles Steam, game files, or account data, and never asks for your Steam password.")
                             .font(.caption)
                             .foregroundStyle(SecundaTheme.secondaryText)
@@ -174,9 +188,8 @@ struct SettingsView: View {
                         showsForceStopAllConfirmation = true
                     } label: {
                         Label("Force Stop All", systemImage: "stop.fill")
-                            .foregroundStyle(SecundaTheme.ember)
                     }
-                    .buttonStyle(SecundaActionButtonStyle())
+                    .buttonStyle(SecundaDestructiveButtonStyle())
                 }
             }
 
@@ -189,15 +202,15 @@ struct SettingsView: View {
                     ForEach(model.bottleProcesses) { process in
                         HStack(spacing: 12) {
                             Text(String(process.pid))
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(size: SecundaTheme.FontSize.small, design: .monospaced))
                                 .foregroundStyle(SecundaTheme.secondaryText)
                                 .frame(width: 52, alignment: .trailing)
                             Text(process.displayName)
-                                .font(.system(size: 12.5, weight: .medium))
+                                .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                                 .lineLimit(1)
                             if process.isOrphaned {
                                 Text("ORPHANED")
-                                    .font(.system(size: 8.5, weight: .bold))
+                                    .font(.system(size: SecundaTheme.FontSize.micro, weight: .bold))
                                     .tracking(0.8)
                                     .foregroundStyle(SecundaTheme.ember)
                                     .padding(.horizontal, 6)
@@ -210,7 +223,7 @@ struct SettingsView: View {
                             Button("Force Stop") {
                                 model.forceStopProcesses([process])
                             }
-                            .buttonStyle(SecundaActionButtonStyle())
+                            .buttonStyle(SecundaDestructiveButtonStyle())
                         }
                         .padding(.vertical, 4)
                     }
@@ -237,6 +250,16 @@ struct SettingsView: View {
 
     private var artworkExampleNames: String {
         GameDescriptor.supported.prefix(2).map { "\($0.id).jpg" }.joined(separator: ", ")
+    }
+
+    private var fastSyncBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.useFastSync },
+            set: {
+                model.settings.useFastSync = $0
+                model.persistSettings()
+            }
+        )
     }
 
     private var diagnosticsBinding: Binding<Bool> {

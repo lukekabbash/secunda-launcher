@@ -64,17 +64,20 @@ final class SteamService {
     func launch(
         runtime: RuntimeDescriptor,
         arguments: [String] = [],
-        diagnostics: Bool
+        diagnostics: Bool,
+        extraEnvironment: [String: String] = [:]
     ) throws -> Int32 {
         guard let executable = executable(in: runtime) else {
             throw CocoaError(.fileNoSuchFile)
         }
+        var environment = runtimeManager.environment(for: runtime, diagnostics: diagnostics)
+        environment.merge(extraEnvironment) { _, new in new }
         return try processRunner.launch(
             executable: runtime.wineExecutable,
             arguments: runtime.wineArguments(for: [
                 executable.path
             ] + Self.compatibilityArguments + arguments),
-            environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
+            environment: environment,
             currentDirectory: executable.deletingLastPathComponent(),
             output: Self.interactiveOutput
         )

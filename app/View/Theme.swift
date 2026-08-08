@@ -19,6 +19,9 @@ enum SecundaTheme {
     static let hairline = Color.white.opacity(0.10)
     /// Every capsule control in an action row shares this height.
     static let controlHeight: CGFloat = 40
+    /// Floor for capsule width, so short labels ("Play", "Install") read as
+    /// the same control as their long neighbours instead of as nubs.
+    static let controlMinWidth: CGFloat = 104
 
     /// Three steps, roughly 1.5x apart. `sm` is for thumbnails, `md` for
     /// rows and inline panels, `lg` for library cards.
@@ -51,19 +54,32 @@ enum SecundaTheme {
 
 // MARK: - Controls
 
-/// Metrics and feedback shared by every capsule control, so a row that
-/// mixes normal and destructive buttons stays on one baseline.
-private struct CapsuleControlChrome: ViewModifier {
+/// Metrics, shape, and feedback shared by every capsule control, so a row
+/// that mixes normal and destructive buttons stays on one baseline.
+///
+/// The caller's fill and stroke are drawn *here*, after the padding and the
+/// height frame — a background applied before them wraps the bare text and
+/// the label spills out of its own pill.
+private struct CapsuleControl<Chrome: View>: ViewModifier {
     let isPressed: Bool
     let isEnabled: Bool
     /// Only the primary call to action goes semibold.
     var weight: Font.Weight = .medium
+    @ViewBuilder var chrome: Chrome
 
     func body(content: Content) -> some View {
         content
             .font(.system(size: SecundaTheme.FontSize.body, weight: weight))
-            .padding(.horizontal, 16)
-            .frame(height: SecundaTheme.controlHeight)
+            // Filled SF Symbols (`play.fill`, `stop.fill`) read a full step
+            // heavier than the text beside them at a matched point size.
+            .imageScale(.small)
+            .padding(.horizontal, 18)
+            .frame(
+                minWidth: SecundaTheme.controlMinWidth,
+                minHeight: SecundaTheme.controlHeight,
+                maxHeight: SecundaTheme.controlHeight
+            )
+            .background { chrome }
             .contentShape(Capsule())
             .scaleEffect(isPressed ? 0.97 : 1)
             .opacity(isEnabled ? 1 : 0.45)
@@ -94,7 +110,11 @@ struct SecundaActionButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .foregroundStyle(prominent ? SecundaTheme.void : SecundaTheme.text)
-                .background {
+                .modifier(CapsuleControl(
+                    isPressed: configuration.isPressed,
+                    isEnabled: isEnabled,
+                    weight: prominent ? .semibold : .medium
+                ) {
                     if prominent {
                         Capsule().fill(
                             LinearGradient(
@@ -104,23 +124,16 @@ struct SecundaActionButtonStyle: ButtonStyle {
                             )
                         )
                     } else {
-                        Capsule().fill(Color.white.opacity(
-                            configuration.isPressed ? 0.16 : (isHovering ? 0.11 : 0.06)
-                        ))
+                        ZStack {
+                            Capsule().fill(Color.white.opacity(
+                                configuration.isPressed ? 0.16 : (isHovering ? 0.11 : 0.06)
+                            ))
+                            Capsule().stroke(
+                                isHovering ? SecundaTheme.frost.opacity(0.5) : SecundaTheme.hairline
+                            )
+                        }
                     }
-                }
-                .overlay {
-                    if !prominent {
-                        Capsule().stroke(
-                            isHovering ? SecundaTheme.frost.opacity(0.5) : SecundaTheme.hairline
-                        )
-                    }
-                }
-                .modifier(CapsuleControlChrome(
-                    isPressed: configuration.isPressed,
-                    isEnabled: isEnabled,
-                    weight: prominent ? .semibold : .medium
-                ))
+                })
                 .shadow(
                     color: SecundaTheme.frost.opacity(prominent ? prominentGlow : 0),
                     radius: 14,
@@ -153,20 +166,19 @@ struct SecundaDestructiveButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .foregroundStyle(isHovering ? Color.white : SecundaTheme.danger)
-                .background {
-                    Capsule().fill(
-                        isHovering
-                            ? SecundaTheme.danger.opacity(configuration.isPressed ? 0.85 : 0.75)
-                            : SecundaTheme.danger.opacity(0.10)
-                    )
-                }
-                .overlay {
-                    Capsule().stroke(SecundaTheme.danger.opacity(isHovering ? 0.9 : 0.45))
-                }
-                .modifier(CapsuleControlChrome(
+                .modifier(CapsuleControl(
                     isPressed: configuration.isPressed,
                     isEnabled: isEnabled
-                ))
+                ) {
+                    ZStack {
+                        Capsule().fill(
+                            isHovering
+                                ? SecundaTheme.danger.opacity(configuration.isPressed ? 0.85 : 0.75)
+                                : SecundaTheme.danger.opacity(0.10)
+                        )
+                        Capsule().stroke(SecundaTheme.danger.opacity(isHovering ? 0.9 : 0.45))
+                    }
+                })
                 .animation(.easeOut(duration: 0.14), value: isHovering)
                 .onHover { isHovering = isEnabled && $0 }
         }

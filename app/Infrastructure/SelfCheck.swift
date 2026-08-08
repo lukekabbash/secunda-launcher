@@ -550,13 +550,92 @@ enum SelfCheck {
         expect(customProfile.contains("fDefaultWorldFOV=95"), "world FOV profile", passes: &passes, failures: &failures)
         expect(customProfile.contains("fDefault1stPersonFOV=95"), "first-person FOV profile", passes: &passes, failures: &failures)
         expect(customProfile.contains("sLanguage=ENGLISH"), "custom ini preservation", passes: &passes, failures: &failures)
+        expect(
+            GameDescriptor.fallout4.preferredMaxFrameRate == 60
+                && GameDescriptor.fallout4.prefersNativeSessionDPI
+                && GameDescriptor.fallout4.appliesAspectCorrectMouseLook
+                && GameDescriptor.skyrimSE.preferredMaxFrameRate == nil
+                && !GameDescriptor.skyrimSE.prefersNativeSessionDPI,
+            "Fallout 4 mouse/frame fixes are Fallout-only",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameProfileWriter.sessionLogPixels(
+                settings: fittingSettings,
+                screenPixelWidth: 3420,
+                prefersNative: true
+            ) == 96,
+            "native-DPI titles ignore the Retina session scale",
+            passes: &passes,
+            failures: &failures
+        )
+        let maximizedNativeSettings = GameProfileWriter.sessionSettings(
+            fittingSettings,
+            descriptor: .fallout4,
+            logPixels: 96,
+            screenPixelWidth: 2880,
+            screenPixelHeight: 1864
+        )
+        expect(
+            maximizedNativeSettings.width == 2880 && maximizedNativeSettings.height == 1864,
+            "borderless native-DPI session renders at the panel size it maximizes to",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameProfileWriter.sessionSettings(
+                fittingSettings,
+                descriptor: .skyrimSE,
+                logPixels: 216,
+                screenPixelWidth: 2880,
+                screenPixelHeight: 1864
+            ) == fittingSettings,
+            "Retina-scaled sessions keep the player's chosen resolution",
+            passes: &passes,
+            failures: &failures
+        )
+        var windowedNativeSettings = fittingSettings
+        windowedNativeSettings.displayMode = .windowed
+        expect(
+            GameProfileWriter.sessionSettings(
+                windowedNativeSettings,
+                descriptor: .fallout4,
+                logPixels: 96,
+                screenPixelWidth: 2880,
+                screenPixelHeight: 1864
+            ) == windowedNativeSettings,
+            "windowed native-DPI sessions keep the player's chosen resolution",
+            passes: &passes,
+            failures: &failures
+        )
+        let falloutControls = GameProfileWriter.mergingCustomIniValues(
+            GameProfileWriter.resolvedCustomIniValues(
+                settings: settings,
+                descriptor: .fallout4
+            ),
+            into: "[General]\r\nsLanguage=ENGLISH\r\n"
+        )
+        expect(
+            falloutControls.contains("[Controls]")
+                && falloutControls.contains("bMouseAcceleration=0")
+                && falloutControls.contains("bBackgroundMouse=1")
+                && falloutControls.contains("fMouseHeadingXScale=0.021")
+                && falloutControls.contains("fMouseHeadingYScale=0.03733")
+                && falloutControls.contains("sLanguage=ENGLISH"),
+            "Fallout 4 aspect-correct mouse look",
+            passes: &passes,
+            failures: &failures
+        )
 
         let falloutProfile = GameProfileWriter.updatingDisplaySection(
             in: "[Display]\r\n",
             settings: settings,
-            vsyncKey: GameDescriptor.fallout4.vsyncKey
+            vsyncKey: GameDescriptor.fallout4.vsyncKey,
+            usesMetalFramePacing: GameDescriptor.fallout4.usesMetalFramePacing
         )
-        expect(falloutProfile.contains("iPresentInterval=1"), "Fallout vsync key", passes: &passes, failures: &failures)
+        expect(falloutProfile.contains("iPresentInterval=0"), "Fallout Metal pacing disables game vsync", passes: &passes, failures: &failures)
+        expect(falloutProfile.contains("bMaximizeWindow=1"), "Fallout borderless maximize", passes: &passes, failures: &failures)
         expect(!falloutProfile.contains("iVSyncPresentInterval"), "no Skyrim vsync key in Fallout profile", passes: &passes, failures: &failures)
 
         var qualitySettings = GameSettings()

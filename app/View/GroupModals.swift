@@ -10,11 +10,11 @@ struct LaunchModeSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("PLAY \(group.shortTitle.uppercased())")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: SecundaTheme.FontSize.small, weight: .semibold))
                     .tracking(2.2)
                     .foregroundStyle(SecundaTheme.frost)
                 Text("Choose a mode")
-                    .font(.system(size: 22, weight: .medium, design: .serif))
+                    .font(.system(size: SecundaTheme.FontSize.title, weight: .medium, design: .serif))
             }
 
             VStack(spacing: 8) {
@@ -62,11 +62,11 @@ struct ManageInstallSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(group.shortTitle.uppercased())
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: SecundaTheme.FontSize.small, weight: .semibold))
                     .tracking(2.2)
                     .foregroundStyle(SecundaTheme.frost)
                 Text("Edit installation")
-                    .font(.system(size: 22, weight: .medium, design: .serif))
+                    .font(.system(size: SecundaTheme.FontSize.title, weight: .medium, design: .serif))
             }
 
             VStack(spacing: 8) {
@@ -131,15 +131,15 @@ private struct ComponentRow: View {
         HStack(spacing: 12) {
             GameArtwork(candidates: component.cardArtworkCandidates, fallbackSymbol: component.symbol)
                 .frame(width: 34, height: 46)
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: SecundaTheme.Radius.sm, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: SecundaTheme.Radius.sm, style: .continuous)
                         .stroke(SecundaTheme.hairline)
                 }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(component.modeTitle)
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(.system(size: SecundaTheme.FontSize.body, weight: .semibold))
                 Text(statusText)
                     .font(.caption2)
                     .foregroundStyle(statusColor)
@@ -161,7 +161,7 @@ private struct ComponentRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous)
                 .fill(Color.white.opacity(isHovering ? 0.06 : 0.03))
         }
         .onHover { isHovering = $0 }

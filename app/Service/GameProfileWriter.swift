@@ -19,18 +19,50 @@ struct GameProfileWriter {
     /// standard DPI). Keep the standard DPI only while that scaled footprint
     /// still fits the panel; otherwise map the session 1:1 to physical pixels
     /// so large and native resolutions fit the screen sharp instead of
-    /// overflowing it.
-    static func sessionLogPixels(settings: GameSettings, screenPixelWidth: Int) -> Int {
+    /// overflowing it. Titles that prefer native session DPI always get 96 so
+    /// mouse look deltas aren't quantized by Retina virtualization.
+    static func sessionLogPixels(
+        settings: GameSettings,
+        screenPixelWidth: Int,
+        prefersNative: Bool = false
+    ) -> Int {
+        if prefersNative { return nativeLogPixels }
         guard screenPixelWidth > 0 else { return standardLogPixels }
         let scaledWidth = settings.width * standardLogPixels / nativeLogPixels
         return scaledWidth > screenPixelWidth ? nativeLogPixels : standardLogPixels
+    }
+
+    /// Metal-paced borderless sessions write bMaximizeWindow=1, so the
+    /// engine sizes its window to the whole desktop — at native session DPI
+    /// that's the full physical panel. The UI anchors against iSize W/H, so
+    /// a smaller stored resolution draws the menus offset from the window.
+    /// Render at the panel size the maximized window actually gets.
+    static func sessionSettings(
+        _ settings: GameSettings,
+        descriptor: GameDescriptor,
+        logPixels: Int,
+        screenPixelWidth: Int,
+        screenPixelHeight: Int
+    ) -> GameSettings {
+        guard logPixels == nativeLogPixels,
+              descriptor.usesMetalFramePacing,
+              settings.displayMode == .borderlessFullscreen,
+              screenPixelWidth > 0,
+              screenPixelHeight > 0
+        else { return settings }
+        var adjusted = settings
+        adjusted.width = screenPixelWidth
+        adjusted.height = screenPixelHeight
+        return adjusted
     }
 
     func apply(_ settings: GameSettings, bottleRoot: URL) throws {
         // Games without any Secunda-writable profile manage settings
         // themselves; nothing to write.
         let writesLuaPrefs = descriptor.luaPrefsRelativePath != nil && !descriptor.luaTuningOptions.isEmpty
-        guard descriptor.supportsDisplayProfile || writesLuaPrefs else { return }
+        let writesCustomIni = descriptor.customIniFileName != nil
+            && (descriptor.supportsDisplayProfile || !descriptor.customIniValues.isEmpty)
+        guard descriptor.supportsDisplayProfile || writesLuaPrefs || writesCustomIni else { return }
         guard BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot) else {
             throw CocoaError(.fileWriteNoPermission)
         }
@@ -49,7 +81,8 @@ struct GameProfileWriter {
             var updatedPrefs = Self.updatingDisplaySection(
                 in: existingPrefs,
                 settings: settings,
-                vsyncKey: descriptor.vsyncKey
+                vsyncKey: descriptor.vsyncKey,
+                usesMetalFramePacing: descriptor.usesMetalFramePacing
             )
             let qualityValues = Self.qualityValues(settings: settings, descriptor: descriptor)
             if !qualityValues.isEmpty {
@@ -58,13 +91,25 @@ struct GameProfileWriter {
             try updatedPrefs.write(to: profileURL, atomically: true, encoding: .utf8)
         }
 
-        // FOV lives in the game's Custom ini, which the engine reads as an
-        // override and the vendor launcher never rewrites.
+        // FOV and per-game Custom.ini overrides live here — the engine reads
+        // them as overrides and the vendor launcher never rewrites them.
         if let customIniFileName = descriptor.customIniFileName {
             let customURL = preferencesDirectory.appendingPathComponent(customIniFileName)
             let existingCustom = (try? String(contentsOf: customURL, encoding: .utf8)) ?? ""
-            let updatedCustom = Self.updatingCustomDisplaySection(in: existingCustom, settings: settings)
-            try updatedCustom.write(to: customURL, atomically: true, encoding: .utf8)
+            var updatedCustom = existingCustom
+            if descriptor.supportsDisplayProfile {
+                updatedCustom = Self.updatingCustomDisplaySection(
+                    in: updatedCustom,
+                    settings: settings
+                )
+            }
+            updatedCustom = Self.mergingCustomIniValues(
+                Self.resolvedCustomIniValues(settings: settings, descriptor: descriptor),
+                into: updatedCustom
+            )
+            if updatedCustom != existingCustom {
+                try updatedCustom.write(to: customURL, atomically: true, encoding: .utf8)
+            }
         }
 
         // Lua-style prefs (Game.prefs): rewrite only keys the game itself
@@ -120,7 +165,8 @@ struct GameProfileWriter {
     static func updatingDisplaySection(
         in contents: String,
         settings: GameSettings,
-        vsyncKey: String = "iVSyncPresentInterval"
+        vsyncKey: String = "iVSyncPresentInterval",
+        usesMetalFramePacing: Bool = false
     ) -> String {
         // Borderless windowed is the default: exclusive fullscreen through
         // Wine's Mac driver cannot reliably regain the display after Cmd-Tab.
@@ -137,13 +183,19 @@ struct GameProfileWriter {
             fullscreen = "0"
             borderless = "0"
         }
-        let values = [
+        // Metal present pacing already locks the frame rate. Leaving the
+        // game's vsync interval on stacks a second wait and feels sticky.
+        let vsyncValue = usesMetalFramePacing ? "0" : (settings.verticalSync ? "1" : "0")
+        var values = [
             "bBorderless": borderless,
             "bFull Screen": fullscreen,
             "iSize H": String(settings.height),
             "iSize W": String(settings.width),
-            vsyncKey: settings.verticalSync ? "1" : "0"
+            vsyncKey: vsyncValue
         ]
+        if usesMetalFramePacing, settings.displayMode == .borderlessFullscreen {
+            values["bMaximizeWindow"] = "1"
+        }
         return mergingDisplayValues(values, into: contents)
     }
 
@@ -159,6 +211,39 @@ struct GameProfileWriter {
             ],
             into: contents
         )
+    }
+
+    /// Descriptor Custom.ini maps plus resolution-dependent look scales.
+    static func resolvedCustomIniValues(
+        settings: GameSettings,
+        descriptor: GameDescriptor
+    ) -> [String: [String: String]] {
+        var sections = descriptor.customIniValues
+        guard descriptor.appliesAspectCorrectMouseLook, settings.height > 0 else {
+            return sections
+        }
+        var controls = sections["Controls"] ?? [:]
+        controls["bMouseAcceleration"] = "0"
+        controls["bBackgroundMouse"] = "1"
+        controls["fMouseHeadingXScale"] = "0.021"
+        // Engine default halves vertical look vs horizontal; scale Y by aspect.
+        let yScale = 0.021 * Double(settings.width) / Double(settings.height)
+        controls["fMouseHeadingYScale"] = String(format: "%.5f", yScale)
+        sections["Controls"] = controls
+        return sections
+    }
+
+    /// Apply descriptor-owned Custom.ini section maps in stable section order.
+    static func mergingCustomIniValues(
+        _ sections: [String: [String: String]],
+        into contents: String
+    ) -> String {
+        var updated = contents
+        for section in sections.keys.sorted() {
+            guard let values = sections[section], !values.isEmpty else { continue }
+            updated = mergingSectionValues(values, into: updated, section: section)
+        }
+        return updated
     }
 
     /// Resolve the player's chosen quality options into concrete ini keys.
@@ -182,26 +267,35 @@ struct GameProfileWriter {
         _ values: [String: String],
         into contents: String
     ) -> String {
+        mergingSectionValues(values, into: contents, section: "Display")
+    }
+
+    static func mergingSectionValues(
+        _ values: [String: String],
+        into contents: String,
+        section: String
+    ) -> String {
+        let heading = "[\(section)]"
         var lines = contents.components(separatedBy: .newlines)
         if lines.last == "" { lines.removeLast() }
 
-        guard let displayStart = lines.firstIndex(where: {
+        guard let sectionStart = lines.firstIndex(where: {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
-                .caseInsensitiveCompare("[Display]") == .orderedSame
+                .caseInsensitiveCompare(heading) == .orderedSame
         }) else {
             if !lines.isEmpty { lines.append("") }
-            lines.append("[Display]")
+            lines.append(heading)
             lines.append(contentsOf: values.keys.sorted().map { "\($0)=\(values[$0]!)" })
             return lines.joined(separator: "\r\n") + "\r\n"
         }
 
-        var sectionEnd = lines[(displayStart + 1)..<lines.endIndex].firstIndex(where: {
+        var sectionEnd = lines[(sectionStart + 1)..<lines.endIndex].firstIndex(where: {
             let line = $0.trimmingCharacters(in: .whitespacesAndNewlines)
             return line.hasPrefix("[") && line.hasSuffix("]")
         }) ?? lines.endIndex
 
         for key in values.keys.sorted() {
-            let range = (displayStart + 1)..<sectionEnd
+            let range = (sectionStart + 1)..<sectionEnd
             if let index = lines[range].firstIndex(where: {
                 $0.split(separator: "=", maxSplits: 1).first?
                     .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -141,8 +141,24 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// Steam app whose artwork stands in when this one publishes none of
     /// its own (Black Ops II's mode entries borrow the base game's).
     var artworkFallbackAppID: String?
+    /// Metal present cap applied through DXMT (`d3d11.preferredMaxFrameRate`).
+    /// Fallout 4's camera/Havok sampling breaks above 60; leave nil to uncapped.
+    let preferredMaxFrameRate: Int?
+    /// Extra Custom.ini keys keyed by section name (e.g. "Controls").
+    let customIniValues: [String: [String: String]]
+    /// Force session LogPixels to 96 so DPI-unaware look deltas map 1:1.
+    /// Steam keeps the bottle's Retina DPI between sessions.
+    let prefersNativeSessionDPI: Bool
+    /// Write aspect-correct fMouseHeadingX/YScale so vertical look isn't sticky.
+    let appliesAspectCorrectMouseLook: Bool
 
     var supportsDisplayProfile: Bool { prefsFileName != nil }
+
+    /// Metal owns the frame cap — the game's own vsync interval would only
+    /// add present latency on top.
+    var usesMetalFramePacing: Bool {
+        preferredMaxFrameRate != nil
+    }
 
     func qualityOption(for id: String) -> QualityOption? {
         qualityOptions.first { $0.id == id }
@@ -318,7 +334,11 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
                 detectionFile: "Data/ccBGSSSE001-Fish.esm",
                 note: "Paid upgrade adding all Creation Club content."
             )
-        ]
+        ],
+        preferredMaxFrameRate: nil,
+        customIniValues: [:],
+        prefersNativeSessionDPI: false,
+        appliesAspectCorrectMouseLook: false
     )
 
     static let fallout4 = GameDescriptor(
@@ -429,7 +449,22 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
                 detectionFile: "Data/DLCUltraHighResolution - Textures01.ba2",
                 note: "Free but ~58 GB and heavy on the GPU. Not recommended on this runtime."
             )
-        ]
+        ],
+        // Creation Engine samples look input inside the Havok tick. Above 60
+        // fps that math jitters the camera; DXMT's Metal present cap keeps
+        // the game honest without changing the Mac display refresh rate.
+        preferredMaxFrameRate: 60,
+        customIniValues: [
+            "Controls": [
+                "bMouseAcceleration": "0",
+                // CodeWeavers tip: keep relative mouse deltas while unfocused
+                // borderless windows fight the Mac pointer.
+                "bBackgroundMouse": "1"
+            ]
+        ],
+        // Retina LogPixels=216 quantizes small look deltas into sticky steps.
+        prefersNativeSessionDPI: true,
+        appliesAspectCorrectMouseLook: true
     )
 
     static let supcom2 = GameDescriptor(
@@ -536,7 +571,11 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         defaultFieldOfView: 90,
         baselineDataFile: nil,
         qualityOptions: [],
-        dlc: []
+        dlc: [],
+        preferredMaxFrameRate: nil,
+        customIniValues: [:],
+        prefersNativeSessionDPI: false,
+        appliesAspectCorrectMouseLook: false
     )
 
     private static func blackOps2(
@@ -578,7 +617,11 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             baselineDataFile: nil,
             qualityOptions: [],
             dlc: [],
-            artworkFallbackAppID: "202970"
+            artworkFallbackAppID: "202970",
+            preferredMaxFrameRate: nil,
+            customIniValues: [:],
+            prefersNativeSessionDPI: false,
+            appliesAspectCorrectMouseLook: false
         )
     }
 

@@ -129,10 +129,10 @@ private struct GameCard: View {
                 .overlay(alignment: .bottomLeading) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(displayTitle ?? descriptor.shortTitle)
-                            .font(.system(size: 16, weight: .semibold, design: .serif))
+                            .font(.system(size: SecundaTheme.FontSize.lead, weight: .semibold, design: .serif))
                             .foregroundStyle(.white)
                         Text(statusText)
-                            .font(.system(size: 10.5, weight: .medium))
+                            .font(.system(size: SecundaTheme.FontSize.small, weight: .medium))
                             .foregroundStyle(statusColor)
                     }
                     .padding(16)
@@ -164,9 +164,9 @@ private struct GameCard: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: SecundaTheme.Radius.lg, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: SecundaTheme.Radius.lg, style: .continuous)
                         .stroke(
                             isHovering ? SecundaTheme.frost.opacity(0.6) : Color.white.opacity(0.08),
                             lineWidth: 1
@@ -179,7 +179,7 @@ private struct GameCard: View {
                 )
                 .scaleEffect(isHovering ? 1.04 : 1)
                 .animation(.spring(response: 0.34, dampingFraction: 0.72), value: isHovering)
-                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: SecundaTheme.Radius.lg, style: .continuous))
                 .onHover { isHovering = $0 }
     }
 

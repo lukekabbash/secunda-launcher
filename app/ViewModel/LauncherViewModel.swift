@@ -107,6 +107,7 @@ final class LauncherViewModel: ObservableObject {
         self.isBusy = true
         self.progressLabel = "Checking the game engine"
 
+        applyRuntimeSettings()
         Task {
             await refresh()
             startProcessObservation()
@@ -618,7 +619,14 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    /// Push launcher-wide compatibility choices into the runtime before any
+    /// process is spawned.
+    private func applyRuntimeSettings() {
+        runtimeManager.useFastSync = settings.useFastSync
+    }
+
     func persistSettings() {
+        applyRuntimeSettings()
         do {
             try settingsStore.save(settings)
         } catch {
@@ -694,14 +702,15 @@ final class LauncherViewModel: ObservableObject {
 
     private func launchGame(_ descriptor: GameDescriptor, runtime: RuntimeDescriptor) async throws {
         guard let service = gameServices[descriptor.id] else { return }
-        let screenPixelWidth = Int(
-            (NSScreen.main?.frame.width ?? 0) * (NSScreen.main?.backingScaleFactor ?? 1)
-        )
+        let screenScale = NSScreen.main?.backingScaleFactor ?? 1
+        let screenPixelWidth = Int((NSScreen.main?.frame.width ?? 0) * screenScale)
+        let screenPixelHeight = Int((NSScreen.main?.frame.height ?? 0) * screenScale)
         let outcome = try await service.launch(
             runtime: runtime,
             settings: settings.game(descriptor),
             diagnostics: settings.enableDiagnostics,
             screenPixelWidth: screenPixelWidth,
+            screenPixelHeight: screenPixelHeight,
             progress: { [weak self] stage in
                 self?.updateGameLaunchProgress(stage, descriptor: descriptor)
             }
