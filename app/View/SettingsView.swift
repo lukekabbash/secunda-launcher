@@ -37,11 +37,11 @@ struct SettingsView: View {
                     }
                 }
 
-                FlatSection(title: "Secunda Engine", detail: model.snapshot.runtime.detail ?? "Unavailable") {
+                FlatSection(title: "Secunda Runtime", detail: model.snapshot.runtime.detail ?? "Unavailable") {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(model.snapshot.runtime.isReady
                             ? "Bundled with this copy of Secunda, verified before use, and built only from open source. There is no player-facing runtime picker."
-                            : "The engine is missing from this copy. Reinstall the complete Secunda package or rebuild the runtime from source.")
+                            : "The compatibility runtime is missing from this copy. Reinstall the complete Secunda package or rebuild it from source.")
                             .font(.caption)
                             .foregroundStyle(SecundaTheme.secondaryText)
                             .frame(maxWidth: 560, alignment: .leading)
@@ -85,9 +85,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Fast synchronization", isOn: fastSyncBinding)
                             .toggleStyle(.switch)
-                        Text(model.settings.useFastSync
-                            ? "Wine's fast macOS synchronization is on. It helps frame pacing, but a few titles fault while starting under it. If a game closes immediately with an initialization error, turn this off, close the game space, and try again."
-                            : "Fast synchronization is off — slower, but more compatible. Close the game space for this to take effect, then launch again.")
+                        Text(fastSyncCaption)
                             .font(.caption)
                             .foregroundStyle(SecundaTheme.secondaryText)
                             .lineSpacing(3)
@@ -124,13 +122,20 @@ struct SettingsView: View {
                             }
                             .buttonStyle(SecundaActionButtonStyle())
 
-                            ForEach(GameDescriptor.supported) { descriptor in
-                                if model.snapshot.game(descriptor).state.isReady {
-                                    Button("Verify \(descriptor.shortTitle) Files") {
-                                        model.verifyGameFiles(descriptor)
+                            if !installedDescriptors.isEmpty {
+                                Menu {
+                                    ForEach(installedDescriptors) { descriptor in
+                                        Button(descriptor.title) {
+                                            model.verifyGameFiles(descriptor)
+                                        }
                                     }
-                                    .buttonStyle(SecundaActionButtonStyle())
+                                } label: {
+                                    Label("Verify Game Files…", systemImage: "checkmark.shield")
                                 }
+                                .menuStyle(.borderlessButton)
+                                .menuIndicator(.hidden)
+                                .fixedSize()
+                                .buttonStyle(SecundaActionButtonStyle())
                             }
                         }
 
@@ -168,6 +173,8 @@ struct SettingsView: View {
             }
             .padding(42)
             .frame(maxWidth: 880, alignment: .leading)
+            // Column floats centered in the pane; content stays left-aligned.
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -252,6 +259,10 @@ struct SettingsView: View {
         GameDescriptor.supported.prefix(2).map { "\($0.id).jpg" }.joined(separator: ", ")
     }
 
+    private var installedDescriptors: [GameDescriptor] {
+        GameDescriptor.supported.filter { model.snapshot.game($0).state.isReady }
+    }
+
     private var fastSyncBinding: Binding<Bool> {
         Binding(
             get: { model.settings.useFastSync },
@@ -260,6 +271,17 @@ struct SettingsView: View {
                 model.persistSettings()
             }
         )
+    }
+
+    private var fastSyncCaption: String {
+        if model.hasPendingFastSyncChange {
+            let requested = model.settings.useFastSync ? "on" : "off"
+            let active = model.settings.activeFastSync ? "on" : "off"
+            return "Queued: \(requested). This game space remains \(active) until Steam and every game are closed; Secunda applies the request before the next process starts."
+        }
+        return model.settings.activeFastSync
+            ? "Wine's fast macOS synchronization is on. It helps frame pacing, but a few titles fault while starting under it. If a game closes immediately with an initialization error, turn this off and close the game space."
+            : "Fast synchronization is off — slower, but more compatible."
     }
 
     private var diagnosticsBinding: Binding<Bool> {

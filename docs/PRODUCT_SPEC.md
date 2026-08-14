@@ -2,19 +2,25 @@
 
 ## Purpose
 
-Secunda makes a separately owned Windows Steam copy of Skyrim Special Edition feel dependable on Apple-silicon Macs. It is an unofficial narrow launcher, not a general Windows environment or game library.
+Secunda makes a curated library of separately owned Windows Steam games approachable on Apple-silicon Macs. It is an unofficial, profile-driven launcher, not a general Windows environment or arbitrary application runner.
 
 ## Product boundary
 
-Secunda owns one redistributable source-built Wine/DXMT runtime, one isolated prefix, its runtime configuration, local backups, caches, and diagnostic logs. It never discovers or depends on a proprietary compatibility application.
+Secunda owns one redistributable source-built Wine runtime with packaged graphics translation, one isolated prefix, its profile configuration, local backups, caches, and diagnostic logs. It never discovers or depends on a proprietary compatibility application.
 
-Steam owns authentication, entitlement, download, verification, updates, and cloud sync. Steam and Skyrim binaries, another player's session, game content, saves, and diagnostics are never embedded in the app or DMG.
+Steam owns authentication, entitlement, download, verification, updates, and cloud sync. Steam binaries, supported-game binaries and content, another player's session, saves, and diagnostics are never embedded in the app or DMG.
 
 The compatibility path is:
 
 ```text
-Secunda.app -> source-built x86-64 Wine/DXMT -> Rosetta -> private Windows prefix -> Steam -> Skyrim -> macOS Metal/CoreAudio
+Secunda.app -> source-built Wine runtime -> Rosetta -> private Windows prefix -> Steam -> selected profile -> macOS graphics/audio
 ```
+
+## Supported library and evidence
+
+The library currently profiles Skyrim Special Edition, Fallout 4, Supreme Commander, Supreme Commander: Forged Alliance, Supreme Commander 2, STAR WARS Battlefront II (Classic, 2005), Insurgency, Angels Fall First, and the Campaign, Multiplayer, and Zombies components of Call of Duty: Black Ops II.
+
+Skyrim Special Edition is the proven vertical slice. The newly added Supreme Commander, Forged Alliance, Battlefront II Classic, Insurgency, and Angels Fall First profiles establish catalog, detection, and launch intent only until their end-to-end acceptance evidence is recorded. Catalog support must never be presented as proof of rendered gameplay or working multiplayer.
 
 ## Primary experience
 
@@ -23,8 +29,8 @@ Secunda.app -> source-built x86-64 Wine/DXMT -> Rosetta -> private Windows prefi
 3. Apply the tested display, graphics, synchronization, and audio profile.
 4. Download the Windows Steam installer directly from Valve.
 5. Open Steam's own visible login UI for the player to authenticate.
-6. Let Steam install or detect Skyrim Special Edition.
-7. Launch Skyrim through Steam, then keep saves and recovery evidence within Secunda's managed boundary.
+6. Let Steam install or detect a supported, separately owned game.
+7. Select its Secunda profile and launch through Steam, then keep saves and recovery evidence within Secunda's managed boundary.
 
 ## Quality bar
 
@@ -34,14 +40,14 @@ Secunda.app -> source-built x86-64 Wine/DXMT -> Rosetta -> private Windows prefi
 - No credential capture or launcher-managed authentication.
 - Managed writes remain beneath `~/Library/Application Support/Secunda Launcher`.
 - Destructive recovery actions name and validate their exact target.
-- Gameplay acceptance covers visible Steam, rendering, audio, keyboard/mouse input, actual gameplay, save, clean quit, relaunch, and load.
+- Gameplay acceptance is recorded per profile and covers visible Steam, rendering, audio, keyboard/mouse input, actual gameplay, save where supported, clean quit, relaunch, and load.
 - Performance claims are measured with frame cadence, shader, resource, and repeat-launch evidence.
 
 ## Explicit non-goals for the first release
 
 - Generic Windows application installation.
+- Automatic support or compatibility claims for unlisted games.
 - Mod-manager or script-extender support.
-- A multi-game library.
-- Bundling Steam, Skyrim, a Steam session, or user saves.
+- Bundling Steam, any game, a Steam session, or user saves.
 - Requiring or redistributing a proprietary compatibility application.
 - App Store distribution.

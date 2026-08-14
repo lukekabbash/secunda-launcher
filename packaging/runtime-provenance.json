@@ -8,6 +8,14 @@
     "file": "crossover-sources-26.3.0.tar.gz",
     "sha256": "ac99c8ca4b3848f3e81784135f023df266b61c2345726ea55a50b3e030dd6872"
   },
+  "nativeSupport": [
+    {
+      "name": "Secunda translated debug-register relay",
+      "architecture": "arm64",
+      "license": "LGPL-2.1-or-later",
+      "sourcePath": "tools/secunda-rosetta-debug-broker.c"
+    }
+  ],
   "components": [
     {
       "name": "Wine",
@@ -79,6 +87,14 @@
       "archiveSha256": "b4c518adb174e484cb4acea54118f02380c7133771e7e9beb98a0787194ee47c"
     },
     {
+      "name": "SDL2",
+      "version": "2.32.10",
+      "license": "Zlib",
+      "sourceUrl": "https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz",
+      "archiveSha256": "5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165",
+      "licensePath": "licenses/SDL2-v2.32.10-LICENSE.txt"
+    },
+    {
       "name": "GnuTLS",
       "version": "3.8.3",
       "license": "LGPL-2.1-or-later",
@@ -110,6 +126,18 @@
     {
       "file": "patches/wine-secunda-cef-in-process-gpu.patch",
       "sha256": "6364ef9ca1c173e55043232c98ad1d85601477ae3c89e26068cff565fd14204c"
+    },
+    {
+      "file": "patches/wine-secunda-rosetta-debug-registers.patch",
+      "sha256": "43c3277132a7ef914d7ca9d8b70318593f5dde81741a2a4884ea4148d01569b4"
+    },
+    {
+      "file": "patches/wine-avrt-mmcss-priority.patch",
+      "sha256": "eb169640757eb53476c58c44067b2606adb40d37335d1cc1c2173a230a592183"
+    },
+    {
+      "file": "patches/wine-secunda-sdl-controller-bus.patch",
+      "sha256": "82baed28d09543b0836ccf982a75a29bc4e9ebe9bdf89402f0a0e1cf063066ae"
     }
   ]
 }

@@ -10,7 +10,10 @@ final class SaveService {
     }
 
     func saveDirectory(in bottleRoot: URL) -> URL? {
-        guard BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot) else {
+        guard !descriptor.documentsRelativePath.isEmpty,
+              !descriptor.saveFileExtensions.isEmpty,
+              BottleManager.hasPrivateDocuments(paths: paths, bottleRoot: bottleRoot)
+        else {
             return nil
         }
         let saves = paths.activeWindowsUserDirectory(in: bottleRoot)

@@ -1,0 +1,54 @@
+Prefer the SDL controller bus over the macOS IOHID and XBOX360 buses.
+
+winebus starts every available bus at IRP_MN_START_DEVICE.  On Linux a
+successful SDL init sets options.disable_input so the udev bus skips the
+same devices, but the macOS buses never consult that flag: bus_iohid.c and
+bus_xbox360.c re-enumerate whatever SDL already reported.
+
+That also leaves non-Xbox pads without XInput.  bus_iohid.c only sets
+desc.is_gamepad for is_xbox_gamepad() vid/pids, so a DualShock 4 never gets
+the WINEBUS\WINE_COMP_XINPUT compatible id, winexinput.sys never attaches,
+and XInput-only titles see no controller at all.  The SDL bus classifies and
+remaps controllers from its own mapping database, which covers Xbox and
+PlayStation pads alike.
+
+Start the macOS buses only when SDL is unavailable.  Both stop entry points
+already return early on a NULL run_loop, so the unconditional stop calls in
+IRP_MN_REMOVE_DEVICE stay correct for a bus that never started.
+
+--- a/dlls/winebus.sys/main.c
++++ b/dlls/winebus.sys/main.c
+@@ -1297,18 +1297,30 @@
+         irp->IoStatus.Status = handle_IRP_MN_QUERY_DEVICE_RELATIONS(irp);
+         break;
+     case IRP_MN_START_DEVICE:
++    {
++        BOOL sdl_bus_started;
++
+         bus_options_init();
+ 
+         mouse_device_create();
+         keyboard_device_create();
+ 
+-        if (!sdl_driver_init()) options.disable_input = TRUE;
++        sdl_bus_started = !sdl_driver_init();
++        if (sdl_bus_started) options.disable_input = TRUE;
+         udev_driver_init();
+-        iohid_driver_init();
+-        xbox_driver_init();
++        /* The SDL bus reports controllers as gamepads and remaps them onto the
++         * Xbox layout; the macOS IOHID and XBOX360 buses cannot do either, and
++         * would enumerate the same device a second time as a plain HID
++         * joystick.  Keep them as the fallback for when SDL is unavailable. */
++        if (!sdl_bus_started)
++        {
++            iohid_driver_init();
++            xbox_driver_init();
++        }
+ 
+         irp->IoStatus.Status = STATUS_SUCCESS;
+         break;
++    }
+     case IRP_MN_SURPRISE_REMOVAL:
+         irp->IoStatus.Status = STATUS_SUCCESS;
+         break;

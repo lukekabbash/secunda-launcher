@@ -62,12 +62,42 @@ final class RuntimeManager {
         return nil
     }
 
-    func environment(for runtime: RuntimeDescriptor, diagnostics: Bool) -> [String: String] {
+    /// Environment key stamping every session with a digest of the
+    /// variables it was started under. A warm wineserver whose stamp does
+    /// not match the environment a launch would use today was started under
+    /// different rules — other debug channels, another sync mode, another
+    /// runtime, or experiment flags — and must not receive game launches.
+    static let sessionFingerprintKey = "SECUNDA_SESSION_FINGERPRINT"
+
+    /// Order-independent FNV-1a digest over `key=value` pairs, excluding
+    /// the stamp itself so the stamped dictionary reproduces its own value.
+    static func sessionFingerprint(environment: [String: String]) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        let entries = environment
+            .filter { $0.key != sessionFingerprintKey }
+            .map { "\($0.key)=\($0.value)" }
+            .sorted()
+        for entry in entries {
+            for byte in [UInt8](entry.utf8) + [0] {
+                hash ^= UInt64(byte)
+                hash = hash &* 0x0000_0100_0000_01b3
+            }
+        }
+        return String(format: "%016llx", hash)
+    }
+
+    func environment(
+        for runtime: RuntimeDescriptor,
+        diagnostics: Bool,
+        sessionScope: String? = nil
+    ) -> [String: String] {
         var environment: [String: String] = [
             "WINEPREFIX": runtime.bottleRoot.path,
             "WINEARCH": "win64",
             "WINEDLLOVERRIDES": "mscoree,mshtml=;winemenubuilder.exe=d;d3d10core,d3d11,dxgi=b",
-            "WINEDEBUG": diagnostics ? "warn+all,err+all" : "-all",
+            // Keep diagnostics useful without enabling Wine's per-frame warning
+            // flood, which can otherwise grow a game log by hundreds of MB.
+            "WINEDEBUG": diagnostics ? "-all,err+all" : "-all",
             "WINEMSYNC": useFastSync ? "1" : "0",
             "ROSETTA_ADVERTISE_AVX": "1",
             "SECUNDA_SOURCE_ONLY": "1",
@@ -104,6 +134,10 @@ final class RuntimeManager {
             environment["CX_LIBVULKAN"] = moltenVK.path
             environment["CX_ACTIVE_GRAPHICS_BACKEND"] = "wined3d"
         }
+        if let sessionScope, !sessionScope.isEmpty {
+            environment["SECUNDA_DISPLAY_SESSION"] = sessionScope
+        }
+        environment[Self.sessionFingerprintKey] = Self.sessionFingerprint(environment: environment)
         return environment
     }
 
@@ -197,6 +231,7 @@ final class RuntimeManager {
         let requiredFiles = [
             "lib/libfreetype.6.dylib",
             "lib/libgnutls.30.dylib",
+            "lib/libMoltenVK.dylib",
             "lib/wine/x86_64-unix/winemetal.so",
             "lib/wine/x86_64-unix/winecoreaudio.so",
             "lib/wine/x86_64-windows/d3d11.dll",
@@ -206,7 +241,9 @@ final class RuntimeManager {
             "lib/wine/x86_64-windows/xaudio2_6.dll",
             "lib/wine/x86_64-windows/xaudio2_7.dll",
             "lib/wine/x86_64-windows/xinput1_3.dll",
-            "lib/wine/x86_64-windows/tasklist.exe"
+            "lib/wine/x86_64-windows/tasklist.exe",
+            "share/dxvk/x32/d3d9.dll",
+            "share/dxvk/x64/d3d9.dll"
         ]
         return requiredFiles.allSatisfy {
             FileManager.default.fileExists(atPath: runtimeRoot.appendingPathComponent($0).path)

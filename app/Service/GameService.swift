@@ -5,19 +5,45 @@ enum GameLaunchOutcome: Equatable, Sendable {
     case alreadyRunning
 }
 
+struct ResolvedGameDisplayContract: Equatable, Sendable {
+    let settings: GameSettings
+    let geometry: HostDisplayGeometry
+    let logPixels: Int
+    let retinaMode: Bool
+    let requiredFullscreenCoverage: DisplayExtent?
+}
+
 enum GameLaunchError: LocalizedError {
     case invalidInstallation(String)
+    case gameSpaceBusy(String)
+    case steamClientNotReady(String)
     case steamAuthorizationTimedOut(String)
     case gameDidNotStart(String)
+    case gameWindowNotVisible(String)
+    case gameWindowNotFullscreen(String)
+    case unsupportedExclusiveResolution(String, Int, Int)
+    case sessionDidNotQuiesce(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidInstallation(let title):
             "Secunda could not safely resolve the installed \(title) executable. Refresh or verify the game in Steam."
+        case .gameSpaceBusy(let title):
+            "Close \(title) before starting another game. Secunda keeps shared game-space settings unchanged while a title is running."
+        case .steamClientNotReady(let title):
+            "Steam did not stay running for \(title). Open Steam, finish any sign-in or update, then press Play again."
         case .steamAuthorizationTimedOut(let title):
             "Steam did not make \(title) ready in time. Leave Steam open, finish any sign-in or update, then press Play again."
         case .gameDidNotStart(let title):
-            "Steam authorized \(title), but the game did not stay running. Leave Steam open and try Play again."
+            "Steam was running, but \(title) did not stay running. Leave Steam open and try Play again."
+        case .gameWindowNotVisible(let title):
+            "\(title) started, but macOS never received a visible game window. Secunda left the process alone so you can inspect or stop it safely."
+        case .gameWindowNotFullscreen(let title):
+            "\(title) started, but its window did not cover the display. Secunda rejected the fallback window instead of reporting false fullscreen success."
+        case .unsupportedExclusiveResolution(let title, let width, let height):
+            "\(width) × \(height) is not a display mode available to \(title). Choose one of the listed Exclusive Fullscreen modes; Secunda did not substitute another resolution."
+        case .sessionDidNotQuiesce(let title):
+            "Secunda could not establish a clean display session for \(title). No game settings were applied; stop the shared game space and try again."
         }
     }
 }
@@ -45,6 +71,10 @@ struct DLCState: Identifiable, Equatable {
 final class GameService {
     static let interactiveOutput: ProcessOutput = .discard
 
+    static func launchOutput(diagnostics: Bool, logURL: URL) -> ProcessOutput {
+        diagnostics ? .append(logURL) : interactiveOutput
+    }
+
     let descriptor: GameDescriptor
 
     private let paths: SecundaPaths
@@ -57,6 +87,8 @@ final class GameService {
     private let voiceAudioService: VoiceAudioService
     private let dxvkService: DXVKService
     private let bottleProcessInspector: BottleProcessInspector
+    private let gameWindowProbe: MacGameWindowProbe
+    private let gameFrameProbe = MacGameFrameProbe()
 
     init(
         descriptor: GameDescriptor,
@@ -68,7 +100,8 @@ final class GameService {
         processProbe: WindowsProcessProbe,
         voiceAudioService: VoiceAudioService,
         dxvkService: DXVKService,
-        bottleProcessInspector: BottleProcessInspector
+        bottleProcessInspector: BottleProcessInspector,
+        gameWindowProbe: MacGameWindowProbe
     ) {
         self.descriptor = descriptor
         self.paths = paths
@@ -81,6 +114,7 @@ final class GameService {
         self.voiceAudioService = voiceAudioService
         self.dxvkService = dxvkService
         self.bottleProcessInspector = bottleProcessInspector
+        self.gameWindowProbe = gameWindowProbe
     }
 
     /// Hard OS-level stop for this game's processes, working even when
@@ -131,25 +165,135 @@ final class GameService {
         }
     }
 
+    func managedINIProfilesDetected(in runtime: RuntimeDescriptor?) -> Bool {
+        guard !descriptor.managedINIProfiles.isEmpty,
+              let executable = executable(in: runtime),
+              let installRoot = descriptor.installationRoot(containing: executable)
+        else { return false }
+        let root = installRoot.standardizedFileURL
+        let resolvedRoot = root.resolvingSymlinksInPath().standardizedFileURL
+        return descriptor.managedINIProfiles.allSatisfy { profile in
+            let target = root.appendingPathComponent(profile.relativePath).standardizedFileURL
+            guard target.path.hasPrefix(root.path + "/"),
+                target.resolvingSymlinksInPath().standardizedFileURL.path
+                    .hasPrefix(resolvedRoot.path + "/"),
+                let values = try? target.resourceValues(forKeys: [
+                .isRegularFileKey,
+                .isSymbolicLinkKey
+            ]), values.isRegularFile == true,
+                values.isSymbolicLink != true,
+                let data = try? Data(contentsOf: target),
+                let contents = String(data: data, encoding: .utf8)
+            else { return false }
+            return GameProfileWriter.containsManagedFields(profile, in: contents)
+        }
+    }
+
     func launch(
         runtime: RuntimeDescriptor,
         settings: GameSettings,
         diagnostics: Bool,
-        screenPixelWidth: Int,
-        screenPixelHeight: Int = 0,
+        displayGeometry: HostDisplayGeometry,
         progress: @escaping (GameLaunchStage) async -> Void = { _ in }
     ) async throws -> GameLaunchOutcome {
         guard let game = validatedGameExecutable(in: runtime) else {
             throw GameLaunchError.invalidInstallation(descriptor.shortTitle)
         }
+        let installRoot = descriptor.installationRoot(containing: game)
+        let diagnosticAttemptID = GameLaunchRecorder.makeAttemptID(diagnostics: diagnostics)
+        var displayContract = try Self.resolvedDisplayContract(
+            settings: settings,
+            descriptor: descriptor,
+            displayGeometry: displayGeometry
+        )
         await progress(.checking)
         if try await isGameRunning(runtime: runtime, diagnostics: diagnostics) {
-            return .alreadyRunning
+            return try await confirmedLaunch(
+                .alreadyRunning,
+                runtime: runtime,
+                timeoutSeconds: 8,
+                diagnostics: diagnostics,
+                attemptID: diagnosticAttemptID,
+                installRoot: installRoot,
+                requiredFullscreenCoverage: displayContract.requiredFullscreenCoverage
+            )
         }
+        if let active = try await activeGame(runtime: runtime) {
+            if Self.sharesProcessIdentity(active, descriptor) {
+                return try await confirmedLaunch(
+                    .alreadyRunning,
+                    runtime: runtime,
+                    timeoutSeconds: 8,
+                    diagnostics: diagnostics,
+                    attemptID: diagnosticAttemptID,
+                    installRoot: installRoot,
+                    requiredFullscreenCoverage: displayContract.requiredFullscreenCoverage
+                )
+            }
+            throw GameLaunchError.gameSpaceBusy(active.shortTitle)
+        }
+        var sessionEnvironment = runtimeManager.environment(
+            for: runtime,
+            diagnostics: diagnostics,
+            sessionScope: Self.displaySessionScope(
+                descriptor: descriptor,
+                contract: displayContract
+            )
+        )
+        try await ensureTrustedSessionEnvironment(
+            runtime: runtime,
+            diagnostics: diagnostics,
+            expectedEnvironment: sessionEnvironment
+        )
+
+        // A stale captured mode can change the geometry sampled before the
+        // old session stops. Re-sample the physical display Wine owns, then
+        // establish the final process-latched contract before any writes.
+        if descriptor.launchProfile.displayCoordinatePolicy == .backingPixels {
+            let refreshed = HostDisplayGeometryProbe.wineMainDisplay()
+            let refreshedContract = try Self.resolvedDisplayContract(
+                settings: settings,
+                descriptor: descriptor,
+                displayGeometry: refreshed
+            )
+            let refreshedEnvironment = runtimeManager.environment(
+                for: runtime,
+                diagnostics: diagnostics,
+                sessionScope: Self.displaySessionScope(
+                    descriptor: descriptor,
+                    contract: refreshedContract
+                )
+            )
+            if refreshedEnvironment[RuntimeManager.sessionFingerprintKey]
+                != sessionEnvironment[RuntimeManager.sessionFingerprintKey] {
+                try await ensureTrustedSessionEnvironment(
+                    runtime: runtime,
+                    diagnostics: diagnostics,
+                    expectedEnvironment: refreshedEnvironment
+                )
+            }
+            displayContract = refreshedContract
+            sessionEnvironment = refreshedEnvironment
+        }
+
+        let sessionSettings = displayContract.settings
+        let logPixels = displayContract.logPixels
+        let sessionRetinaMode = displayContract.retinaMode
+        let effectiveDisplayGeometry = displayContract.geometry
+        let executableDisplayPolicies = Self.executableDisplayPolicies(
+            descriptor: descriptor,
+            displayMode: sessionSettings.displayMode
+        )
+        let usesLegacyMacDecoration = descriptor.usesScreenCoveringBorderlessSurface
+            && executableDisplayPolicies.isEmpty
+        let launchEnvironment = Self.gameEnvironment(
+            base: sessionEnvironment,
+            descriptor: descriptor
+        )
 
         await progress(.compatibility)
         var voiceAudioActive = false
-        if settings.nativeVoiceAudio {
+        if descriptor.usesNativeVoiceAudioFix && settings.nativeVoiceAudio {
             await progress(.voiceAudio)
             try await voiceAudioService.installIfNeeded(runtime: runtime, diagnostics: diagnostics)
             voiceAudioActive = voiceAudioService.isInstalled(bottleRoot: runtime.bottleRoot)
@@ -157,51 +301,95 @@ final class GameService {
         if descriptor.d3d9Backend == .dxvk {
             try dxvkService.installIfNeeded(runtime: runtime, diagnostics: diagnostics)
         }
-        let logPixels = GameProfileWriter.sessionLogPixels(
-            settings: settings,
-            screenPixelWidth: screenPixelWidth,
-            prefersNative: descriptor.prefersNativeSessionDPI
-        )
         try await bottleManager.applyGameCompatibility(
             runtime: runtime,
             diagnostics: diagnostics,
             logPixels: logPixels,
+            retinaMode: sessionRetinaMode,
             nativeVoiceAudio: voiceAudioActive,
-            d3d9Backend: descriptor.d3d9Backend
+            d3d9Backend: descriptor.d3d9Backend,
+            macDriverApplication: usesLegacyMacDecoration
+                ? descriptor.gameImageName
+                : nil,
+            macDriverDecorated: usesLegacyMacDecoration
+                ? sessionSettings.displayMode != .borderlessFullscreen
+                : nil,
+            executableDisplayPolicies: executableDisplayPolicies,
+            environment: sessionEnvironment
         )
         await progress(.profile)
-        let sessionSettings = GameProfileWriter.sessionSettings(
-            settings,
-            descriptor: descriptor,
-            logPixels: logPixels,
-            screenPixelWidth: screenPixelWidth,
-            screenPixelHeight: screenPixelHeight
+        try profileWriter.apply(
+            sessionSettings,
+            bottleRoot: runtime.bottleRoot,
+            installRoot: descriptor.installationRoot(containing: game)
         )
-        try profileWriter.apply(sessionSettings, bottleRoot: runtime.bottleRoot)
 
         if try await isGameRunning(runtime: runtime, diagnostics: diagnostics) {
-            return .alreadyRunning
+            return try await confirmedLaunch(
+                .alreadyRunning,
+                runtime: runtime,
+                timeoutSeconds: 8,
+                diagnostics: diagnostics,
+                attemptID: diagnosticAttemptID,
+                installRoot: installRoot,
+                requiredFullscreenCoverage: displayContract.requiredFullscreenCoverage
+            )
         }
 
-        let launchEnvironment = Self.gameEnvironment(
-            base: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
-            descriptor: descriptor
+        let gameArguments = Self.gameArguments(
+            descriptor: descriptor,
+            settings: sessionSettings
         )
+        let recordedArguments = descriptor.steamRunningDirectLaunch == nil
+            ? ["-applaunch", descriptor.steamAppID] + gameArguments
+            : Self.directGameArguments(descriptor: descriptor, settings: sessionSettings)
+        GameLaunchRecorder(paths: paths).recordRequest(
+            descriptor: descriptor,
+            settings: sessionSettings,
+            arguments: recordedArguments,
+            logPixels: logPixels,
+            retinaMode: sessionRetinaMode,
+            bottleRoot: runtime.bottleRoot,
+            installRoot: installRoot,
+            requestedSettings: settings,
+            displayGeometry: effectiveDisplayGeometry,
+            sessionFingerprint: launchEnvironment[RuntimeManager.sessionFingerprintKey],
+            attemptID: diagnosticAttemptID,
+            diagnostics: diagnostics
+        )
+        if let directLaunch = descriptor.steamRunningDirectLaunch {
+            return try await launchThroughRunningSteam(
+                game,
+                directLaunch: directLaunch,
+                runtime: runtime,
+                settings: sessionSettings,
+                diagnostics: diagnostics,
+                sessionEnvironment: sessionEnvironment,
+                gameEnvironment: launchEnvironment,
+                attemptID: diagnosticAttemptID,
+                installRoot: installRoot,
+                requiredFullscreenCoverage: displayContract.requiredFullscreenCoverage,
+                progress: progress
+            )
+        }
+
         await progress(.steam)
         try steamService.launch(
             runtime: runtime,
-            arguments: ["-applaunch", descriptor.steamAppID]
-                + Self.gameArguments(descriptor: descriptor, settings: sessionSettings),
+            arguments: ["-applaunch", descriptor.steamAppID] + gameArguments,
             diagnostics: diagnostics,
-            extraEnvironment: Self.dxmtEnvironmentOverrides(for: descriptor)
+            environment: sessionEnvironment
         )
 
         let handoff = try await processProbe.waitForHandoff(
             runtime: runtime,
             diagnostics: diagnostics,
             timeoutSeconds: 90,
-            gameImage: descriptor.gameImageName,
-            launcherImage: descriptor.launcherImageName
+            gameImages: descriptor.gameProcessImageNames,
+            launcherImages: descriptor.launcherProcessImageNames,
+            requiredStableSeconds: descriptor.preferredMaxFrameRate == nil
+                ? WindowsProcessProbe.requiredStableGameSeconds
+                : 0
         )
         switch handoff {
         case .game:
@@ -211,7 +399,16 @@ final class GameService {
                 _ = try await forceStop(runtime: runtime)
                 break
             }
-            return .started
+            return try await confirmedLaunch(
+                .started,
+                runtime: runtime,
+                diagnostics: diagnostics,
+                attemptID: diagnosticAttemptID,
+                installRoot: installRoot,
+                requiredFullscreenCoverage: displayContract.requiredFullscreenCoverage
+            )
+        case .gameExited:
+            throw GameLaunchError.gameDidNotStart(descriptor.shortTitle)
         case .none:
             throw GameLaunchError.steamAuthorizationTimedOut(descriptor.shortTitle)
         case .launcher:
@@ -220,7 +417,14 @@ final class GameService {
 
         if descriptor.preferredMaxFrameRate == nil,
            try await isGameRunning(runtime: runtime, diagnostics: diagnostics) {
-            return .started
+            return try await confirmedLaunch(
+                .started,
+                runtime: runtime,
+                diagnostics: diagnostics,
+                attemptID: diagnosticAttemptID,
+                installRoot: installRoot,
+                requiredFullscreenCoverage: displayContract.requiredFullscreenCoverage
+            )
         }
 
         await progress(.game)
@@ -235,11 +439,347 @@ final class GameService {
             runtime: runtime,
             diagnostics: diagnostics,
             timeoutSeconds: 20,
-            gameImage: descriptor.gameImageName
+            gameImages: descriptor.gameProcessImageNames
         ) else {
             throw GameLaunchError.gameDidNotStart(descriptor.shortTitle)
         }
-        return .started
+        return try await confirmedLaunch(
+            .started,
+            runtime: runtime,
+            diagnostics: diagnostics,
+            attemptID: diagnosticAttemptID,
+            installRoot: installRoot,
+            requiredFullscreenCoverage: displayContract.requiredFullscreenCoverage
+        )
+    }
+
+    /// A game handed to a warm Steam client runs under that client's
+    /// original Unix environment, not the one computed for this launch.
+    /// Every Secunda session is stamped with a fingerprint of its launch
+    /// variables; a warm wineserver stamped differently — or not at all,
+    /// as after a manual or experimental cold start — is shut down here so
+    /// the launch continues into a session owned by current settings.
+    private func ensureTrustedSessionEnvironment(
+        runtime: RuntimeDescriptor,
+        diagnostics: Bool,
+        expectedEnvironment: [String: String]
+    ) async throws {
+        let expected = expectedEnvironment[RuntimeManager.sessionFingerprintKey]
+        guard try await bottleProcessInspector.sessionRequiresRestart(
+            runtime: runtime,
+            expectedFingerprint: expected
+        ) else { return }
+
+        do {
+            try await bottleManager.shutdown(runtime: runtime, diagnostics: diagnostics)
+        } catch {
+            let owned = try await bottleProcessInspector.processesInBottle(runtime: runtime)
+            await bottleProcessInspector.forceKill(owned)
+            do {
+                try await bottleManager.shutdown(runtime: runtime, diagnostics: diagnostics)
+            } catch {
+                throw GameLaunchError.sessionDidNotQuiesce(descriptor.shortTitle)
+            }
+        }
+        // A session-wide display change is committed only after this exact
+        // bottle is quiet. Runtime provenance alone cannot authorize kills:
+        // another bottle may use the same source runtime concurrently.
+        let survivors = try await bottleProcessInspector.processesInBottle(runtime: runtime)
+        if !survivors.isEmpty {
+            await bottleProcessInspector.forceKill(survivors)
+            do {
+                try await bottleManager.shutdown(runtime: runtime, diagnostics: diagnostics)
+            } catch {
+                throw GameLaunchError.sessionDidNotQuiesce(descriptor.shortTitle)
+            }
+        }
+        guard try await bottleProcessInspector.waitForBottleQuiescence(runtime: runtime) else {
+            throw GameLaunchError.sessionDidNotQuiesce(descriptor.shortTitle)
+        }
+    }
+
+    /// Restart unless the live session carries the exact expected stamp.
+    /// An unreadable or missing stamp means "cannot verify", never "clean".
+    static func sessionRequiresRestart(live: String?, expected: String?) -> Bool {
+        guard let expected else { return false }
+        return live != expected
+    }
+
+    /// Process-latched display state is part of every shared session stamp.
+    /// Player resolution and mode remain launch inputs and do not force a
+    /// cold handoff unless they change the physical mode Wine initializes in.
+    static func displaySessionScope(
+        descriptor: GameDescriptor,
+        contract: ResolvedGameDisplayContract
+    ) -> String {
+        var fields = [
+            "display-v2",
+            "dpi\(contract.logPixels)",
+            contract.retinaMode ? "retina" : "points"
+        ]
+        if descriptor.launchProfile.displayCoordinatePolicy == .backingPixels {
+            if let active = contract.geometry.activeFullscreenModePoints {
+                fields.append("original\(active.width)x\(active.height)")
+            }
+            fields.append(
+                "backing\(contract.geometry.fullFramePixels.width)x"
+                    + "\(contract.geometry.fullFramePixels.height)"
+            )
+        }
+        return fields.joined(separator: ":")
+    }
+
+    static func sessionRetinaMode(
+        for descriptor: GameDescriptor,
+        displayGeometry: HostDisplayGeometry
+    ) -> Bool {
+        switch descriptor.launchProfile.displayCoordinatePolicy {
+        case .backingPixels:
+            displayGeometry.supportsTwoXRetina
+        case .inherited:
+            !descriptor.prefersNativeSessionDPI
+        }
+    }
+
+    static func resolvedDisplayContract(
+        settings: GameSettings,
+        descriptor: GameDescriptor,
+        displayGeometry: HostDisplayGeometry
+    ) throws -> ResolvedGameDisplayContract {
+        let retinaMode = sessionRetinaMode(
+            for: descriptor,
+            displayGeometry: displayGeometry
+        )
+        let coordinateSettings = try backingPixelDisplaySettings(
+            settings,
+            descriptor: descriptor,
+            displayGeometry: displayGeometry,
+            retinaMode: retinaMode
+        )
+        let validatedSettings = validatedCapturedExclusiveSettings(
+            coordinateSettings,
+            descriptor: descriptor,
+            displayGeometry: displayGeometry
+        )
+        let fittedSettings = desktopFittedSettings(
+            validatedSettings,
+            descriptor: descriptor,
+            displayGeometry: displayGeometry
+        )
+        let logPixels = GameProfileWriter.sessionLogPixels(
+            settings: fittedSettings,
+            screenPixelWidth: displayGeometry.fullFramePixels.width,
+            prefersNative: descriptor.prefersNativeSessionDPI,
+            managesResolution: descriptor.managedDisplayCapabilities.resolution
+        )
+        let sessionSettings = GameProfileWriter.sessionSettings(
+            fittedSettings,
+            descriptor: descriptor,
+            logPixels: logPixels,
+            screenPointWidth: displayGeometry.fullFramePoints.width,
+            screenPointHeight: displayGeometry.fullFramePoints.height,
+            preservesRequestedResolution: descriptor.launchProfile.displayCoordinatePolicy
+                == .backingPixels
+        )
+        return ResolvedGameDisplayContract(
+            settings: sessionSettings,
+            geometry: displayGeometry,
+            logPixels: logPixels,
+            retinaMode: retinaMode,
+            requiredFullscreenCoverage: requiredFullscreenCoverage(
+                settings: sessionSettings,
+                descriptor: descriptor,
+                displayGeometry: displayGeometry,
+                retinaMode: retinaMode
+            )
+        )
+    }
+
+    /// Backing-pixel sessions use normal game semantics: borderless follows
+    /// the desktop, exclusive selects a real physical mode, and windowed
+    /// preserves the chosen client pixels and aspect ratio exactly.
+    static func backingPixelDisplaySettings(
+        _ settings: GameSettings,
+        descriptor: GameDescriptor,
+        displayGeometry: HostDisplayGeometry,
+        retinaMode: Bool
+    ) throws -> GameSettings {
+        guard descriptor.launchProfile.displayCoordinatePolicy == .backingPixels else {
+            return settings
+        }
+        var resolved = settings
+        switch settings.displayMode {
+        case .borderlessFullscreen:
+            guard let active = displayGeometry.wineActiveFullscreenMode(
+                retinaMode: retinaMode
+            ) else { return settings }
+            resolved.width = active.width
+            resolved.height = active.height
+        case .exclusiveFullscreen:
+            let requested = DisplayExtent(width: settings.width, height: settings.height)
+            let modes = displayGeometry.wineFullscreenModes(retinaMode: retinaMode)
+            guard modes.isEmpty || modes.contains(requested) else {
+                throw GameLaunchError.unsupportedExclusiveResolution(
+                    descriptor.shortTitle,
+                    settings.width,
+                    settings.height
+                )
+            }
+        case .windowed:
+            break
+        }
+        return resolved
+    }
+
+    /// Some vendor wrappers cannot run in the source runtime. Keep Steam
+    /// active for ownership/Steamworks, but launch the verified native game
+    /// image directly so Steam can never queue that wrapper behind us.
+    private func launchThroughRunningSteam(
+        _ game: URL,
+        directLaunch: SteamRunningDirectLaunch,
+        runtime: RuntimeDescriptor,
+        settings: GameSettings,
+        diagnostics: Bool,
+        sessionEnvironment: [String: String],
+        gameEnvironment: [String: String],
+        attemptID: String?,
+        installRoot: URL?,
+        requiredFullscreenCoverage: DisplayExtent?,
+        progress: @escaping (GameLaunchStage) async -> Void
+    ) async throws -> GameLaunchOutcome {
+        await progress(.steam)
+        try steamService.launch(
+            runtime: runtime,
+            diagnostics: diagnostics,
+            environment: sessionEnvironment
+        )
+        let steamHandoff = try await processProbe.waitForHandoff(
+            runtime: runtime,
+            diagnostics: diagnostics,
+            timeoutSeconds: directLaunch.steamReadyTimeoutSeconds,
+            gameImages: ["steam.exe"],
+            launcherImages: [],
+            requiredStableSeconds: 2
+        )
+        guard steamHandoff == .game else {
+            throw GameLaunchError.steamClientNotReady(descriptor.shortTitle)
+        }
+
+        await progress(.game)
+        try launchGameExecutable(
+            game,
+            runtime: runtime,
+            settings: settings,
+            diagnostics: diagnostics,
+            environment: gameEnvironment
+        )
+        guard try await processProbe.waitForGame(
+            runtime: runtime,
+            diagnostics: diagnostics,
+            timeoutSeconds: 20,
+            gameImages: descriptor.gameProcessImageNames
+        ) else {
+            throw GameLaunchError.gameDidNotStart(descriptor.shortTitle)
+        }
+        return try await confirmedLaunch(
+            .started,
+            runtime: runtime,
+            diagnostics: diagnostics,
+            attemptID: attemptID,
+            installRoot: installRoot,
+            requiredFullscreenCoverage: requiredFullscreenCoverage
+        )
+    }
+
+    /// Some renderers create a healthy background process while failing to
+    /// publish any usable surface. Only the profiles that opt in pay this
+    /// extra launch-health cost.
+    private func confirmedLaunch(
+        _ outcome: GameLaunchOutcome,
+        runtime: RuntimeDescriptor,
+        timeoutSeconds: TimeInterval = 45,
+        diagnostics: Bool,
+        attemptID: String?,
+        installRoot: URL?,
+        requiredFullscreenCoverage: DisplayExtent? = nil
+    ) async throws -> GameLaunchOutcome {
+        guard descriptor.launchProfile.requiresVisibleWindow else { return outcome }
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        var lastVisibleSurface: GameWindowSurface?
+        repeat {
+            try Task.checkCancellation()
+            let processes = try await bottleProcessInspector.runningProcesses(
+                for: descriptor,
+                runtime: runtime
+            )
+            let surfaces = gameWindowProbe.surfaces(
+                ownedBy: Set(processes.map(\.pid))
+            ).filter(\.isPresentable)
+
+            if let visible = surfaces.first(where: \.isVisible) {
+                lastVisibleSurface = visible
+                gameWindowProbe.bringForward(ownerPID: visible.ownerPID)
+                let coversRequiredDisplay = requiredFullscreenCoverage
+                    .map { visible.covers($0) } ?? true
+                if coversRequiredDisplay {
+                    await recordFrameOutcome(
+                        outcome: outcome,
+                        surface: visible,
+                        attemptID: attemptID,
+                        diagnostics: diagnostics,
+                        runtime: runtime,
+                        installRoot: installRoot
+                    )
+                    return outcome
+                }
+            }
+            if let hidden = surfaces.first {
+                gameWindowProbe.bringForward(ownerPID: hidden.ownerPID)
+            }
+            if processes.isEmpty || Date() >= deadline { break }
+            try await Task.sleep(for: .milliseconds(500))
+        } while true
+        await recordFrameOutcome(
+            outcome: nil,
+            surface: lastVisibleSurface,
+            attemptID: attemptID,
+            diagnostics: diagnostics,
+            runtime: runtime,
+            installRoot: installRoot
+        )
+        if requiredFullscreenCoverage != nil, lastVisibleSurface != nil {
+            throw GameLaunchError.gameWindowNotFullscreen(descriptor.shortTitle)
+        }
+        throw GameLaunchError.gameWindowNotVisible(descriptor.shortTitle)
+    }
+
+    private func recordFrameOutcome(
+        outcome: GameLaunchOutcome?,
+        surface: GameWindowSurface?,
+        attemptID: String?,
+        diagnostics: Bool,
+        runtime: RuntimeDescriptor,
+        installRoot: URL?
+    ) async {
+        guard GameLaunchRecorder.recordsFrameOutcome(
+            for: descriptor,
+            diagnostics: diagnostics
+        ) else { return }
+        let frame = if let surface {
+            await gameFrameProbe.observe(surface: surface)
+        } else {
+            GameFrameObservation.unavailable(.windowUnavailable)
+        }
+        GameLaunchRecorder(paths: paths).recordFrameOutcome(
+            descriptor: descriptor,
+            attemptID: attemptID,
+            launchOutcome: outcome,
+            surface: surface,
+            frame: frame,
+            bottleRoot: runtime.bottleRoot,
+            installRoot: installRoot,
+            diagnostics: diagnostics
+        )
     }
 
     func requestVerification(runtime: RuntimeDescriptor, diagnostics: Bool) throws {
@@ -292,10 +832,116 @@ final class GameService {
 
     /// DXMT config fragments that must land on the game process itself.
     static func dxmtEnvironmentOverrides(for descriptor: GameDescriptor) -> [String: String] {
-        guard let frameRate = descriptor.preferredMaxFrameRate, frameRate > 0 else {
-            return [:]
+        var fragments = descriptor.launchProfile.dxmtConfigFragments
+        if let frameRate = descriptor.preferredMaxFrameRate, frameRate > 0 {
+            fragments.append("d3d11.preferredMaxFrameRate=\(frameRate)")
         }
-        return ["DXMT_CONFIG": "d3d11.preferredMaxFrameRate=\(frameRate);"]
+        guard !fragments.isEmpty else { return [:] }
+        return ["DXMT_CONFIG": fragments.joined(separator: ";") + ";"]
+    }
+
+    static func executableDisplayPolicy(
+        descriptor: GameDescriptor,
+        displayMode: DisplayMode
+    ) -> ExecutableDisplayPolicy? {
+        executableDisplayPolicies(
+            descriptor: descriptor,
+            displayMode: displayMode
+        ).first
+    }
+
+    static func executableDisplayPolicies(
+        descriptor: GameDescriptor,
+        displayMode: DisplayMode
+    ) -> [ExecutableDisplayPolicy] {
+        guard descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode else {
+            return []
+        }
+        return descriptor.gameProcessImageNames.map { application in
+            ExecutableDisplayPolicy(
+                application: application,
+                decorated: displayMode == .windowed,
+                capturesDisplaysForFullscreen: displayMode == .exclusiveFullscreen
+            )
+        }
+    }
+
+    static func requiredFullscreenCoverage(
+        settings: GameSettings,
+        descriptor: GameDescriptor,
+        displayGeometry: HostDisplayGeometry,
+        retinaMode: Bool = false
+    ) -> DisplayExtent? {
+        guard settings.displayMode != .windowed else { return nil }
+        if descriptor.launchProfile.requiresFullDisplayCoverage {
+            if settings.displayMode == .exclusiveFullscreen,
+               descriptor.launchProfile.displayCoordinatePolicy == .backingPixels {
+                let selected = DisplayExtent(width: settings.width, height: settings.height)
+                let hostFrame = displayGeometry.hostFrame(
+                    forWineMode: selected,
+                    retinaMode: retinaMode
+                )
+                return hostFrame.isUsable ? hostFrame : nil
+            }
+            let hostFrame = displayGeometry.fullFramePoints
+            return hostFrame.isUsable ? hostFrame : nil
+        }
+        guard settings.displayMode == .exclusiveFullscreen,
+              descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode
+        else { return nil }
+        let requested = DisplayExtent(width: settings.width, height: settings.height)
+        return requested.isUsable ? requested : displayGeometry.fullFramePoints
+    }
+
+    /// Existing point-coordinate profiles keep their accepted recovery rule.
+    /// Backing-coordinate profiles are validated without substitution by the
+    /// display-contract resolver before reaching this path.
+    static func validatedCapturedExclusiveSettings(
+        _ settings: GameSettings,
+        descriptor: GameDescriptor,
+        displayGeometry: HostDisplayGeometry
+    ) -> GameSettings {
+        guard settings.displayMode == .exclusiveFullscreen,
+              descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode
+        else { return settings }
+        guard descriptor.launchProfile.displayCoordinatePolicy != .backingPixels else {
+            return settings
+        }
+
+        let requested = DisplayExtent(width: settings.width, height: settings.height)
+        if displayGeometry.switchableFullscreenModes.contains(requested) {
+            return settings
+        }
+        guard displayGeometry.fullFramePoints.isUsable else { return settings }
+        var adjusted = settings
+        adjusted.width = displayGeometry.fullFramePoints.width
+        adjusted.height = displayGeometry.fullFramePoints.height
+        return adjusted
+    }
+
+    /// Games whose resolution rides the command line (-w/-h) render into the
+    /// desktop Wine's Mac driver exposes in host points. Transition-safe
+    /// borderless sessions use a client that fits windowed and shares the
+    /// safe fullscreen aspect; ordinary windows keep the selected aspect and
+    /// shrink only when their decorated frame would exceed the work area.
+    static func desktopFittedSettings(
+        _ settings: GameSettings,
+        descriptor: GameDescriptor,
+        displayGeometry: HostDisplayGeometry
+    ) -> GameSettings {
+        guard descriptor.launchProfile.fitsResolutionToDesktop,
+              let maximum = displayGeometry.maximumContent(for: settings.displayMode)
+        else { return settings }
+        var fitted = settings
+        let content = settings.displayMode == .borderlessFullscreen
+                && descriptor.launchProfile.usesTransitionSafeBorderlessSurface
+            ? (displayGeometry.transitionSafeBorderlessContent ?? maximum)
+            : maximum.fitting(
+                DisplayExtent(width: settings.width, height: settings.height)
+            )
+        fitted.width = content.width
+        fitted.height = content.height
+        return fitted
     }
 
     private func validatedGameExecutable(in runtime: RuntimeDescriptor) -> URL? {
@@ -320,9 +966,37 @@ final class GameService {
         try await processProbe.snapshot(
             runtime: runtime,
             diagnostics: diagnostics,
-            gameImage: descriptor.gameImageName,
-            launcherImage: descriptor.launcherImageName
-        ).contains(descriptor.gameImageName)
+            gameImages: descriptor.gameProcessImageNames,
+            launcherImages: descriptor.launcherProcessImageNames
+        ).containsAny(descriptor.gameProcessImageNames)
+    }
+
+    private func activeGame(runtime: RuntimeDescriptor) async throws -> GameDescriptor? {
+        let processes = try await bottleProcessInspector.processesInBottle(runtime: runtime)
+        return Self.activeGame(in: processes)
+    }
+
+    static func activeGame(
+        in processes: [BottleProcess],
+        descriptors: [GameDescriptor] = GameDescriptor.supported
+    ) -> GameDescriptor? {
+        descriptors.first { candidate in
+            processes.contains { process in
+                BottleProcessInspector.matchesImages(
+                    process.command,
+                    images: candidate.processImageNames
+                )
+            }
+        }
+    }
+
+    static func sharesProcessIdentity(
+        _ first: GameDescriptor,
+        _ second: GameDescriptor
+    ) -> Bool {
+        let firstImages = Set(first.processImageNames.map { $0.lowercased() })
+        let secondImages = Set(second.processImageNames.map { $0.lowercased() })
+        return !firstImages.isDisjoint(with: secondImages)
     }
 
     private func launchGameExecutable(
@@ -339,19 +1013,28 @@ final class GameService {
         try processRunner.launch(
             executable: runtime.wineExecutable,
             arguments: runtime.wineArguments(
-                for: [executable.path] + Self.gameArguments(descriptor: descriptor, settings: settings)
+                for: [executable.path]
+                    + Self.directGameArguments(descriptor: descriptor, settings: settings)
             ),
             environment: resolvedEnvironment,
             currentDirectory: executable.deletingLastPathComponent(),
-            output: Self.interactiveOutput
+            output: Self.launchOutput(
+                diagnostics: diagnostics,
+                logURL: paths.logsDirectory.appendingPathComponent("game-launch-\(descriptor.id).log")
+            )
         )
     }
 
-    /// Extra command-line arguments a game needs every launch. Exclusive
-    /// fullscreen fails under the Mac display driver for wined3d titles, so
-    /// those run windowed at the player's chosen resolution.
+    /// Exact descriptor-owned arguments for Steam's launch request.
     static func gameArguments(descriptor: GameDescriptor, settings: GameSettings) -> [String] {
-        guard descriptor.usesWindowedResolutionArguments else { return [] }
-        return ["/windowed", String(settings.width), String(settings.height)]
+        descriptor.launchProfile.arguments(settings: settings)
+    }
+
+    static func directGameArguments(
+        descriptor: GameDescriptor,
+        settings: GameSettings
+    ) -> [String] {
+        (descriptor.steamRunningDirectLaunch?.arguments ?? [])
+            + gameArguments(descriptor: descriptor, settings: settings)
     }
 }

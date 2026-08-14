@@ -2,8 +2,12 @@
 .build/
 build/
 .swiftpm/
-dist/
-Runtime/
+# Keep the runnable macOS test bundle in Git LFS while excluding generated
+# DMGs, checksums, staging directories, and any future distribution output.
+dist/*
+!dist/Secunda Launcher.app/
+!dist/Secunda Launcher.app/**
+/Runtime/
 *.xcuserstate
 
 # CodeWeavers compliance source drop. Kept locally as build input, not vendored

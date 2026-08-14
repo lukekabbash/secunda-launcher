@@ -19,16 +19,35 @@ if [[ ! -x "$WINE" || ! -x "$WINEGCC" ]]; then
 fi
 
 mkdir -p "$BUILD_ROOT"
+
+compile_d3d11_smoke() {
+    local target=$1
+    local output=$2
+    "$WINEGCC" \
+        --wine-objdir "$WINE_BUILD_ROOT" \
+        -b "$target" \
+        -I"$WINE_BUILD_ROOT/include" \
+        -I"$REPOSITORY_ROOT/sources/wine/include" \
+        -I"$REPOSITORY_ROOT/sources/wine/include/msvcrt" \
+        "$REPOSITORY_ROOT/tools/d3d11-smoke.c" \
+        -o "$output" \
+        -ld3d11 \
+        -lkernel32
+}
+
+compile_d3d11_smoke x86_64-windows "$BUILD_ROOT/d3d11-smoke.exe"
+compile_d3d11_smoke i386-windows "$BUILD_ROOT/d3d11-smoke-x86.exe"
+
 "$WINEGCC" \
     --wine-objdir "$WINE_BUILD_ROOT" \
-    -b x86_64-windows \
+    -b i386-windows \
     -I"$WINE_BUILD_ROOT/include" \
     -I"$REPOSITORY_ROOT/sources/wine/include" \
     -I"$REPOSITORY_ROOT/sources/wine/include/msvcrt" \
-    "$REPOSITORY_ROOT/tools/d3d11-smoke.c" \
-    -o "$BUILD_ROOT/d3d11-smoke.exe" \
-    -ld3d11 \
-    -lkernel32
+    "$REPOSITORY_ROOT/tools/debug-register-smoke.c" \
+    -o "$BUILD_ROOT/debug-register-smoke-x86.exe" \
+    -lkernel32 \
+    -lmsvcrt
 
 COMMON_ENV=(
     WINEPREFIX="$SMOKE_PREFIX"
@@ -42,7 +61,9 @@ COMMON_ENV=(
 
 env "${COMMON_ENV[@]}" "$WINE" cmd.exe /d /c ver
 env "${COMMON_ENV[@]}" "$WINE" "$BUILD_ROOT/d3d11-smoke.exe"
+env "${COMMON_ENV[@]}" "$WINE" "$BUILD_ROOT/d3d11-smoke-x86.exe"
+env "${COMMON_ENV[@]}" "$WINE" "$BUILD_ROOT/debug-register-smoke-x86.exe"
 env WINEPREFIX="$SMOKE_PREFIX" "$RUNTIME_ROOT/bin/wineserver" -k
 
-echo "Runtime command and Direct3D smoke tests passed."
+echo "Runtime command and 64-bit/32-bit Direct3D smoke tests passed."
 echo "Disposable prefix: $SMOKE_PREFIX"

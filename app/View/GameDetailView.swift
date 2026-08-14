@@ -11,8 +11,8 @@ struct GameDetailView: View {
     @State private var selectedComponentID: String?
 
     /// The component every section of this page acts on. For single-game
-    /// groups this is just the game; for Black Ops II it follows the mode
-    /// picker and persists as the group default.
+    /// groups this is just the game; for multi-component entries it follows
+    /// the mode picker and persists as the group default.
     private var descriptor: GameDescriptor {
         if let id = selectedComponentID,
            group.componentIDs.contains(id),
@@ -30,58 +30,38 @@ struct GameDetailView: View {
                 VStack(alignment: .leading, spacing: 40) {
                     heroActions
 
-                    HStack(alignment: .top, spacing: 40) {
-                    FlatSection(title: "Setup", detail: "One separate installation") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            StatusRow(title: "This Mac", symbol: "desktopcomputer", state: model.snapshot.host)
-                            StatusRow(title: "Secunda Engine", symbol: "shippingbox.fill", state: model.snapshot.runtime)
-                            StatusRow(title: "Separate Windows Space", symbol: "cube.transparent", state: model.snapshot.bottle)
-                            StatusRow(title: "Steam Client", symbol: "person.crop.circle", state: model.snapshot.steam)
-                            StatusRow(
-                                title: descriptor.shortTitle,
-                                symbol: descriptor.symbol,
-                                state: model.snapshot.game(descriptor).state
-                            )
+                    FlatSection(title: "Status", detail: statusSectionDetail) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            StatusStrip(items: [
+                                .init(title: "This Mac", state: model.snapshot.host),
+                                .init(title: "Compatibility Runtime", state: model.snapshot.runtime),
+                                .init(title: "Windows Space", state: model.snapshot.bottle),
+                                .init(title: "Steam Client", state: model.snapshot.steam),
+                                .init(title: descriptor.shortTitle, state: model.snapshot.game(descriptor).state)
+                            ])
+                            activityList
                         }
                     }
-                    .frame(maxWidth: .infinity)
-
-                    FlatSection(title: "Activity", detail: "Latest events") {
-                        activityList
-                    }
-                    .frame(width: 300)
-                }
 
                 // Every game shows the same four sections in the same order.
                 // Titles that have nothing to offer say so plainly rather
                 // than leaving a hole in the layout.
                 FlatSection(title: "Display", detail: displaySectionDetail) {
-                    if descriptor.supportsDisplayProfile {
+                    if descriptor.managedDisplayCapabilities.hasAny
+                        || !descriptor.launchProfile.options.isEmpty
+                        || descriptor.usesNativeVoiceAudioFix {
                         displaySettings
-                    } else if descriptor.usesWindowedResolutionArguments {
-                        VStack(alignment: .leading, spacing: 22) {
-                            settingRow(
-                                label: "Resolution",
-                                caption: "Runs as a window at this size. This engine's exclusive fullscreen fails on macOS, so Secunda always launches it windowed."
-                            ) {
-                                Picker("Resolution", selection: resolutionBinding) {
-                                    ForEach(resolutionOptions) { option in
-                                        Text(option.label).tag(option.id)
-                                    }
-                                }
-                                .labelsHidden()
-                            }
-                        }
                     } else {
                         emptyNote("\(descriptor.shortTitle) manages its own display and audio options. Set resolution and windowed mode inside the game's settings menu.")
                     }
                 }
 
                 FlatSection(title: "Graphics", detail: graphicsSectionDetail) {
-                    if descriptor.supportsDisplayProfile && !descriptor.qualityOptions.isEmpty {
-                        qualitySettings
-                    } else if !descriptor.luaTuningOptions.isEmpty {
-                        tuningSettings
+                    if !descriptor.qualityOptions.isEmpty || !descriptor.luaTuningOptions.isEmpty {
+                        VStack(alignment: .leading, spacing: 28) {
+                            if !descriptor.qualityOptions.isEmpty { qualitySettings }
+                            if !descriptor.luaTuningOptions.isEmpty { tuningSettings }
+                        }
                     } else {
                         emptyNote("Secunda has no tested graphics overrides for \(descriptor.shortTitle) yet. Use the game's own video options.")
                     }
@@ -95,9 +75,9 @@ struct GameDetailView: View {
                     }
                 }
 
-                FlatSection(title: "Saves", detail: descriptor.saveFileExtensions.isEmpty ? "Handled by the game" : "Local and reversible") {
+                FlatSection(title: "Saves", detail: descriptor.saveFileExtensions.isEmpty ? "Not currently detected" : "Local and reversible") {
                     if descriptor.saveFileExtensions.isEmpty {
-                        emptyNote("\(descriptor.shortTitle) stores progress in its own format or through Steam Cloud, so Secunda does not back it up.")
+                        emptyNote("Secunda does not currently detect or back up \(descriptor.shortTitle) saves.")
                     } else {
                         savesContent
                     }
@@ -107,6 +87,9 @@ struct GameDetailView: View {
                 .padding(.top, 26)
                 .padding(.bottom, 48)
                 .frame(maxWidth: 980, alignment: .leading)
+                // Column floats centered in the pane, Claude-style; text
+                // inside stays left-aligned.
+                .frame(maxWidth: .infinity)
                 // Body settles a beat after the banner, which the page
                 // transition has already brought in.
                 .opacity(contentAppeared ? 1 : 0)
@@ -175,13 +158,15 @@ struct GameDetailView: View {
                     endPoint: .trailing
                 )
             }
-            .overlay(alignment: .bottomLeading) {
+            .overlay(alignment: .bottom) {
+                // Constrained to the same 980pt column as the body so the
+                // headline lines up with the centered content below it.
                 VStack(alignment: .leading, spacing: 7) {
                     Text(descriptor.title.uppercased())
                         .font(.system(size: SecundaTheme.FontSize.small, weight: .semibold))
                         .tracking(2.4)
                         .foregroundStyle(SecundaTheme.frost)
-                    Text(model.headline(for: descriptor))
+                    Text(secundaRuntimeTerminology(heroHeadline))
                         .font(.system(size: SecundaTheme.FontSize.hero, weight: .medium, design: .serif))
                         .tracking(-0.5)
                         .shadow(color: .black.opacity(0.55), radius: 10, y: 2)
@@ -192,6 +177,7 @@ struct GameDetailView: View {
                 }
                 .padding(.horizontal, 42)
                 .padding(.bottom, 20)
+                .frame(maxWidth: 980, alignment: .bottomLeading)
             }
             .clipped()
     }
@@ -200,14 +186,10 @@ struct GameDetailView: View {
         VStack(alignment: .leading, spacing: 18) {
             if group.isMultiComponent {
                 HStack(spacing: 12) {
-                    Picker("Mode", selection: modeBinding) {
-                        ForEach(group.components) { component in
-                            Text(component.modeTitle).tag(component.id)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: 340)
+                    SecundaSegmentedPicker(
+                        selection: modeBinding,
+                        options: group.components.map { ($0.id, $0.modeTitle) }
+                    )
 
                     Button {
                         showsManageSheet = true
@@ -219,7 +201,7 @@ struct GameDetailView: View {
                 }
             }
 
-            Text(model.supportingText(for: descriptor))
+            Text(secundaRuntimeTerminology(heroSupportingText))
                 .font(.system(size: SecundaTheme.FontSize.lead))
                 .foregroundStyle(SecundaTheme.secondaryText)
                 .lineSpacing(4)
@@ -241,17 +223,20 @@ struct GameDetailView: View {
                     .frame(minWidth: 150)
                 }
                 .buttonStyle(SecundaActionButtonStyle(prominent: true))
-                .disabled(model.isBusy)
+                .disabled(model.isBusy || launchBlockedByOtherGroup)
+                .help(launchBlockedByOtherGroup
+                    ? "Close the running game before starting another one."
+                    : model.primaryAction(for: descriptor).title(for: descriptor))
 
-                if model.isGameRunning(descriptor) {
+                if model.isGroupRunning(group) {
                     Button {
                         showsCloseConfirmation = true
                     } label: {
-                        Label("Stop \(descriptor.shortTitle)", systemImage: "stop.fill")
+                        Label("Stop \(group.shortTitle)", systemImage: "stop.fill")
                     }
                     .buttonStyle(SecundaDestructiveButtonStyle())
                     .disabled(model.isBusy)
-                    .help("Save first — this closes \(descriptor.shortTitle) and every Windows app in this game space")
+                    .help("Save first — this closes \(group.shortTitle) and every Windows app in this game space")
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
                 }
 
@@ -285,12 +270,25 @@ struct GameDetailView: View {
             .padding(.top, 4)
 
             if let progress = model.setupProgress {
-                SetupProgressRail(progress: progress)
-                    .padding(.top, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                SetupRail(
+                    title: progress.title,
+                    label: progress.stepLabel,
+                    detail: progress.detail,
+                    fraction: progress.fraction
+                )
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             } else if !model.snapshot.game(descriptor).state.isReady {
-                SetupJourneyRail(journey: model.setupJourney(for: descriptor))
-                    .padding(.top, 4)
+                let journey = model.setupJourney(for: descriptor)
+                SetupRail(
+                    title: journey.title,
+                    label: journey.label,
+                    detail: journey.detail,
+                    fraction: journey.fraction,
+                    tint: SecundaTheme.aurora,
+                    isActive: false
+                )
+                .padding(.top, 4)
             }
         }
         .animation(.easeInOut(duration: 0.24), value: model.setupProgress)
@@ -321,35 +319,52 @@ struct GameDetailView: View {
         }
     }
 
+    private var launchBlockedByOtherGroup: Bool {
+        model.primaryAction(for: descriptor) == .play
+            && model.anyGameRunning
+            && !model.isGroupRunning(group)
+    }
+
+    private var heroHeadline: String {
+        if model.isGroupRunning(group), model.runningComponent(in: group) == nil {
+            return "A \(group.shortTitle) session is running."
+        }
+        return model.headline(for: descriptor)
+    }
+
+    private var heroSupportingText: String {
+        if model.isGroupRunning(group), model.runningComponent(in: group) == nil {
+            return "Secunda can see the group process but cannot distinguish its component after a launcher restart. Save and quit in the game; Stop closes the shared game space."
+        }
+        if launchBlockedByOtherGroup {
+            return "Another game is using Secunda’s shared Windows space. Close it before starting \(descriptor.shortTitle)."
+        }
+        return model.supportingText(for: descriptor)
+    }
+
     // MARK: - Activity
 
+    /// Latest events as compact one-liners under the status strip.
     @ViewBuilder
     private var activityList: some View {
         if model.activities.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Quiet for now")
-                    .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
-                Text("Setup and launch events will appear here.")
-                    .font(.caption)
-                    .foregroundStyle(SecundaTheme.secondaryText)
-            }
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+            Text("Quiet for now — setup and launch events will appear here.")
+                .font(.caption)
+                .foregroundStyle(SecundaTheme.secondaryText)
         } else {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(model.activities.prefix(4)) { activity in
-                    HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(model.activities.prefix(3)) { activity in
+                    HStack(spacing: 9) {
                         Circle()
                             .fill(activityColor(activity.kind))
-                            .frame(width: 6, height: 6)
-                            .padding(.top, 5)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(activity.message)
-                                .font(.system(size: SecundaTheme.FontSize.body))
-                                .lineLimit(2)
-                            Text(activity.date, style: .time)
-                                .font(.caption2)
-                                .foregroundStyle(SecundaTheme.secondaryText)
-                        }
+                            .frame(width: 5, height: 5)
+                        Text(secundaRuntimeTerminology(activity.message))
+                            .font(.caption)
+                            .lineLimit(1)
+                        Spacer(minLength: 12)
+                        Text(activity.date, style: .time)
+                            .font(.caption2)
+                            .foregroundStyle(SecundaTheme.secondaryText)
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
@@ -371,46 +386,62 @@ struct GameDetailView: View {
 
     private var displaySettings: some View {
         VStack(alignment: .leading, spacing: 22) {
-            settingRow(
-                label: "Mode",
-                caption: displayModeCaption
-            ) {
-                Picker("Mode", selection: gameSetting(\.displayMode)) {
-                    Text("Borderless Fullscreen").tag(DisplayMode.borderlessFullscreen)
-                    Text("Exclusive Fullscreen").tag(DisplayMode.exclusiveFullscreen)
-                    Text("Windowed").tag(DisplayMode.windowed)
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            if !descriptor.managedINIProfiles.isEmpty,
+               !model.managedINIProfilesDetected(for: descriptor) {
+                Text("Saved here now. After a successful first run creates the live settings files, Secunda applies these choices on the next launch. It never edits the shipped Default INIs.")
+                    .font(.caption)
+                    .foregroundStyle(SecundaTheme.ember)
+                    .frame(maxWidth: 560, alignment: .leading)
             }
 
-            settingRow(
-                label: "Resolution",
-                caption: "Higher looks sharper but costs frame rate. Your display's sizes are listed first; native sizes run with exact 1:1 pixel mapping."
-            ) {
-                Picker("Resolution", selection: resolutionBinding) {
-                    ForEach(resolutionOptions) { option in
-                        Text(option.label).tag(option.id)
+            if !descriptor.supportedDisplayModes.isEmpty {
+                settingRow(
+                    label: "Mode",
+                    caption: displayModeCaption
+                ) {
+                    Picker("Mode", selection: displayModeBinding) {
+                        ForEach(descriptor.supportedDisplayModes, id: \.self) { mode in
+                            Text(displayModeTitle(mode)).tag(mode)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
-            settingRow(
-                label: "Field of view",
-                caption: "The game default is \(descriptor.defaultFieldOfView)°. Takes effect on the next game start."
-            ) {
-                Stepper(
-                    "\(model.gameSettings(for: descriptor).fieldOfView)°",
-                    value: gameSetting(\.fieldOfView),
-                    in: 70...110,
-                    step: 5
-                )
-                .fixedSize()
+            if descriptor.managedDisplayCapabilities.resolution {
+                settingRow(
+                    label: "Resolution",
+                    caption: resolutionCaption
+                ) {
+                    Picker("Resolution", selection: resolutionBinding) {
+                        ForEach(resolutionOptions) { option in
+                            Text(option.label).tag(option.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .disabled(resolutionFollowsDesktop)
+                }
             }
 
-            if let frameRate = descriptor.preferredMaxFrameRate {
+            if descriptor.managedDisplayCapabilities.fieldOfView {
+                settingRow(
+                    label: "Field of view",
+                    caption: "The game default is \(descriptor.defaultFieldOfView)°. Takes effect on the next game start."
+                ) {
+                    Stepper(
+                        "\(model.gameSettings(for: descriptor).fieldOfView)°",
+                        value: gameSetting(\.fieldOfView),
+                        in: descriptor.managedFieldOfViewRange,
+                        step: 5
+                    )
+                    .fixedSize()
+                }
+            }
+
+            if descriptor.managedDisplayCapabilities.verticalSync,
+               let frameRate = descriptor.preferredMaxFrameRate {
                 settingRow(
                     label: "Frame pacing",
                     caption: "Locked to \(frameRate) fps through Metal so camera look stays stable. The game's own vsync stays off so the two waits don't stack into sticky aim."
@@ -419,7 +450,7 @@ struct GameDetailView: View {
                         .font(.body.weight(.medium))
                         .foregroundStyle(SecundaTheme.secondaryText)
                 }
-            } else {
+            } else if descriptor.managedDisplayCapabilities.verticalSync {
                 settingRow(
                     label: "Vertical sync",
                     caption: model.gameSettings(for: descriptor).verticalSync
@@ -432,22 +463,36 @@ struct GameDetailView: View {
                 }
             }
 
-            settingRow(
-                label: "Voice audio fix",
-                caption: model.gameSettings(for: descriptor).nativeVoiceAudio
-                    ? "Uses Microsoft’s freely redistributable XAudio so spoken dialogue is audible. Installed into the game space on first launch."
-                    : "Without the fix, spoken dialogue is silent because voice files use Windows Media compression."
-            ) {
-                Toggle("Voice audio fix", isOn: gameSetting(\.nativeVoiceAudio))
+            ForEach(descriptor.launchProfile.options) { option in
+                settingRow(label: option.title, caption: option.caption) {
+                    Picker(option.title, selection: launchOptionBinding(option)) {
+                        ForEach(option.choices, id: \.label) { choice in
+                            Text(choice.label).tag(choice.label)
+                        }
+                    }
                     .labelsHidden()
-                    .toggleStyle(.switch)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+
+            if descriptor.usesNativeVoiceAudioFix {
+                settingRow(
+                    label: "Voice audio fix",
+                    caption: model.gameSettings(for: descriptor).nativeVoiceAudio
+                        ? "Uses Microsoft’s freely redistributable XAudio so spoken dialogue is audible. Installed into the game space on first launch."
+                        : "Without the fix, spoken dialogue is silent because voice files use Windows Media compression."
+                ) {
+                    Toggle("Voice audio fix", isOn: gameSetting(\.nativeVoiceAudio))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
             }
         }
     }
 
     private var qualitySettings: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("\"Game default\" leaves the game's own choice untouched. Everything else writes the engine's documented setting at launch — your in-game menu shows the result.")
+            Text("\"Game default\" leaves the game's own choice untouched. Every other choice updates an existing live engine setting at launch.")
                 .font(.caption)
                 .foregroundStyle(SecundaTheme.secondaryText)
                 .frame(maxWidth: 560, alignment: .leading)
@@ -533,22 +578,60 @@ struct GameDetailView: View {
         )
     }
 
+    private func launchOptionBinding(_ option: LaunchOption) -> Binding<String> {
+        Binding(
+            get: {
+                model.gameSettings(for: descriptor).tuning[option.id]
+                    ?? QualityOption.gameDefaultLabel
+            },
+            set: { newLabel in
+                var updated = model.gameSettings(for: descriptor)
+                if newLabel == QualityOption.gameDefaultLabel {
+                    updated.tuning.removeValue(forKey: option.id)
+                } else {
+                    updated.tuning[option.id] = newLabel
+                }
+                model.updateGameSettings(updated, for: descriptor)
+            }
+        )
+    }
+
     /// Uniform control column: every setting's control occupies the same
     /// trailing width, so rows line up across all games and sections.
     private static let controlWidth: CGFloat = 230
 
     private var displaySectionDetail: String {
-        descriptor.supportsDisplayProfile || descriptor.usesWindowedResolutionArguments
+        if !descriptor.managedINIProfiles.isEmpty {
+            return model.managedINIProfilesDetected(for: descriptor)
+                ? "Live settings detected"
+                : "Awaiting first run"
+        }
+        return descriptor.managedDisplayCapabilities.hasAny
+            || !descriptor.launchProfile.options.isEmpty
             ? "Applied at launch"
             : "In-game"
     }
 
+    private var statusSectionDetail: String {
+        group.isMultiComponent
+            ? "Each component installs separately"
+            : "One separate installation"
+    }
+
     private var graphicsSectionDetail: String {
-        if descriptor.supportsDisplayProfile && !descriptor.qualityOptions.isEmpty {
+        if !descriptor.managedINIProfiles.isEmpty,
+           !descriptor.qualityOptions.isEmpty {
+            return model.managedINIProfilesDetected(for: descriptor)
+                ? "Live settings detected"
+                : "Awaiting first run"
+        }
+        if !descriptor.qualityOptions.isEmpty {
             return "Applied at launch"
         }
         if !descriptor.luaTuningOptions.isEmpty {
-            return model.luaPrefsDetected(for: descriptor) ? "Applied at launch" : "Awaiting first run"
+            return model.luaPrefsDetected(for: descriptor)
+                ? "Live settings detected"
+                : "Awaiting first run"
         }
         return "In-game"
     }
@@ -658,9 +741,34 @@ struct GameDetailView: View {
         )
     }
 
+    private var displayModeBinding: Binding<DisplayMode> {
+        Binding(
+            get: { model.gameSettings(for: descriptor).displayMode },
+            set: { mode in
+                var updated = model.gameSettings(for: descriptor)
+                updated.displayMode = mode
+                if mode == .exclusiveFullscreen,
+                   descriptor.launchProfile.displayCoordinatePolicy != .backingPixels,
+                   descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode {
+                    let hostModes = resolvedHostDisplayModes
+                    let requested = DisplayExtent(width: updated.width, height: updated.height)
+                    if !hostModes.switchable.contains(requested),
+                       let fallback = hostModes.active ?? hostModes.switchable.first {
+                        updated.width = fallback.width
+                        updated.height = fallback.height
+                    }
+                }
+                model.updateGameSettings(updated, for: descriptor)
+            }
+        )
+    }
+
     private var resolutionBinding: Binding<String> {
         Binding(
             get: {
+                if let fixed = borderlessDesktopResolution {
+                    return fixed.id
+                }
                 let settings = model.gameSettings(for: descriptor)
                 return "\(settings.width)x\(settings.height)"
             },
@@ -678,56 +786,125 @@ struct GameDetailView: View {
     private var displayModeCaption: String {
         switch model.gameSettings(for: descriptor).displayMode {
         case .borderlessFullscreen:
+            if resolutionFollowsDesktop {
+                return "Fills the screen at the desktop's native backing resolution. Switching apps with Cmd-Tab remains reliable."
+            }
             return "Fills the screen as a borderless window, so switching apps with Cmd-Tab works reliably. Recommended."
         case .exclusiveFullscreen:
+            if descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode {
+                return "Captures this display using a mode macOS and Wine can genuinely switch. Choose the render resolution below."
+            }
+            if descriptor.launchProfile.exclusiveModeUsesGameDefault {
+                return "Uses the game's default display behavior while still applying the selected resolution."
+            }
             return "Classic fullscreen. Switching away can leave the game unable to regain the screen; use only if borderless causes problems."
         case .windowed:
             return "A regular window at the selected resolution. Useful for setup and troubleshooting."
         }
     }
 
-    private struct ResolutionOption: Identifiable {
-        let width: Int
-        let height: Int
-        let note: String?
-
-        var id: String { "\(width)x\(height)" }
-        var label: String {
-            let base = "\(width) × \(height)"
-            return note.map { "\(base)  (\($0))" } ?? base
+    private func displayModeTitle(_ mode: DisplayMode) -> String {
+        switch mode {
+        case .borderlessFullscreen: "Borderless Fullscreen"
+        case .exclusiveFullscreen:
+            descriptor.launchProfile.exclusiveModeUsesGameDefault
+                ? "Game Default / Fullscreen"
+                : "Exclusive Fullscreen"
+        case .windowed: "Windowed"
         }
     }
 
-    /// The main display's sizes first, then common Mac panel resolutions,
-    /// then whatever custom value is already saved so the picker never
-    /// shows an empty selection.
-    private var resolutionOptions: [ResolutionOption] {
-        var options: [ResolutionOption] = []
-        var seen = Set<String>()
-
-        func add(_ width: Int, _ height: Int, note: String? = nil) {
-            guard width > 0, height > 0 else { return }
-            let option = ResolutionOption(width: width, height: height, note: note)
-            guard seen.insert(option.id).inserted else { return }
-            options.append(option)
+    private var resolutionOptions: [DisplayResolutionOption] {
+        if let fixed = borderlessDesktopResolution {
+            return [fixed]
         }
-
-        if let screen = NSScreen.main {
-            let points = screen.frame.size
-            let scale = screen.backingScaleFactor
-            add(Int(points.width * scale), Int(points.height * scale), note: "this display, native")
-            add(Int(points.width), Int(points.height), note: "this display")
-        }
-        for (width, height) in [
-            (3456, 2234), (3024, 1964), (2880, 1864), (2560, 1664),
-            (2560, 1440), (1920, 1200), (1920, 1080), (1728, 1117),
-            (1512, 982), (1470, 956), (1440, 900), (1280, 800)
-        ] {
-            add(width, height)
-        }
+        let screen = displayScreen
+        let size = screen?.frame.size ?? .zero
         let current = model.gameSettings(for: descriptor)
-        add(current.width, current.height)
-        return options
+        if current.displayMode == .exclusiveFullscreen,
+           descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode {
+            let hostModes = resolvedHostDisplayModes
+            var options = DisplayResolutionCatalog.capturedExclusiveOptions(
+                modes: hostModes.switchable,
+                active: hostModes.active
+            )
+            let currentID = "\(current.width)x\(current.height)"
+            if descriptor.launchProfile.displayCoordinatePolicy == .backingPixels,
+               !options.contains(where: { $0.id == currentID }) {
+                options.append(DisplayResolutionOption(
+                    width: current.width,
+                    height: current.height,
+                    note: "Unavailable on This Display"
+                ))
+            }
+            return options
+        }
+        if descriptor.launchProfile.displayCoordinatePolicy == .backingPixels {
+            let pixels = resolvedHostDisplayModes.activePixels
+                ?? DisplayExtent(
+                    width: Int((size.width * (screen?.backingScaleFactor ?? 1)).rounded()),
+                    height: Int((size.height * (screen?.backingScaleFactor ?? 1)).rounded())
+                )
+            return DisplayResolutionCatalog.options(
+                screenWidth: pixels.width,
+                screenHeight: pixels.height,
+                currentWidth: current.width,
+                currentHeight: current.height
+            )
+        }
+        return DisplayResolutionCatalog.options(
+            screenWidth: Int(size.width),
+            screenHeight: Int(size.height),
+            currentWidth: current.width,
+            currentHeight: current.height,
+            screenPixelWidth: screen.map { Int(($0.frame.width * $0.backingScaleFactor).rounded()) },
+            screenPixelHeight: screen.map { Int(($0.frame.height * $0.backingScaleFactor).rounded()) }
+        )
+    }
+
+    private var resolutionCaption: String {
+        let settings = model.gameSettings(for: descriptor)
+        if resolutionFollowsDesktop {
+            return "Borderless follows the current desktop pixels. Choose Exclusive for a real lower display mode or Windowed for an exact custom client size."
+        }
+        if settings.displayMode == .exclusiveFullscreen,
+           descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode {
+            return "Exclusive fullscreen lists the display modes macOS exposes to Wine. The current display mode is marked; lower switchable modes remain selectable. Retina backing sizes that are not display modes are omitted."
+        }
+        let nativePixelNote = "Native Pixels reflects the panel's physical backing size. 4K UHD stays available for 3840 × 2160 displays."
+        if descriptor.launchProfile.usesTransitionSafeBorderlessSurface {
+            return nativePixelNote + " Borderless uses one safe aspect for fullscreen and windowed transitions; windowed sizes fit the visible desktop without stretching."
+        }
+        return nativePixelNote + " Profiles that support fitting keep oversized windows inside the desktop without stretching."
+    }
+
+    private var displayScreen: NSScreen? {
+        descriptor.launchProfile.displayCoordinatePolicy == .backingPixels
+            ? HostDisplayModeCatalog.wineMainScreen()
+            : NSScreen.main
+    }
+
+    private var resolvedHostDisplayModes: HostDisplayModes {
+        let modes = HostDisplayModeCatalog.modes(for: displayScreen)
+        let retinaMode = descriptor.launchProfile.displayCoordinatePolicy == .backingPixels
+            && modes.supportsTwoXRetina
+        return modes.wineCoordinates(retinaMode: retinaMode)
+    }
+
+    private var resolutionFollowsDesktop: Bool {
+        descriptor.launchProfile.displayCoordinatePolicy == .backingPixels
+            && model.gameSettings(for: descriptor).displayMode == .borderlessFullscreen
+    }
+
+    private var borderlessDesktopResolution: DisplayResolutionOption? {
+        guard resolutionFollowsDesktop,
+              let active = resolvedHostDisplayModes.active
+        else { return nil }
+        return DisplayResolutionOption(
+            width: active.width,
+            height: active.height,
+            note: "Current Desktop Pixels"
+        )
     }
 }
 

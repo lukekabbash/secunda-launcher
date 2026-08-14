@@ -26,6 +26,7 @@ struct LaunchModeSheet: View {
                         actionTitle: "Play",
                         actionStyle: .primary,
                         isBusy: model.isBusy
+                            || (model.anyGameRunning && !model.isGameRunning(component))
                     ) {
                         model.setDefaultComponent(component, for: group)
                         model.play(component)

@@ -310,6 +310,319 @@ enum LauncherHandoffSelfCheck {
             ) == nil,
             "targeted Windows process mismatch rejection"
         )
+        let launchStart = Date(timeIntervalSince1970: 1_000)
+        var stableLaunch = ProcessStabilityTracker(requiredStableSeconds: 10)
+        checks.expect(
+            stableLaunch.observe(isRunning: true, at: launchStart) == .starting
+                && stableLaunch.observe(
+                    isRunning: true,
+                    at: launchStart.addingTimeInterval(9.9)
+                ) == .starting
+                && stableLaunch.observe(
+                    isRunning: true,
+                    at: launchStart.addingTimeInterval(10)
+                ) == .stable,
+            "game launch requires a stable health window"
+        )
+        var transientLaunch = ProcessStabilityTracker(requiredStableSeconds: 10)
+        checks.expect(
+            transientLaunch.observe(isRunning: false, at: launchStart) == .absent
+                && transientLaunch.observe(isRunning: true, at: launchStart) == .starting
+                && transientLaunch.observe(
+                    isRunning: false,
+                    at: launchStart.addingTimeInterval(1)
+                ) == .exited,
+            "transient game process is rejected"
+        )
+        var restartedLaunch = ProcessStabilityTracker(requiredStableSeconds: 10)
+        checks.expect(
+            restartedLaunch.observe(isRunning: true, at: launchStart) == .starting
+                && restartedLaunch.observe(
+                    isRunning: false,
+                    at: launchStart.addingTimeInterval(1)
+                ) == .exited
+                && restartedLaunch.observe(
+                    isRunning: true,
+                    at: launchStart.addingTimeInterval(10)
+                ) == .starting,
+            "restarted image receives a fresh health window"
+        )
+        var authorizationHandoff = ProcessStabilityTracker(requiredStableSeconds: 0)
+        checks.expect(
+            authorizationHandoff.observe(isRunning: true, at: launchStart) == .stable,
+            "authorization-only handoff can be immediate"
+        )
+        checks.expect(
+            WindowsProcessProbe.isTransientQueryTimeout(
+                ProcessRunnerError.captureTimedOut(15)
+            ) && !WindowsProcessProbe.isTransientQueryTimeout(
+                WindowsProcessProbeError.commandFailed(1)
+            ),
+            "Windows process polling retries only bounded query timeouts"
+        )
+        let visibleSurface = GameWindowSurface(
+            windowID: 77,
+            ownerPID: 42,
+            isOnscreen: true,
+            layer: 0,
+            alpha: 1,
+            x: 12,
+            y: 34,
+            width: 1280,
+            height: 720
+        )
+        let hiddenSurface = GameWindowSurface(
+            ownerPID: 42,
+            isOnscreen: false,
+            layer: 0,
+            alpha: 1,
+            width: 1280,
+            height: 720
+        )
+        checks.expect(
+            visibleSurface.isPresentable && visibleSurface.isVisible
+                && visibleSurface.windowID == 77
+                && visibleSurface.x == 12
+                && visibleSurface.y == 34
+                && hiddenSurface.isPresentable && !hiddenSurface.isVisible,
+            "visible launch health retains the observed Mac surface geometry"
+        )
+        let fullDisplay = DisplayExtent(width: 1710, height: 1107)
+        let capturedSurface = GameWindowSurface(
+            ownerPID: 42,
+            isOnscreen: true,
+            layer: 25,
+            alpha: 1,
+            width: 1710,
+            height: 1107
+        )
+        let decoratedFallback = GameWindowSurface(
+            ownerPID: 42,
+            isOnscreen: true,
+            layer: 0,
+            alpha: 1,
+            x: 0,
+            y: 67,
+            width: 1716,
+            height: 1087
+        )
+        checks.expect(
+            capturedSurface.covers(fullDisplay)
+                && !visibleSurface.covers(fullDisplay)
+                && !decoratedFallback.covers(fullDisplay),
+            "exclusive launch health rejects visible decorated fallbacks"
+        )
+        checks.expect(
+            capturedSurface.isPresentable,
+            "raised fullscreen game windows satisfy launch health"
+        )
+        checks.expect(
+            !GameWindowSurface(
+                ownerPID: 42,
+                isOnscreen: true,
+                layer: -1,
+                alpha: 1,
+                width: 1280,
+                height: 720
+            ).isPresentable
+                && !GameWindowSurface(
+                    ownerPID: 42,
+                    isOnscreen: true,
+                    layer: 0,
+                    alpha: 0,
+                    width: 1280,
+                    height: 720
+                ).isPresentable,
+            "desktop-level and transparent windows cannot satisfy game launch health"
+        )
+        var savedClassicSettings = GameSettings()
+        savedClassicSettings.displayMode = .borderlessFullscreen
+        savedClassicSettings.width = 1920
+        savedClassicSettings.height = 1080
+        let displayGeometry = HostDisplayGeometry(
+            fullFramePoints: DisplayExtent(width: 1710, height: 1107),
+            fullscreenContentPoints: DisplayExtent(width: 1710, height: 1074),
+            visibleFramePoints: DisplayExtent(width: 1710, height: 1005),
+            windowedContentPoints: DisplayExtent(width: 1710, height: 973),
+            backingScale: 2,
+            activeFullscreenModePoints: DisplayExtent(width: 1710, height: 1107),
+            supportsTwoXRetina: true,
+            switchableFullscreenModes: [
+                DisplayExtent(width: 1710, height: 1107),
+                DisplayExtent(width: 1280, height: 800)
+            ]
+        )
+        checks.expect(
+            GameService.desktopFittedSettings(
+                savedClassicSettings,
+                descriptor: .insurgency,
+                displayGeometry: displayGeometry
+            ) == savedClassicSettings
+                && GameService.desktopFittedSettings(
+                    savedClassicSettings,
+                    descriptor: .supcom2,
+                    displayGeometry: displayGeometry
+                ) == savedClassicSettings,
+            "desktop fitting does not rewrite backing-pixel or inherited profiles"
+        )
+        checks.expect(
+            GameService.desktopFittedSettings(
+                savedClassicSettings,
+                descriptor: .skyrimSE,
+                displayGeometry: displayGeometry
+            ) == savedClassicSettings
+                && GameService.desktopFittedSettings(
+                    savedClassicSettings,
+                    descriptor: .insurgency,
+                    displayGeometry: .unknown
+                ) == savedClassicSettings,
+            "desktop fitting stays scoped to opted-in point-coordinate games"
+        )
+        let backingBorderless = try? GameService.resolvedDisplayContract(
+            settings: savedClassicSettings,
+            descriptor: .insurgency,
+            displayGeometry: displayGeometry
+        )
+        var backingExclusive = savedClassicSettings
+        backingExclusive.displayMode = .exclusiveFullscreen
+        backingExclusive.width = 1280
+        backingExclusive.height = 800
+        let lowerBackingExclusive = try? GameService.resolvedDisplayContract(
+            settings: backingExclusive,
+            descriptor: .insurgency,
+            displayGeometry: displayGeometry
+        )
+        var backingWindowed = savedClassicSettings
+        backingWindowed.displayMode = .windowed
+        backingWindowed.width = 2560
+        backingWindowed.height = 1080
+        let exactBackingWindow = try? GameService.resolvedDisplayContract(
+            settings: backingWindowed,
+            descriptor: .insurgency,
+            displayGeometry: displayGeometry
+        )
+        checks.expect(
+            backingBorderless?.settings.width == 3420
+                && backingBorderless?.settings.height == 2214
+                && backingBorderless?.retinaMode == true
+                && lowerBackingExclusive?.settings == backingExclusive
+                && exactBackingWindow?.settings == backingWindowed,
+            "backing display contract resolves borderless, exclusive, and windowed semantics"
+        )
+        var unsupportedBackingExclusive = backingExclusive
+        unsupportedBackingExclusive.width = 1920
+        unsupportedBackingExclusive.height = 1080
+        let rejectsUnsupportedBackingMode: Bool
+        do {
+            _ = try GameService.resolvedDisplayContract(
+                settings: unsupportedBackingExclusive,
+                descriptor: .insurgency,
+                displayGeometry: displayGeometry
+            )
+            rejectsUnsupportedBackingMode = false
+        } catch GameLaunchError.unsupportedExclusiveResolution {
+            rejectsUnsupportedBackingMode = true
+        } catch {
+            rejectsUnsupportedBackingMode = false
+        }
+        let oneXGeometry = HostDisplayGeometry(
+            fullFramePoints: DisplayExtent(width: 1920, height: 1080),
+            fullscreenContentPoints: DisplayExtent(width: 1920, height: 1080),
+            visibleFramePoints: DisplayExtent(width: 1920, height: 1040),
+            windowedContentPoints: DisplayExtent(width: 1920, height: 1008),
+            backingScale: 1,
+            activeFullscreenModePoints: DisplayExtent(width: 1920, height: 1080),
+            supportsTwoXRetina: false,
+            switchableFullscreenModes: [DisplayExtent(width: 1920, height: 1080)]
+        )
+        checks.expect(
+            rejectsUnsupportedBackingMode
+                && !GameService.sessionRetinaMode(
+                    for: .insurgency,
+                    displayGeometry: oneXGeometry
+                )
+                && GameService.sessionRetinaMode(
+                    for: .insurgency,
+                    displayGeometry: displayGeometry
+                )
+                && !GameService.sessionRetinaMode(
+                    for: .skyrimSE,
+                    displayGeometry: displayGeometry
+                ),
+            "invalid exclusive modes are rejected and Retina mapping follows the physical display"
+        )
+        var skyrimExclusiveSettings = savedClassicSettings
+        skyrimExclusiveSettings.displayMode = .exclusiveFullscreen
+        skyrimExclusiveSettings.width = 3420
+        skyrimExclusiveSettings.height = 2214
+        let validatedSkyrimExclusive = GameService.validatedCapturedExclusiveSettings(
+            skyrimExclusiveSettings,
+            descriptor: .skyrimSE,
+            displayGeometry: displayGeometry
+        )
+        var lowerSkyrimExclusive = skyrimExclusiveSettings
+        lowerSkyrimExclusive.width = 1280
+        lowerSkyrimExclusive.height = 800
+        checks.expect(
+            validatedSkyrimExclusive.width == 1710
+                && validatedSkyrimExclusive.height == 1107
+                && GameService.validatedCapturedExclusiveSettings(
+                    lowerSkyrimExclusive,
+                    descriptor: .skyrimSE,
+                    displayGeometry: displayGeometry
+                ) == lowerSkyrimExclusive
+                && GameService.validatedCapturedExclusiveSettings(
+                    skyrimExclusiveSettings,
+                    descriptor: .fallout4,
+                    displayGeometry: displayGeometry
+                ) == skyrimExclusiveSettings,
+            "captured Skyrim keeps switchable modes and recovers stale backing-pixel modes"
+        )
+        var nativeBackingExclusive = backingExclusive
+        nativeBackingExclusive.width = 3420
+        nativeBackingExclusive.height = 2214
+        checks.expect(
+            GameService.requiredFullscreenCoverage(
+                settings: lowerSkyrimExclusive,
+                descriptor: .skyrimSE,
+                displayGeometry: displayGeometry
+            ) == DisplayExtent(width: 1280, height: 800)
+                && GameService.requiredFullscreenCoverage(
+                    settings: savedClassicSettings,
+                    descriptor: .skyrimSE,
+                    displayGeometry: displayGeometry
+                ) == nil
+                && GameService.requiredFullscreenCoverage(
+                    settings: skyrimExclusiveSettings,
+                    descriptor: .fallout4,
+                    displayGeometry: displayGeometry
+                ) == nil
+                && GameService.requiredFullscreenCoverage(
+                    settings: backingBorderless?.settings ?? savedClassicSettings,
+                    descriptor: .insurgency,
+                    displayGeometry: displayGeometry,
+                    retinaMode: true
+                ) == DisplayExtent(width: 1710, height: 1107)
+                && GameService.requiredFullscreenCoverage(
+                    settings: nativeBackingExclusive,
+                    descriptor: .insurgency,
+                    displayGeometry: displayGeometry,
+                    retinaMode: true
+                ) == DisplayExtent(width: 1710, height: 1107)
+                && GameService.requiredFullscreenCoverage(
+                    settings: backingExclusive,
+                    descriptor: .insurgency,
+                    displayGeometry: displayGeometry,
+                    retinaMode: true
+                ) == DisplayExtent(width: 1280, height: 800)
+                && GameService.requiredFullscreenCoverage(
+                    settings: backingWindowed,
+                    descriptor: .insurgency,
+                    displayGeometry: displayGeometry,
+                    retinaMode: true
+                ) == nil,
+            "fullscreen health compares each mode against its physical host frame"
+        )
         let gameEnvironment = GameService.gameEnvironment(
             base: ["WINEPREFIX": "/tmp/prefix"],
             descriptor: .skyrimSE
@@ -319,7 +632,7 @@ enum LauncherHandoffSelfCheck {
                 && gameEnvironment["SteamGameId"] == GameDescriptor.skyrimSE.steamAppID
                 && gameEnvironment["WINEPREFIX"] == "/tmp/prefix"
                 && gameEnvironment["DXMT_CONFIG"] == nil,
-            "direct game environment"
+            "Skyrim launch carries no failed DXMT experiment"
         )
         let falloutEnvironment = GameService.gameEnvironment(
             base: ["WINEPREFIX": "/tmp/prefix"],
@@ -329,10 +642,23 @@ enum LauncherHandoffSelfCheck {
             falloutEnvironment["DXMT_CONFIG"] == "d3d11.preferredMaxFrameRate=60;",
             "Fallout 4 DXMT frame-rate cap"
         )
+        let insurgencyEnvironment = GameService.gameEnvironment(
+            base: ["WINEPREFIX": "/tmp/prefix"],
+            descriptor: .insurgency
+        )
         checks.expect(
-            SteamService.interactiveOutput == .discard
-                && GameService.interactiveOutput == .discard,
-            "interactive launch output is discarded"
+            insurgencyEnvironment["DXMT_CONFIG"] == nil,
+            "DXMT compatibility options do not bleed across titles"
+        )
+        let interactiveLog = URL(fileURLWithPath: "/tmp/game-launch.log")
+        checks.expect(
+            SteamService.launchOutput(diagnostics: false, logURL: interactiveLog) == .discard
+                && GameService.launchOutput(diagnostics: false, logURL: interactiveLog) == .discard
+                && SteamService.launchOutput(diagnostics: true, logURL: interactiveLog)
+                    == .append(interactiveLog)
+                && GameService.launchOutput(diagnostics: true, logURL: interactiveLog)
+                    == .append(interactiveLog),
+            "interactive launch output follows diagnostics"
         )
         checks.expect(
             GameLaunchStage.allCases == [.checking, .compatibility, .voiceAudio, .profile, .steam, .game],
@@ -470,7 +796,10 @@ enum LauncherHandoffSelfCheck {
         checks.expect(
             !DiagnosticService.isSafeSupportLog(URL(fileURLWithPath: "/tmp/steam-launch.log"))
                 && !DiagnosticService.isSafeSupportLog(URL(fileURLWithPath: "/tmp/game-launch.log"))
-                && DiagnosticService.isSafeSupportLog(URL(fileURLWithPath: "/tmp/runtime-probe.log")),
+                && DiagnosticService.isSafeSupportLog(URL(fileURLWithPath: "/tmp/runtime-probe.log"))
+                && DiagnosticService.isSafeSupportLog(
+                    URL(fileURLWithPath: "/tmp/launch-records.jsonl")
+                ),
             "interactive log exclusion"
         )
     }

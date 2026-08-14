@@ -33,6 +33,17 @@
       "sourceInfo": "sources/wine in crossover-sources-26.3.0.tar.gz; Secunda patches are enumerated by runtime-provenance.json"
     },
     {
+      "name": "Secunda translated debug-register relay",
+      "SPDXID": "SPDXRef-Package-SecundaDebugRelay",
+      "versionInfo": "1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-2.1-or-later",
+      "licenseDeclared": "LGPL-2.1-or-later",
+      "copyrightText": "Copyright 2026 Secunda Launcher contributors",
+      "sourceInfo": "tools/secunda-rosetta-debug-broker.c"
+    },
+    {
       "name": "Capstone",
       "SPDXID": "SPDXRef-Package-Capstone",
       "versionInfo": "5.0.3",
@@ -247,6 +258,54 @@
       ]
     },
     {
+      "name": "DXVK",
+      "SPDXID": "SPDXRef-Package-DXVK",
+      "versionInfo": "1.10.3",
+      "downloadLocation": "https://github.com/doitsujin/dxvk/releases/tag/v1.10.3",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Zlib",
+      "licenseDeclared": "Zlib",
+      "copyrightText": "Copyright (c) 2017-2021 Philip Rebohle; Copyright (c) 2019-2021 Joshua Ashton",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "8d1a3c912761b450c879f98478ae64f6f6639e40ce6848170a0f6b8596fd53c6"
+        }
+      ]
+    },
+    {
+      "name": "MoltenVK",
+      "SPDXID": "SPDXRef-Package-MoltenVK",
+      "versionInfo": "1.4.2",
+      "downloadLocation": "https://github.com/KhronosGroup/MoltenVK/releases/tag/v1.4.2",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "Copyright (c) 2015-2024 The Brenwill Workshop Ltd.",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e"
+        }
+      ]
+    },
+    {
+      "name": "SDL2",
+      "SPDXID": "SPDXRef-Package-SDL2",
+      "versionInfo": "2.32.10",
+      "downloadLocation": "https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Zlib",
+      "licenseDeclared": "Zlib",
+      "copyrightText": "Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165"
+        }
+      ]
+    },
+    {
       "name": "FreeType",
       "SPDXID": "SPDXRef-Package-FreeType",
       "versionInfo": "2.13.3",
@@ -340,6 +399,10 @@
     { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-libxslt" },
     { "spdxElementId": "SPDXRef-Package-Wine", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-zlib" },
     { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-DXMT" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-SecundaDebugRelay" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-DXVK" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-MoltenVK" },
+    { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-SDL2" },
     { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-FreeType" },
     { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-GMP" },
     { "spdxElementId": "SPDXRef-Package-SecundaRuntime", "relationshipType": "CONTAINS", "relatedSpdxElement": "SPDXRef-Package-Nettle" },

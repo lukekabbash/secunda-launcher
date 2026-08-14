@@ -147,8 +147,8 @@ struct SetupJourney: Equatable, Sendable {
 
         switch completedSteps {
         case 0:
-            title = "Secunda Engine"
-            detail = "Checking the free, source-built engine included with Secunda."
+            title = "Secunda Runtime"
+            detail = "Checking the free, source-built Windows compatibility runtime included with Secunda."
         case 1:
             title = "Separate Windows Space"
             detail = "Next, create a separate managed place for Steam, your games, and their settings."

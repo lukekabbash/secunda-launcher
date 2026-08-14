@@ -49,4 +49,12 @@ Repeated launches, save/load, duplicate prevention, and complete shutdown passed
 
 ## Gate 4 — free distribution: IN PROGRESS
 
-The source runtime has been rebuilt for macOS 15. The packaged app passes relocation, exact file/link/mode integrity, proprietary-payload exclusion, deep signing, notices, provenance, SPDX, cold one-click Play, complete-stop acceptance, and blank-home prefix creation that advances automatically to Steam installation. The explicit TEST-ONLY DMG passes checksum, read-only mount, source-complete package audit, mounted-app self-check, and mounted blank-home preparation. Developer ID signing/notarization and quarantined acceptance on a separate clean Apple-Silicon Mac remain before this gate can be called recipient-ready.
+The local packaged app passes relocation, exact file/link/mode integrity, proprietary-payload exclusion, deep ad-hoc signing, notices, provenance, SPDX, staged-app self-check, cold one-click Play, complete-stop acceptance, and blank-home prefix creation that advances automatically to Steam installation. The existing TEST-ONLY DMG is stale and predates the expanded catalog and current package verifier. A new DMG now must pass checksum, read-only mount, exact source-closure audit, mounted-app self-check, and mounted blank-home preparation, but cannot be produced until the corresponding source archive is restored. Developer ID signing/notarization and quarantined acceptance on a separate clean Apple-Silicon Mac also remain before this gate can be called recipient-ready.
+
+## Black Ops II extension — PARTIAL
+
+Date: 2026-08-08
+
+- Multiplayer and Zombies each passed a fresh 60-second process-health run and loaded the bundled 32-bit Direct3D 11-to-Metal chain. The locked unattended session could not accept rendering, audio, input, online services, matchmaking, or gameplay, so these modes are not yet end-to-end passes.
+- Campaign completed Steam's executable-generation exchange but exited after roughly three seconds with `0xC0000008` under both fast-synchronization modes. The remaining failure is in translated x86 debug-context/data-watchpoint handling below the launcher's ownership boundary.
+- All diagnostic Wine instrumentation was removed, and the staged source/runtime was returned to the official CodeWeavers source before the clean Multiplayer and Zombies runs.

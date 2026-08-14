@@ -11,7 +11,11 @@ APP_ROOT="$PACKAGE_STAGE/Secunda Launcher.app"
 CONTENTS="$APP_ROOT/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
-RUNTIME_MODE="${SECUNDA_BUNDLE_RUNTIME:-0}"
+# A published .app must be self-contained when launched from Finder. Keep the
+# thin developer build available only as an explicit opt-out so a routine
+# package refresh cannot silently replace a working app with one that has no
+# engine.
+RUNTIME_MODE="${SECUNDA_BUNDLE_RUNTIME:-1}"
 RUNTIME_SOURCE=${SECUNDA_RUNTIME_SOURCE:-"$REPOSITORY_ROOT/Runtime/wine"}
 SIGNING_IDENTITY="${SECUNDA_SIGNING_IDENTITY:--}"
 WINE_ENTITLEMENTS="$REPOSITORY_ROOT/packaging/WineRuntime.entitlements"
@@ -100,8 +104,12 @@ sign_runtime_code() {
         file -b "$runtime_file" 2>/dev/null | grep -q 'Mach-O' || continue
         relative_file=${runtime_file#"$runtime_root"/}
         signing_args=(--force --sign "$SIGNING_IDENTITY")
+        if [[ "$relative_file" == "bin/secunda-rosetta-debug-broker" || \
+            "$SIGNING_IDENTITY" != "-" ]]; then
+            signing_args+=(--options runtime)
+        fi
         if [[ "$SIGNING_IDENTITY" != "-" ]]; then
-            signing_args+=(--options runtime --timestamp)
+            signing_args+=(--timestamp)
             case "$relative_file" in
                 bin/wine|lib/wine/*-unix/wine)
                     signing_args+=(--entitlements "$WINE_ENTITLEMENTS")
@@ -170,6 +178,8 @@ if [[ "$RUNTIME_MODE" == "1" ]]; then
     "$SCRIPT_DIR/verify-packaged-app.sh" "$APP_ROOT"
 fi
 codesign --verify --deep --strict "$APP_ROOT"
+echo "Running staged launcher self-test before publication."
+"$MACOS/SecundaLauncher" --self-test
 
 if ! mkdir "$PUBLISH_LOCK" 2>/dev/null; then
     echo "Another Secunda app publisher holds the output lock: $PUBLISH_LOCK" >&2

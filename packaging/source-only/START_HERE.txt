@@ -1,24 +1,34 @@
-SECUNDA — SOURCE-ONLY SKYRIM FOR APPLE SILICON
+SECUNDA — SOURCE-ONLY STEAM GAME LIBRARY FOR APPLE SILICON
 
-This package includes Secunda and its free, open-source compatibility runtime.
-It does not include Steam, Skyrim, another player's account, game files, saves,
-or a proprietary compatibility product.
+This package includes Secunda and its free, source-built compatibility runtime.
+It does not include Steam, any supported game, another player's account, game
+files, saves, or a proprietary compatibility product.
 
 YOU NEED
 • An Apple-silicon Mac running macOS 15 or newer.
 • Rosetta 2 (macOS offers to install it when an Intel worker first launches).
-• Your own Steam account and a legitimate copy of Skyrim Special Edition.
-• Internet access and enough free space for Steam and the game.
+• Your own Steam account and a legitimate copy of the game you want to run.
+• Internet access and enough free space for Steam and your selected games.
+
+SUPPORTED LIBRARY
+• Skyrim Special Edition; Fallout 4.
+• Supreme Commander; Forged Alliance; Supreme Commander 2.
+• STAR WARS Battlefront II (Classic, 2005); Insurgency; Angels Fall First.
+• Call of Duty: Black Ops II — Campaign, Multiplayer, and Zombies.
+
+Skyrim Special Edition remains Secunda's proven end-to-end vertical slice.
+Supreme Commander, Forged Alliance, Battlefront II Classic, Insurgency, and
+Angels Fall First are newly catalogued profiles, not gameplay-test claims.
 
 SETUP
 1. Drag Secunda Launcher to Applications.
 2. Open Secunda Launcher and choose Prepare Secunda.
 3. Install Windows Steam through Secunda.
 4. Sign in only inside Steam's own window.
-5. Install Skyrim Special Edition in Steam, then use Play Skyrim in Secunda.
+5. Install a supported game in Steam, select it in Secunda, then choose Play.
 
 PRIVACY AND CLEAN REMOVAL
-Secunda keeps its Windows prefix, Steam session, game installation, saves,
+Secunda keeps its Windows prefix, Steam session, game installations, saves,
 backups, and logs under:
 ~/Library/Application Support/Secunda Launcher
 

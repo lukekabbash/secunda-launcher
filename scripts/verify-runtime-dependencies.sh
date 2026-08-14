@@ -14,6 +14,7 @@ DEPENDENCY_FILES=(
     lib/libnettle.8.dylib
     lib/libhogweed.6.dylib
     lib/libgnutls.30.dylib
+    lib/libSDL2-2.0.0.dylib
 )
 
 cleanup() {
@@ -76,5 +77,5 @@ elif [[ ! -f "$STAMP_PATH" ]] || ! cmp -s "$STAMP_PATH" "$TEMP_STAMP"; then
     echo "Dependency completion stamp is missing or stale: $STAMP_PATH" >&2
     exit 1
 else
-    echo "PASS: five pinned x86_64 dependencies match their macOS $DEPLOYMENT_TARGET completion stamp."
+    echo "PASS: ${#DEPENDENCY_FILES[@]} pinned x86_64 dependencies match their macOS $DEPLOYMENT_TARGET completion stamp."
 fi

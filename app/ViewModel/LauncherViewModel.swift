@@ -13,6 +13,8 @@ final class LauncherViewModel: ObservableObject {
     @Published var settings: LauncherSettings
     @Published var presentedError: String?
     @Published private(set) var bottleProcesses: [BottleProcess] = []
+    @Published private(set) var activeSessionDescriptorID: String?
+    @Published private(set) var launchingDescriptorID: String?
 
     let paths: SecundaPaths
     private let settingsStore: SettingsStore
@@ -26,7 +28,15 @@ final class LauncherViewModel: ObservableObject {
     private let bottleProcessInspector: BottleProcessInspector
     private var runtime: RuntimeDescriptor?
     private var installObservationTask: Task<Void, Never>?
+    private var expectedInstallStates: [String: InstallExpectation] = [:]
     private var processObservationTask: Task<Void, Never>?
+    private var operationTask: Task<Void, Never>?
+    private var operationID: UUID?
+
+    private struct InstallExpectation {
+        let isInstalled: Bool
+        let expiresAt: Date
+    }
 
     static func live() -> LauncherViewModel {
         let paths = SecundaPaths()
@@ -48,6 +58,7 @@ final class LauncherViewModel: ObservableObject {
             runtimeManager: runtimeManager
         )
         let bottleProcessInspector = BottleProcessInspector(processRunner: runner)
+        let gameWindowProbe = MacGameWindowProbe()
         let dxvk = DXVKService(paths: paths)
         var gameServices: [String: GameService] = [:]
         var saveServices: [String: SaveService] = [:]
@@ -62,7 +73,8 @@ final class LauncherViewModel: ObservableObject {
                 processProbe: processProbe,
                 voiceAudioService: voiceAudio,
                 dxvkService: dxvk,
-                bottleProcessInspector: bottleProcessInspector
+                bottleProcessInspector: bottleProcessInspector,
+                gameWindowProbe: gameWindowProbe
             )
             saveServices[descriptor.id] = SaveService(paths: paths, descriptor: descriptor)
         }
@@ -105,7 +117,7 @@ final class LauncherViewModel: ObservableObject {
         self.settings = settingsStore.load()
         self.snapshot = .empty(paths: paths)
         self.isBusy = true
-        self.progressLabel = "Checking the game engine"
+        self.progressLabel = "Checking the compatibility runtime"
 
         applyRuntimeSettings()
         Task {
@@ -138,7 +150,7 @@ final class LauncherViewModel: ObservableObject {
         return switch primaryAction(for: descriptor) {
         case .locateRuntime:
             paths.bottleOverrideError == nil
-                ? "Secunda’s free game engine is missing."
+                ? "Secunda’s compatibility runtime is missing."
                 : "Secunda refused an unsafe test game space."
         case .createBottle: "Prepare a clean realm."
         case .installSteam: "Bring Steam into Secunda."
@@ -150,12 +162,12 @@ final class LauncherViewModel: ObservableObject {
 
     func supportingText(for descriptor: GameDescriptor) -> String {
         if isGameRunning(descriptor) {
-            return "Playing through Secunda’s source-built engine. Save and quit from inside the game; Stop is the emergency exit."
+            return "Playing through Secunda’s source-built Windows compatibility runtime. Save and quit in the game; Stop is the emergency exit."
         }
         return switch primaryAction(for: descriptor) {
         case .locateRuntime:
             paths.bottleOverrideError
-                ?? "This build should include Secunda’s source-built engine. Reinstall the complete Secunda package or use the source build instructions."
+                ?? "This build should include Secunda’s source-built Windows compatibility runtime. Reinstall the complete package or use the source build instructions."
         case .createBottle:
             "Secunda creates a separate managed Windows space for Steam, your games, settings, and saves."
         case .installSteam:
@@ -163,7 +175,7 @@ final class LauncherViewModel: ObservableObject {
         case .installGame:
             "Secunda asks Steam to install your own copy of \(descriptor.shortTitle). Steam confirms the download and shows its progress."
         case .play:
-            "Secunda applies its tested settings, asks Steam to authorize your copy, then opens \(descriptor.shortTitle) through its source-built engine."
+            "Secunda applies its tested settings, asks Steam to authorize your copy, then opens \(descriptor.shortTitle) through its source-built Windows compatibility runtime."
         case .unavailable:
             "This can take a few minutes. You can leave this window open."
         }
@@ -178,6 +190,10 @@ final class LauncherViewModel: ObservableObject {
         persistSettings()
     }
 
+    var hasPendingFastSyncChange: Bool {
+        settings.useFastSync != settings.activeFastSync
+    }
+
     /// Whether the game has written its Lua prefs file yet — tuning options
     /// can only take effect after that first run.
     func luaPrefsDetected(for descriptor: GameDescriptor) -> Bool {
@@ -187,6 +203,10 @@ final class LauncherViewModel: ObservableObject {
             .appendingPathComponent(relativePath)
         return paths.contains(prefs, inBottleRoot: bottleRoot)
             && FileManager.default.fileExists(atPath: prefs.path)
+    }
+
+    func managedINIProfilesDetected(for descriptor: GameDescriptor) -> Bool {
+        gameServices[descriptor.id]?.managedINIProfilesDetected(in: runtime) == true
     }
 
     // MARK: - Groups
@@ -211,7 +231,28 @@ final class LauncherViewModel: ObservableObject {
     }
 
     func runningComponent(in group: GameGroup) -> GameDescriptor? {
-        group.components.first { isGameRunning($0) }
+        let running = group.components.filter { rawGameProcessRunning($0) }
+        guard !running.isEmpty else { return nil }
+        if running.count == 1 { return running[0] }
+        guard let activeSessionDescriptorID else { return nil }
+        return running.first { $0.id == activeSessionDescriptorID }
+    }
+
+    func isGroupRunning(_ group: GameGroup) -> Bool {
+        group.components.contains { rawGameProcessRunning($0) }
+    }
+
+    func isGroupLaunching(_ group: GameGroup) -> Bool {
+        guard let launchingDescriptorID else { return false }
+        return group.componentIDs.contains(launchingDescriptorID)
+    }
+
+    func isGroupActive(_ group: GameGroup) -> Bool {
+        isGroupLaunching(group) || isGroupRunning(group)
+    }
+
+    var anyGameActive: Bool {
+        launchingDescriptorID != nil || anyGameRunning
     }
 
     /// Artwork candidates for a game: any player-supplied image in the
@@ -285,7 +326,7 @@ final class LauncherViewModel: ObservableObject {
         var updated = LauncherSnapshot.empty(paths: paths)
         let freeDiskBytes = availableDiskSpace()
         if let locatedRuntime {
-            updated.runtime = .ready("Verified source-only engine · \(locatedRuntime.version)")
+            updated.runtime = .ready("Verified source-built runtime · \(locatedRuntime.version)")
             updated.runtimePath = locatedRuntime.wineExecutable.path
             updated.bottlePath = locatedRuntime.bottleRoot.path
         }
@@ -301,7 +342,6 @@ final class LauncherViewModel: ObservableObject {
             updated.steam = .ready("Client files detected")
         }
 
-        var anyGameMissing = false
         for descriptor in GameDescriptor.supported {
             var gameSnapshot = GameSnapshot()
             if steamReady, let service = gameServices[descriptor.id] {
@@ -311,16 +351,13 @@ final class LauncherViewModel: ObservableObject {
                     gameSnapshot.path = game.path
                 case .incomplete(let detail):
                     gameSnapshot.state = .warning(detail)
-                    anyGameMissing = true
                 case .missing:
                     gameSnapshot.state = .missing("Install through Steam")
-                    anyGameMissing = true
                 }
             } else {
                 // Confirmed: without Steam in the game space, nothing is
                 // installed — this is a real determination, not a guess.
                 gameSnapshot.state = .missing("Install through Steam")
-                anyGameMissing = true
             }
             let bottleRoot = locatedRuntime?.bottleRoot ?? paths.bottleRoot
             gameSnapshot.saveCount = saveServices[descriptor.id]?.saveCount(in: bottleRoot) ?? 0
@@ -335,7 +372,7 @@ final class LauncherViewModel: ObservableObject {
             isAppleSilicon: HostPreflight.isAppleSilicon,
             sourceRuntimeProbeSucceeded: locatedRuntime != nil,
             freeDiskBytes: freeDiskBytes,
-            needsInstallSpace: anyGameMissing,
+            needsInstallSpace: expectedInstallStates.values.contains { $0.isInstalled },
             lowPowerModeEnabled: lowPowerModeEnabled
         )
         snapshot = updated
@@ -348,7 +385,7 @@ final class LauncherViewModel: ObservableObject {
         switch primaryAction(for: descriptor) {
         case .locateRuntime:
             selection = .settings
-            addActivity("The source-built engine is missing. Opened recovery details.", kind: .warning)
+            addActivity("The source-built compatibility runtime is missing. Opened recovery details.", kind: .warning)
         case .createBottle:
             runTask(
                 label: "Preparing a separate game space",
@@ -401,6 +438,8 @@ final class LauncherViewModel: ObservableObject {
             presentedError = "A compatible runtime is not available."
             return
         }
+        guard !isBusy else { return }
+        launchingDescriptorID = descriptor.id
         runTask(
             label: "Preparing \(descriptor.shortTitle) for launch",
             initialProgress: SetupProgress(
@@ -410,6 +449,7 @@ final class LauncherViewModel: ObservableObject {
                 detail: "Confirming \(descriptor.shortTitle) is not already running before Secunda changes anything."
             )
         ) {
+            defer { self.launchingDescriptorID = nil }
             try await self.launchGame(descriptor, runtime: runtime)
         }
     }
@@ -419,18 +459,35 @@ final class LauncherViewModel: ObservableObject {
             presentedError = "A compatible runtime is not available."
             return
         }
-        do {
-            try gameServices[descriptor.id]?.requestInstall(
-                runtime: runtime,
-                diagnostics: settings.enableDiagnostics
-            )
-            addActivity(
-                "Asked Steam to install \(descriptor.shortTitle). Confirm the download inside Steam’s window.",
-                kind: .info
-            )
-            scheduleRefresh()
-        } catch {
-            present(error)
+        if expectedInstallStates[descriptor.id]?.isInstalled == true {
+            let message = "\(descriptor.shortTitle) is already queued for installation."
+            presentedError = message
+            addActivity(message, kind: .info)
+            return
+        }
+        if let capacityError = installCapacityError(for: descriptor) {
+            presentedError = capacityError
+            addActivity(capacityError, kind: .warning)
+            return
+        }
+        observeInstallState(for: descriptor, isInstalled: true)
+        Task {
+            do {
+                try await activatePendingRuntimeSettingsIfQuiet(runtime)
+                try gameServices[descriptor.id]?.requestInstall(
+                    runtime: runtime,
+                    diagnostics: settings.enableDiagnostics
+                )
+                addActivity(
+                    "Asked Steam to install \(descriptor.shortTitle). Confirm the download inside Steam’s window.",
+                    kind: .info
+                )
+                scheduleRefresh()
+            } catch {
+                expectedInstallStates.removeValue(forKey: descriptor.id)
+                updateInstallObservation()
+                present(error)
+            }
         }
     }
 
@@ -439,18 +496,22 @@ final class LauncherViewModel: ObservableObject {
             presentedError = "A compatible runtime is not available."
             return
         }
-        do {
-            try gameServices[descriptor.id]?.requestUninstall(
-                runtime: runtime,
-                diagnostics: settings.enableDiagnostics
-            )
-            addActivity(
-                "Asked Steam to uninstall \(descriptor.shortTitle). Confirm inside Steam’s window; saves stay in place.",
-                kind: .info
-            )
-            scheduleRefresh()
-        } catch {
-            present(error)
+        Task {
+            do {
+                try await activatePendingRuntimeSettingsIfQuiet(runtime)
+                try gameServices[descriptor.id]?.requestUninstall(
+                    runtime: runtime,
+                    diagnostics: settings.enableDiagnostics
+                )
+                addActivity(
+                    "Asked Steam to uninstall \(descriptor.shortTitle). Confirm inside Steam’s window; saves stay in place.",
+                    kind: .info
+                )
+                observeInstallState(for: descriptor, isInstalled: false)
+                scheduleRefresh()
+            } catch {
+                present(error)
+            }
         }
     }
 
@@ -459,15 +520,18 @@ final class LauncherViewModel: ObservableObject {
             presentedError = "A compatible runtime is not available."
             return
         }
-        do {
-            try gameServices[descriptor.id]?.requestDLCInstall(
-                dlc,
-                runtime: runtime,
-                diagnostics: settings.enableDiagnostics
-            )
-            addActivity("Asked Steam to install \(dlc.title). Confirm inside Steam’s window.", kind: .info)
-        } catch {
-            present(error)
+        Task {
+            do {
+                try await activatePendingRuntimeSettingsIfQuiet(runtime)
+                try gameServices[descriptor.id]?.requestDLCInstall(
+                    dlc,
+                    runtime: runtime,
+                    diagnostics: settings.enableDiagnostics
+                )
+                addActivity("Asked Steam to install \(dlc.title). Confirm inside Steam’s window.", kind: .info)
+            } catch {
+                present(error)
+            }
         }
     }
 
@@ -482,7 +546,7 @@ final class LauncherViewModel: ObservableObject {
                 step: 1,
                 totalSteps: 1,
                 title: "Closing the Game Space",
-                detail: "Closing every Windows app here, then confirming Secunda’s engine has stopped."
+                detail: "Closing every Windows app here, then confirming Secunda’s runtime has stopped."
             )
         ) {
             try await self.shutdown(runtime)
@@ -509,30 +573,92 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
+    func forceStopGroup(_ group: GameGroup) {
+        guard let runtime else {
+            presentedError = "A compatible runtime is not available."
+            return
+        }
+        runTask(label: "Force-stopping \(group.shortTitle)") {
+            let images = group.components.flatMap(\.processImageNames)
+            let processes = try await self.bottleProcessInspector
+                .processesInBottle(runtime: runtime)
+                .filter { BottleProcessInspector.matchesImages($0.command, images: images) }
+            await self.bottleProcessInspector.forceKill(processes)
+            if let activeSessionDescriptorID = self.activeSessionDescriptorID,
+               group.componentIDs.contains(activeSessionDescriptorID) {
+                self.activeSessionDescriptorID = nil
+            }
+            self.addActivity(
+                processes.isEmpty
+                    ? "Nothing to stop — no \(group.shortTitle) process was running."
+                    : "Force-stopped \(group.shortTitle).",
+                kind: processes.isEmpty ? .info : .success
+            )
+            self.refreshBottleProcesses()
+        }
+    }
+
+    /// The library's active-card Stop control must remain available during
+    /// launch handoff. Cancel the in-flight launch before closing the shared
+    /// Windows space so a late Steam handoff cannot reopen the title.
+    func stopActiveGameSpace() {
+        guard anyGameActive else { return }
+        operationTask?.cancel()
+        operationTask = nil
+        operationID = nil
+        launchingDescriptorID = nil
+        isBusy = false
+        progressLabel = nil
+        setupProgress = nil
+        stop()
+    }
+
     /// Refresh the on-demand process list shown in Launcher Settings.
     func refreshBottleProcesses() {
         guard let runtime else {
             bottleProcesses = []
+            activeSessionDescriptorID = nil
             return
         }
         Task {
-            bottleProcesses = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
+            let processes = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
+            bottleProcesses = processes
+            if let activeSessionDescriptorID,
+               let descriptor = GameDescriptor.descriptor(for: activeSessionDescriptorID),
+               !Self.processes(processes, match: descriptor) {
+                self.activeSessionDescriptorID = nil
+            }
         }
     }
 
     /// Live host-side check: is this game's process actually running? Drives
     /// the stop controls, which must vanish once the player quits.
     func isGameRunning(_ descriptor: GameDescriptor) -> Bool {
-        bottleProcesses.contains { process in
-            BottleProcessInspector.matchesImages(
-                process.command,
-                images: [descriptor.gameImageName, descriptor.launcherImageName]
-            )
-        }
+        guard rawGameProcessRunning(descriptor) else { return false }
+        guard let group = GameGroup.group(containing: descriptor.id) else { return true }
+        let matchingComponents = group.components.filter { rawGameProcessRunning($0) }
+        guard matchingComponents.count > 1 else { return true }
+        return activeSessionDescriptorID == descriptor.id
     }
 
     var anyGameRunning: Bool {
-        GameDescriptor.supported.contains { isGameRunning($0) }
+        GameDescriptor.supported.contains { rawGameProcessRunning($0) }
+    }
+
+    private func rawGameProcessRunning(_ descriptor: GameDescriptor) -> Bool {
+        Self.processes(bottleProcesses, match: descriptor)
+    }
+
+    private static func processes(
+        _ processes: [BottleProcess],
+        match descriptor: GameDescriptor
+    ) -> Bool {
+        processes.contains { process in
+            BottleProcessInspector.matchesImages(
+                process.command,
+                images: descriptor.processImageNames
+            )
+        }
     }
 
     /// Keep the process snapshot fresh so running/stopped state tracks
@@ -586,20 +712,24 @@ final class LauncherViewModel: ObservableObject {
                     : "Force-stopped \(processes.count) game-space process\(processes.count == 1 ? "" : "es").",
                 kind: processes.isEmpty ? .info : .success
             )
+            try await self.activatePendingRuntimeSettingsIfQuiet(runtime)
             self.refreshBottleProcesses()
         }
     }
 
     func verifyGameFiles(_ descriptor: GameDescriptor) {
         guard let runtime else { return }
-        do {
-            try gameServices[descriptor.id]?.requestVerification(
-                runtime: runtime,
-                diagnostics: settings.enableDiagnostics
-            )
-            addActivity("Opened Steam file verification for \(descriptor.shortTitle).", kind: .info)
-        } catch {
-            present(error)
+        Task {
+            do {
+                try await activatePendingRuntimeSettingsIfQuiet(runtime)
+                try gameServices[descriptor.id]?.requestVerification(
+                    runtime: runtime,
+                    diagnostics: settings.enableDiagnostics
+                )
+                addActivity("Opened Steam file verification for \(descriptor.shortTitle).", kind: .info)
+            } catch {
+                present(error)
+            }
         }
     }
 
@@ -619,14 +749,13 @@ final class LauncherViewModel: ObservableObject {
         }
     }
 
-    /// Push launcher-wide compatibility choices into the runtime before any
-    /// process is spawned.
+    /// Push only the active launcher-wide choice into process environments.
+    /// The requested value may remain queued while wineserver is alive.
     private func applyRuntimeSettings() {
-        runtimeManager.useFastSync = settings.useFastSync
+        runtimeManager.useFastSync = settings.activeFastSync
     }
 
     func persistSettings() {
-        applyRuntimeSettings()
         do {
             try settingsStore.save(settings)
         } catch {
@@ -656,12 +785,14 @@ final class LauncherViewModel: ObservableObject {
 
     private func createBottle() async throws {
         guard let runtime else { throw CocoaError(.fileNoSuchFile) }
+        try await activatePendingRuntimeSettingsIfQuiet(runtime)
         try await bottleManager.initialize(runtime: runtime, diagnostics: settings.enableDiagnostics)
         addActivity("Secunda’s separate game space is ready.", kind: .success)
     }
 
     private func installSteam() async throws {
         guard let runtime else { throw CocoaError(.fileNoSuchFile) }
+        try await activatePendingRuntimeSettingsIfQuiet(runtime)
         updateSetupProgress(
             step: 1,
             title: "Checking the bottle",
@@ -702,28 +833,33 @@ final class LauncherViewModel: ObservableObject {
 
     private func launchGame(_ descriptor: GameDescriptor, runtime: RuntimeDescriptor) async throws {
         guard let service = gameServices[descriptor.id] else { return }
-        let screenScale = NSScreen.main?.backingScaleFactor ?? 1
-        let screenPixelWidth = Int((NSScreen.main?.frame.width ?? 0) * screenScale)
-        let screenPixelHeight = Int((NSScreen.main?.frame.height ?? 0) * screenScale)
+        try await activatePendingRuntimeSettingsIfQuiet(runtime)
+        let displayGeometry = descriptor.launchProfile.displayCoordinatePolicy == .backingPixels
+            ? HostDisplayGeometryProbe.wineMainDisplay()
+            : HostDisplayGeometryProbe.geometry(for: NSScreen.main)
         let outcome = try await service.launch(
             runtime: runtime,
             settings: settings.game(descriptor),
             diagnostics: settings.enableDiagnostics,
-            screenPixelWidth: screenPixelWidth,
-            screenPixelHeight: screenPixelHeight,
+            displayGeometry: displayGeometry,
             progress: { [weak self] stage in
                 self?.updateGameLaunchProgress(stage, descriptor: descriptor)
             }
         )
         switch outcome {
         case .started:
-            addActivity("\(descriptor.shortTitle) is running through Secunda’s source-built engine.", kind: .success)
+            activeSessionDescriptorID = descriptor.id
+            addActivity(
+                "\(descriptor.shortTitle) is running through Secunda’s source-built Windows compatibility runtime.",
+                kind: .success
+            )
         case .alreadyRunning:
             addActivity("\(descriptor.shortTitle) is already running in this game space.", kind: .info)
         }
     }
 
     private func launchSteam(_ runtime: RuntimeDescriptor) async throws {
+        try await activatePendingRuntimeSettingsIfQuiet(runtime)
         updateSetupProgress(
             step: 1,
             title: "Checking Private Space",
@@ -770,7 +906,27 @@ final class LauncherViewModel: ObservableObject {
         } else if let gracefulError {
             throw gracefulError
         }
+        try await activatePendingRuntimeSettingsIfQuiet(runtime)
         addActivity("Steam and every game in this space are closed.", kind: .success)
+    }
+
+    /// Promote a queued sync mode only after a fresh host-process scan proves
+    /// that no process can still be attached to the old wineserver mode.
+    private func activatePendingRuntimeSettingsIfQuiet(
+        _ runtime: RuntimeDescriptor
+    ) async throws {
+        guard settings.activeFastSync != settings.useFastSync else { return }
+        guard try await bottleProcessInspector.runningProcesses(runtime: runtime).isEmpty else { return }
+
+        var updated = settings
+        updated.activeFastSync = updated.useFastSync
+        try settingsStore.save(updated)
+        settings = updated
+        applyRuntimeSettings()
+        addActivity(
+            "Fast synchronization is now \(updated.activeFastSync ? "on" : "off") for this game space.",
+            kind: .info
+        )
     }
 
     private func runTask(
@@ -783,16 +939,24 @@ final class LauncherViewModel: ObservableObject {
         progressLabel = label
         setupProgress = initialProgress
         addActivity(label, kind: .info)
-        Task {
+        let currentOperationID = UUID()
+        operationID = currentOperationID
+        operationTask = Task {
             do {
                 try await operation()
                 await refresh()
             } catch {
-                present(error)
+                if !Task.isCancelled {
+                    present(error)
+                }
             }
-            isBusy = false
-            progressLabel = nil
-            setupProgress = nil
+            if operationID == currentOperationID {
+                isBusy = false
+                progressLabel = nil
+                setupProgress = nil
+                operationTask = nil
+                operationID = nil
+            }
         }
     }
 
@@ -842,7 +1006,7 @@ final class LauncherViewModel: ObservableObject {
             updateSetupProgress(
                 step: 6,
                 title: "Starting \(descriptor.shortTitle)",
-                detail: "Opening the game through Secunda’s verified source-built engine."
+                detail: "Opening the game through Secunda’s verified source-built Windows compatibility runtime."
             )
         }
     }
@@ -866,9 +1030,16 @@ final class LauncherViewModel: ObservableObject {
     }
 
     private func updateInstallObservation() {
-        let anyGamePending = snapshot.steam.isReady
-            && GameDescriptor.supported.contains { !snapshot.game($0).state.isReady }
-        guard anyGamePending else {
+        let now = Date()
+        expectedInstallStates = expectedInstallStates.filter { gameID, expectation in
+            guard now < expectation.expiresAt,
+                  let descriptor = GameDescriptor.descriptor(for: gameID)
+            else {
+                return false
+            }
+            return snapshot.game(descriptor).state.isReady != expectation.isInstalled
+        }
+        guard snapshot.steam.isReady, !expectedInstallStates.isEmpty else {
             installObservationTask?.cancel()
             installObservationTask = nil
             return
@@ -880,12 +1051,40 @@ final class LauncherViewModel: ObservableObject {
                 try? await Task.sleep(for: .seconds(15))
                 guard !Task.isCancelled, let self else { return }
                 await self.refresh()
-                let stillPending = GameDescriptor.supported.contains {
-                    !self.snapshot.game($0).state.isReady
-                }
-                if !stillPending { return }
             }
         }
+    }
+
+    private func observeInstallState(
+        for descriptor: GameDescriptor,
+        isInstalled: Bool
+    ) {
+        expectedInstallStates[descriptor.id] = InstallExpectation(
+            isInstalled: isInstalled,
+            expiresAt: Date().addingTimeInterval(20 * 60)
+        )
+        updateInstallObservation()
+    }
+
+    private func installCapacityError(for descriptor: GameDescriptor) -> String? {
+        let pending: [GameDescriptor] = expectedInstallStates.compactMap { gameID, expectation in
+            guard expectation.isInstalled else { return nil }
+            return GameDescriptor.descriptor(for: gameID)
+        }
+        guard let requiredBytes = InstallSpacePolicy.requiredFreeBytes(
+            for: descriptor,
+            pending: pending
+        ) else {
+            return nil
+        }
+        let freeBytes = availableDiskSpace()
+        guard freeBytes < requiredBytes else { return nil }
+
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        let required = formatter.string(fromByteCount: requiredBytes)
+        let available = formatter.string(fromByteCount: freeBytes)
+        return "\(descriptor.shortTitle) and the queued downloads need about \(required) free so macOS and Steam keep a safe reserve. \(available) is currently available."
     }
 
     private func availableDiskSpace() -> Int64 {

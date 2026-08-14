@@ -119,9 +119,6 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// titles). Supreme Commander 2 keeps it under AppData\Local.
     let luaPrefsRelativePath: String?
     let luaTuningOptions: [LuaTuningOption]
-    /// Games whose fullscreen mode fails under the Mac display driver run
-    /// windowed via command line: /windowed <width> <height>.
-    let usesWindowedResolutionArguments: Bool
     /// Which Direct3D 9 implementation the game launches with. DXMT owns
     /// D3D10/11 regardless; this only matters for D3D9-era titles.
     let d3d9Backend: D3D9Backend
@@ -139,7 +136,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     let qualityOptions: [QualityOption]
     let dlc: [DLCDescriptor]
     /// Steam app whose artwork stands in when this one publishes none of
-    /// its own (Black Ops II's mode entries borrow the base game's).
+    /// its own (multi-component mode entries may borrow the base game's).
     var artworkFallbackAppID: String?
     /// Metal present cap applied through DXMT (`d3d11.preferredMaxFrameRate`).
     /// Fallout 4's camera/Havok sampling breaks above 60; leave nil to uncapped.
@@ -149,10 +146,26 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// Force session LogPixels to 96 so DPI-unaware look deltas map 1:1.
     /// Steam keeps the bottle's Retina DPI between sessions.
     let prefersNativeSessionDPI: Bool
+    /// The game needs an undecorated, screen-covering borderless surface when
+    /// its own display settings cannot express that mode through an INI.
+    let usesScreenCoveringBorderlessSurface: Bool
     /// Write aspect-correct fMouseHeadingX/YScale so vertical look isn't sticky.
     let appliesAspectCorrectMouseLook: Bool
+    /// Whether this title needs Secunda's redistributable XAudio/WMA voice
+    /// path. Keeping this explicit prevents a 64-bit fix from being applied
+    /// silently to unrelated or 32-bit games.
+    let usesNativeVoiceAudioFix: Bool
 
     var supportsDisplayProfile: Bool { prefsFileName != nil }
+
+    /// Host-side process controls include the installed entry point even
+    /// when launch health deliberately follows a different final process.
+    var processImageNames: [String] {
+        var names = gameProcessImageNames + [launcherImageName]
+        names.append(URL(fileURLWithPath: executableRelativePath).lastPathComponent)
+        var seen = Set<String>()
+        return names.filter { seen.insert($0.lowercased()).inserted }
+    }
 
     /// Metal owns the frame cap — the game's own vsync interval would only
     /// add present latency on top.
@@ -165,8 +178,26 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     }
 
     /// Shared Creation Engine options valid in both Skyrim SE and Fallout 4.
-    private static func creationEngineOptions() -> [QualityOption] {
-        [
+    /// A title may expose the zero-distance shadow workaround without adding
+    /// it to every game that happens to use the same profile format.
+    private static func creationEngineOptions(
+        includesShadowOffCompatibility: Bool = false
+    ) -> [QualityOption] {
+        var shadowDistanceChoices: [QualityChoice] = [
+            .init(label: QualityOption.gameDefaultLabel, values: [:])
+        ]
+        if includesShadowOffCompatibility {
+            shadowDistanceChoices.append(
+                .init(label: "Off (compatibility)", values: ["fShadowDistance": "0.0000"])
+            )
+        }
+        shadowDistanceChoices += [
+            .init(label: "Short", values: ["fShadowDistance": "2500.0000"]),
+            .init(label: "Medium", values: ["fShadowDistance": "4000.0000"]),
+            .init(label: "Long", values: ["fShadowDistance": "8000.0000"])
+        ]
+
+        return [
             QualityOption(
                 id: "ssao",
                 title: "Ambient occlusion",
@@ -191,13 +222,10 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             QualityOption(
                 id: "shadow-distance",
                 title: "Shadow distance",
-                caption: "How far away the world still casts shadows.",
-                choices: [
-                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
-                    .init(label: "Short", values: ["fShadowDistance": "2500.0000"]),
-                    .init(label: "Medium", values: ["fShadowDistance": "4000.0000"]),
-                    .init(label: "Long", values: ["fShadowDistance": "8000.0000"])
-                ]
+                caption: includesShadowOffCompatibility
+                    ? "How far away the world casts shadows. Compatibility mode prevents camera-following dark patches by disabling exterior shadows."
+                    : "How far away the world still casts shadows.",
+                choices: shadowDistanceChoices
             ),
             QualityOption(
                 id: "anisotropy",
@@ -236,9 +264,8 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// Steam's own artwork CDN. Fetched at runtime for the player's library
     /// presentation and never redistributed inside Secunda.
     ///
-    /// Candidates are tried in order: many older apps (Black Ops II's
-    /// multiplayer and zombies entries among them) publish only a wide
-    /// header image, so the chain ends at the base app's artwork.
+    /// Candidates are tried in order. Some mode-specific entries publish
+    /// only a wide header image, so the chain ends at the base app's artwork.
     var cardArtworkCandidates: [URL] {
         artworkURLs(
             paths: ["library_600x900.jpg", "header.jpg"],
@@ -278,7 +305,6 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         documentsRelativePath: "My Games/Skyrim Special Edition",
         luaPrefsRelativePath: nil,
         luaTuningOptions: [],
-        usesWindowedResolutionArguments: false,
         d3d9Backend: .wined3d,
         prefsFileName: "SkyrimPrefs.ini",
         customIniFileName: "SkyrimCustom.ini",
@@ -286,7 +312,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         saveFileExtensions: ["ess"],
         defaultFieldOfView: 80,
         baselineDataFile: "Data/Skyrim.esm",
-        qualityOptions: creationEngineOptions() + [
+        qualityOptions: creationEngineOptions(includesShadowOffCompatibility: true) + [
             QualityOption(
                 id: "godrays",
                 title: "God rays",
@@ -337,8 +363,13 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         ],
         preferredMaxFrameRate: nil,
         customIniValues: [:],
-        prefersNativeSessionDPI: false,
-        appliesAspectCorrectMouseLook: false
+        // Creation Engine's borderless mode needs the same point-space,
+        // screen-covering Mac surface as Fallout 4 or the fixed HUD can sit
+        // below the menu bar on a Retina display.
+        prefersNativeSessionDPI: true,
+        usesScreenCoveringBorderlessSurface: true,
+        appliesAspectCorrectMouseLook: false,
+        usesNativeVoiceAudioFix: true
     )
 
     static let fallout4 = GameDescriptor(
@@ -354,7 +385,6 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         documentsRelativePath: "My Games/Fallout4",
         luaPrefsRelativePath: nil,
         luaTuningOptions: [],
-        usesWindowedResolutionArguments: false,
         d3d9Backend: .wined3d,
         prefsFileName: "Fallout4Prefs.ini",
         customIniFileName: "Fallout4Custom.ini",
@@ -464,7 +494,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         ],
         // Retina LogPixels=216 quantizes small look deltas into sticky steps.
         prefersNativeSessionDPI: true,
-        appliesAspectCorrectMouseLook: true
+        usesScreenCoveringBorderlessSurface: true,
+        appliesAspectCorrectMouseLook: true,
+        usesNativeVoiceAudioFix: true
     )
 
     static let supcom2 = GameDescriptor(
@@ -481,77 +513,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         luaPrefsRelativePath: "AppData/Local/Gas Powered Games/Supreme Commander 2/Game.prefs",
         luaTuningOptions: [
             LuaTuningOption(
-                id: "fidelity-preset",
-                title: "Overall quality",
-                caption: "The game's own Low/Medium/High preset.",
-                keyCandidates: ["fidelity_presets"],
-                choices: [
-                    .init(label: QualityOption.gameDefaultLabel, value: ""),
-                    .init(label: "Low", value: "0"),
-                    .init(label: "Medium", value: "1"),
-                    .init(label: "High", value: "2")
-                ]
-            ),
-            LuaTuningOption(
-                id: "shadow-quality",
-                title: "Shadows",
-                keyCandidates: ["shadow_quality"],
-                choices: [
-                    .init(label: QualityOption.gameDefaultLabel, value: ""),
-                    .init(label: "Off", value: "0"),
-                    .init(label: "Low", value: "1"),
-                    .init(label: "Medium", value: "2"),
-                    .init(label: "High", value: "3")
-                ]
-            ),
-            LuaTuningOption(
-                id: "water-fidelity",
-                title: "Water quality",
-                keyCandidates: ["water_fidelity"],
-                choices: [
-                    .init(label: QualityOption.gameDefaultLabel, value: ""),
-                    .init(label: "Low", value: "1"),
-                    .init(label: "Medium", value: "2"),
-                    .init(label: "High", value: "3")
-                ]
-            ),
-            LuaTuningOption(
-                id: "anisotropic",
-                title: "Anisotropic filtering",
-                keyCandidates: ["anisotropic_filtering"],
-                choices: [
-                    .init(label: QualityOption.gameDefaultLabel, value: ""),
-                    .init(label: "Off", value: "1"),
-                    .init(label: "8x", value: "8"),
-                    .init(label: "16x", value: "16")
-                ]
-            ),
-            LuaTuningOption(
-                id: "antialiasing",
-                title: "Anti-aliasing",
-                caption: "Multisampling. Costly through the OpenGL bridge; Off is the safe default.",
-                keyCandidates: ["antialiasing"],
-                choices: [
-                    .init(label: QualityOption.gameDefaultLabel, value: ""),
-                    .init(label: "Off", value: "0"),
-                    .init(label: "2x", value: "64"),
-                    .init(label: "4x", value: "128")
-                ]
-            ),
-            LuaTuningOption(
-                id: "vsync",
-                title: "Vertical sync",
-                keyCandidates: ["vsync"],
-                choices: [
-                    .init(label: QualityOption.gameDefaultLabel, value: ""),
-                    .init(label: "Off", value: "0"),
-                    .init(label: "On", value: "1")
-                ]
-            ),
-            LuaTuningOption(
                 id: "unit-cap",
                 title: "Unit cap",
-                caption: "Maximum army size. The game records this after you host one skirmish; until then Secunda leaves it alone. Higher caps are CPU-heavy under Rosetta.",
+                caption: "Maximum army size. The game records this after you host one skirmish; until then Secunda leaves it alone.",
                 keyCandidates: ["UnitCap", "unit_cap", "unitCap"],
                 choices: [
                     .init(label: QualityOption.gameDefaultLabel, value: ""),
@@ -562,7 +526,6 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
                 ]
             )
         ],
-        usesWindowedResolutionArguments: true,
         d3d9Backend: .wined3d,
         prefsFileName: nil,
         customIniFileName: nil,
@@ -574,8 +537,13 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         dlc: [],
         preferredMaxFrameRate: nil,
         customIniValues: [:],
-        prefersNativeSessionDPI: false,
-        appliesAspectCorrectMouseLook: false
+        // Match Fallout's point-space fullscreen contract. The engine still
+        // needs /windowed W H to initialize, while the Mac driver supplies the
+        // undecorated screen-covering surface around that render target.
+        prefersNativeSessionDPI: true,
+        usesScreenCoveringBorderlessSurface: true,
+        appliesAspectCorrectMouseLook: false,
+        usesNativeVoiceAudioFix: false
     )
 
     private static func blackOps2(
@@ -600,14 +568,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             documentsRelativePath: "My Games/Call of Duty Black Ops II",
             luaPrefsRelativePath: nil,
             luaTuningOptions: [],
-            usesWindowedResolutionArguments: false,
-            // Black Ops II is a 32-bit binary, and DXVK's 32-bit path fails
-            // in this runtime: Vulkan is not reachable from WoW64 processes,
-            // so d3d9 device creation throws and the game reports
-            // "Unhandled exception caught" during initialization. Verified
-            // by forcing Supreme Commander 2 — which runs well on the
-            // built-in path — onto DXVK, where it dies identically. DXVK
-            // stays available in the runtime for 64-bit Direct3D 9 titles.
+            // The title's normal renderer is PE32 Direct3D 11 through the
+            // runtime bridge. This field only chooses the conservative
+            // builtin fallback if setup requests Direct3D 9.
             d3d9Backend: .wined3d,
             prefsFileName: nil,
             customIniFileName: nil,
@@ -621,7 +584,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             preferredMaxFrameRate: nil,
             customIniValues: [:],
             prefersNativeSessionDPI: false,
-            appliesAspectCorrectMouseLook: false
+            usesScreenCoveringBorderlessSurface: false,
+            appliesAspectCorrectMouseLook: false,
+            usesNativeVoiceAudioFix: false
         )
     }
 
@@ -656,14 +621,23 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     )
 
     static let supported: [GameDescriptor] = [
-        .skyrimSE, .fallout4, .supcom2, .blackOps2SP, .blackOps2MP, .blackOps2Zombies
+        .skyrimSE,
+        .fallout4,
+        .supremeCommander,
+        .forgedAlliance,
+        .supcom2,
+        .battlefront2Classic,
+        .insurgency,
+        .angelsFallFirst,
+        .blackOps2SP,
+        .blackOps2MP,
+        .blackOps2Zombies
     ]
 
 }
 
-/// One library surface entry. Most groups wrap a single game; Black Ops II
-/// groups its three Steam components (campaign, multiplayer, zombies) behind
-/// one card with mode selection.
+/// One library surface entry. Most groups wrap a single game; multi-component
+/// titles group their Steam components behind one card with mode selection.
 struct GameGroup: Identifiable, Equatable, Sendable {
     let id: String
     let title: String
@@ -700,11 +674,39 @@ struct GameGroup: Identifiable, Equatable, Sendable {
             componentIDs: ["fallout-4"]
         ),
         GameGroup(
+            id: "supreme-commander",
+            title: "Supreme Commander",
+            shortTitle: "Supreme Commander",
+            symbol: "flag.2.crossed.fill",
+            componentIDs: ["supreme-commander", "forged-alliance"]
+        ),
+        GameGroup(
             id: "supcom2",
             title: GameDescriptor.supcom2.title,
             shortTitle: GameDescriptor.supcom2.shortTitle,
             symbol: GameDescriptor.supcom2.symbol,
             componentIDs: ["supcom2"]
+        ),
+        GameGroup(
+            id: "battlefront-2-classic",
+            title: GameDescriptor.battlefront2Classic.title,
+            shortTitle: GameDescriptor.battlefront2Classic.shortTitle,
+            symbol: GameDescriptor.battlefront2Classic.symbol,
+            componentIDs: ["battlefront-2-classic"]
+        ),
+        GameGroup(
+            id: "insurgency",
+            title: GameDescriptor.insurgency.title,
+            shortTitle: GameDescriptor.insurgency.shortTitle,
+            symbol: GameDescriptor.insurgency.symbol,
+            componentIDs: ["insurgency"]
+        ),
+        GameGroup(
+            id: "angels-fall-first",
+            title: GameDescriptor.angelsFallFirst.title,
+            shortTitle: GameDescriptor.angelsFallFirst.shortTitle,
+            symbol: GameDescriptor.angelsFallFirst.symbol,
+            componentIDs: ["angels-fall-first"]
         ),
         GameGroup(
             id: "black-ops-2",
@@ -729,6 +731,8 @@ extension GameDescriptor {
     /// Mode label inside a multi-component group (e.g. "Campaign").
     var modeTitle: String {
         switch id {
+        case "supreme-commander": "Original"
+        case "forged-alliance": "Forged Alliance"
         case "bo2-campaign": "Campaign"
         case "bo2-multiplayer": "Multiplayer"
         case "bo2-zombies": "Zombies"

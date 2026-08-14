@@ -24,5 +24,7 @@ runtime.
 DXMT 0.80 is distributed under the MIT license. Its matching source is:
 https://github.com/3Shain/dxmt/tree/v0.80
 
-The Secunda launcher, Steam, Skyrim, user prefixes, credentials, saves, and
-proprietary compatibility-engine files are not part of this source bundle.
+The Secunda launcher binary, Steam, supported-game files, user prefixes,
+credentials, saves, and proprietary compatibility-engine files are not part of
+this source bundle. Players must supply their own Steam account and separately
+owned copies of every game they install.

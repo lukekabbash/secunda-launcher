@@ -18,13 +18,13 @@ enum HostPreflight {
             return .failed("macOS 15 or newer is required")
         }
         guard sourceRuntimeProbeSucceeded else {
-            return .warning("Apple silicon is ready; the engine and Rosetta check did not complete")
+            return .warning("Apple silicon is ready; the compatibility runtime and Rosetta check did not complete")
         }
         if lowPowerModeEnabled {
-            return .warning("Engine ready · Low Power Mode is limiting game performance")
+            return .warning("Runtime ready · Low Power Mode is limiting game performance")
         }
         if needsInstallSpace, freeDiskBytes < recommendedInstallBytes {
-            return .warning("Engine ready · 40 GB free is recommended before installing Skyrim")
+            return .warning("Runtime ready · 40 GB free is recommended while adding a game")
         }
         return .ready("Apple silicon · macOS \(operatingSystem.majorVersion) · Rosetta confirmed")
     }

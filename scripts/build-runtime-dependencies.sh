@@ -15,6 +15,11 @@ NETTLE_VERSION=3.10
 NETTLE_SHA256=b4c518adb174e484cb4acea54118f02380c7133771e7e9beb98a0787194ee47c
 NETTLE_ARCHIVE="$SOURCE_CACHE_ROOT/nettle-$NETTLE_VERSION.tar.gz"
 NETTLE_SOURCE="$BUILD_ROOT/nettle-$NETTLE_VERSION-${NETTLE_SHA256[1,12]}"
+SDL2_VERSION=2.32.10
+SDL2_SHA256=5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165
+SDL2_ARCHIVE="$SOURCE_CACHE_ROOT/SDL2-$SDL2_VERSION.tar.gz"
+SDL2_SOURCE="$BUILD_ROOT/SDL2-$SDL2_VERSION-${SDL2_SHA256[1,12]}"
+SDL2_SOURCE_ALIAS=${SECUNDA_SDL2_SOURCE_ALIAS:-/private/tmp/secunda-sdl2-source-x86_64}
 FREETYPE_SOURCE_ALIAS=${SECUNDA_FREETYPE_SOURCE_ALIAS:-/private/tmp/secunda-freetype-source-x86_64}
 GMP_SOURCE_ALIAS=${SECUNDA_GMP_SOURCE_ALIAS:-/private/tmp/secunda-gmp-source-x86_64}
 GNUTLS_SOURCE_ALIAS=${SECUNDA_GNUTLS_SOURCE_ALIAS:-/private/tmp/secunda-gnutls-source-x86_64}
@@ -147,6 +152,45 @@ configure_and_build gnutls "$GNUTLS_SOURCE_ALIAS" \
     --with-default-trust-store-file=/etc/ssl/cert.pem \
     --with-included-libtasn1 \
     --with-included-unistring
+
+if [[ ! -f "$SDL2_ARCHIVE" ]]; then
+    curl --fail --location --retry 3 \
+        --output "$SDL2_ARCHIVE" \
+        "https://github.com/libsdl-org/SDL/releases/download/release-$SDL2_VERSION/SDL2-$SDL2_VERSION.tar.gz"
+fi
+actual_sdl2_sha256=$(shasum -a 256 "$SDL2_ARCHIVE" | awk '{print $1}')
+if [[ "$actual_sdl2_sha256" != "$SDL2_SHA256" ]]; then
+    echo "SDL2 source checksum mismatch." >&2
+    echo "Expected: $SDL2_SHA256" >&2
+    echo "Actual:   $actual_sdl2_sha256" >&2
+    exit 1
+fi
+if [[ ! -f "$SDL2_SOURCE/CMakeLists.txt" ]]; then
+    mkdir -p "$SDL2_SOURCE"
+    tar -xzf "$SDL2_ARCHIVE" --strip-components=1 -C "$SDL2_SOURCE"
+fi
+ln -sfn "$SDL2_SOURCE" "$SDL2_SOURCE_ALIAS"
+
+# winebus dlopens libSDL2 and resolves every joystick, game controller, and
+# haptic symbol up front, failing the whole bus if one is missing.  Audio,
+# video, and render are unused and stay off; joystick, haptic, sensor, and
+# hidapi must stay on or controllers lose rumble and gamepad classification.
+build_cmake_dependency sdl2 \
+    -S "$SDL2_SOURCE_ALIAS" \
+    -B "$BUILD_ROOT_ALIAS/sdl2" \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX_ALIAS" \
+    -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
+    "-DCMAKE_C_FLAGS_RELEASE=-O2 -DNDEBUG -g0 -ffile-prefix-map=$SDL2_SOURCE_ALIAS=/usr/src/secunda/sdl2" \
+    -DSDL_SHARED=ON \
+    -DSDL_STATIC=OFF \
+    -DSDL_TEST=OFF \
+    -DSDL_AUDIO=OFF \
+    -DSDL_VIDEO=OFF \
+    -DSDL_RENDER=OFF \
+    -DCMAKE_INSTALL_NAME_DIR=@rpath
 
 "$SCRIPT_DIR/verify-runtime-dependencies.sh" "$PREFIX" "$DEPLOYMENT_TARGET" --write-stamp
 

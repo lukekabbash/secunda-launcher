@@ -21,6 +21,7 @@ license_sources=(
     "$REPOSITORY_ROOT/licenses/DXMT-v0.80-LICENSE.txt"
     "$REPOSITORY_ROOT/licenses/DXVK-v1.10.3-LICENSE.txt"
     "$REPOSITORY_ROOT/licenses/MoltenVK-v1.4.2-LICENSE.txt"
+    "$REPOSITORY_ROOT/licenses/SDL2-v2.32.10-LICENSE.txt"
     "$SOURCE_ROOT/freetype/docs/FTL.TXT"
     "$SOURCE_ROOT/gnutls/gmp/COPYING.LESSERv3"
     "$SOURCE_ROOT/gnutls/gmp/COPYINGv3"
@@ -72,6 +73,12 @@ install -m 0644 "$SOURCE_ROOT/wine/COPYING.LIB" \
     "$LICENSE_ROOT/Wine-LGPL-2.1-or-later.txt"
 install -m 0644 "$REPOSITORY_ROOT/licenses/DXMT-v0.80-LICENSE.txt" \
     "$LICENSE_ROOT/DXMT-MIT.txt"
+install -m 0644 "$REPOSITORY_ROOT/licenses/DXVK-v1.10.3-LICENSE.txt" \
+    "$LICENSE_ROOT/DXVK-Zlib.txt"
+install -m 0644 "$REPOSITORY_ROOT/licenses/MoltenVK-v1.4.2-LICENSE.txt" \
+    "$LICENSE_ROOT/MoltenVK-Apache-2.0.txt"
+install -m 0644 "$REPOSITORY_ROOT/licenses/SDL2-v2.32.10-LICENSE.txt" \
+    "$LICENSE_ROOT/SDL2-Zlib.txt"
 install -m 0644 "$SOURCE_ROOT/freetype/docs/FTL.TXT" \
     "$LICENSE_ROOT/FreeType-FTL.txt"
 install -m 0644 "$SOURCE_ROOT/gnutls/gmp/COPYING.LESSERv3" \

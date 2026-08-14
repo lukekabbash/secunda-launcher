@@ -1,0 +1,96 @@
+--- a/dlls/avrt/main.c
++++ b/dlls/avrt/main.c
+@@ -37,6 +37,31 @@
+     return dst;
+ }
+ 
++/* Real MMCSS scheduling doesn't exist here, but apps that call this API
++ * (native XAudio2 among them) depend on their audio thread actually being
++ * scheduled promptly, or their own buffer-refill deadline is missed and
++ * playing sources glitch/restart. Approximate it with the same time-critical
++ * priority Wine's own mmdevapi mixer thread already relies on
++ * (dlls/mmdevapi/client.c), instead of silently doing nothing. */
++struct avrt_handle
++{
++    HANDLE thread;
++    DWORD prev_priority;
++};
++
++static int win32_priority_from_avrt(AVRT_PRIORITY prio)
++{
++    switch (prio)
++    {
++        case AVRT_PRIORITY_VERYLOW:  return THREAD_PRIORITY_LOWEST;
++        case AVRT_PRIORITY_LOW:      return THREAD_PRIORITY_BELOW_NORMAL;
++        case AVRT_PRIORITY_NORMAL:   return THREAD_PRIORITY_NORMAL;
++        case AVRT_PRIORITY_HIGH:     return THREAD_PRIORITY_HIGHEST;
++        case AVRT_PRIORITY_CRITICAL: return THREAD_PRIORITY_TIME_CRITICAL;
++        default:                     return THREAD_PRIORITY_NORMAL;
++    }
++}
++
+ HANDLE WINAPI AvSetMmThreadCharacteristicsA(const char *name, DWORD *index)
+ {
+     WCHAR *nameW = NULL;
+@@ -56,8 +81,10 @@
+ 
+ HANDLE WINAPI AvSetMmThreadCharacteristicsW(const WCHAR *name, DWORD *index)
+ {
+-    FIXME("(%s,%p): stub\n", debugstr_w(name), index);
++    struct avrt_handle *handle;
+ 
++    TRACE("(%s,%p)\n", debugstr_w(name), index);
++
+     if (!name)
+     {
+         SetLastError(ERROR_INVALID_TASK_NAME);
+@@ -70,7 +97,18 @@
+         return NULL;
+     }
+ 
+-    return (HANDLE)0x12345678;
++    if (!(handle = malloc(sizeof(*handle))))
++    {
++        SetLastError(ERROR_OUTOFMEMORY);
++        return NULL;
++    }
++
++    handle->thread = GetCurrentThread();
++    handle->prev_priority = GetThreadPriority(handle->thread);
++    SetThreadPriority(handle->thread, THREAD_PRIORITY_TIME_CRITICAL);
++
++    *index = 0;
++    return (HANDLE)handle;
+ }
+ 
+ BOOL WINAPI AvQuerySystemResponsiveness(HANDLE AvrtHandle, ULONG *value)
+@@ -81,14 +119,26 @@
+ 
+ BOOL WINAPI AvRevertMmThreadCharacteristics(HANDLE AvrtHandle)
+ {
+-    FIXME("(%p): stub\n", AvrtHandle);
++    struct avrt_handle *handle = (struct avrt_handle *)AvrtHandle;
++
++    TRACE("(%p)\n", AvrtHandle);
++
++    if (!handle) return FALSE;
++
++    SetThreadPriority(handle->thread, handle->prev_priority);
++    free(handle);
+     return TRUE;
+ }
+ 
+ BOOL WINAPI AvSetMmThreadPriority(HANDLE AvrtHandle, AVRT_PRIORITY prio)
+ {
+-    FIXME("(%p)->(%u) stub\n", AvrtHandle, prio);
+-    return TRUE;
++    struct avrt_handle *handle = (struct avrt_handle *)AvrtHandle;
++
++    TRACE("(%p)->(%u)\n", AvrtHandle, prio);
++
++    if (!handle) return FALSE;
++
++    return SetThreadPriority(handle->thread, win32_priority_from_avrt(prio));
+ }
+ 
+ HANDLE WINAPI AvSetMmMaxThreadCharacteristicsA(const char *task1, const char *task2, DWORD *index)

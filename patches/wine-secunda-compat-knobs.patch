@@ -1,0 +1,168 @@
+--- a/dlls/ntdll/heap.c
++++ b/dlls/ntdll/heap.c
+@@ -332,6 +332,8 @@
+ #define HEAP_VALIDATE_ALL     0x20000000
+ #define HEAP_VALIDATE_PARAMS  0x40000000
+ #define HEAP_CHECKING_ENABLED 0x80000000
++
++BOOL delay_heap_free = FALSE;
+ 
+ static struct heap *process_heap;  /* main process heap */
+ 
+@@ -1488,8 +1490,8 @@
+         }
+     }
+ 
+-    if ((heap->flags & HEAP_GROWABLE) && !heap->pending_free &&
+-        ((flags & HEAP_FREE_CHECKING_ENABLED) || RUNNING_ON_VALGRIND))
++    if (delay_heap_free || ((heap->flags & HEAP_GROWABLE) && !heap->pending_free &&
++        ((flags & HEAP_FREE_CHECKING_ENABLED) || RUNNING_ON_VALGRIND)))
+     {
+         heap->pending_free = RtlAllocateHeap( handle, HEAP_ZERO_MEMORY,
+                                               MAX_FREE_PENDING * sizeof(*heap->pending_free) );
+@@ -2619,7 +2621,8 @@
+             FIXME( "HeapCompatibilityInformation %lu not implemented!\n", compat_info );
+             return STATUS_UNSUCCESSFUL;
+         }
+-        if (InterlockedCompareExchange( &heap->compat_info, compat_info, HEAP_STD ) != HEAP_STD)
++        if (!delay_heap_free &&
++            InterlockedCompareExchange( &heap->compat_info, compat_info, HEAP_STD ) != HEAP_STD)
+             return STATUS_UNSUCCESSFUL;
+         return STATUS_SUCCESS;
+     }
+--- a/dlls/ntdll/loader.c
++++ b/dlls/ntdll/loader.c
+@@ -5104,6 +5104,12 @@
+         {
+             ERR( "Enabling heap zero hack.\n" );
+             heap_flags |= HEAP_ZERO_MEMORY;
++        }
++
++        if (get_env( L"WINE_HEAP_DELAY_FREE", env_str, sizeof(env_str)) && env_str[0] == L'1')
++        {
++            ERR( "Enabling heap free delay hack.\n" );
++            delay_heap_free = TRUE;
+         }
+ 
+         peb->ProcessHeap        = RtlCreateHeap( heap_flags, NULL, 0, 0, NULL, NULL );
+--- a/dlls/ntdll/ntdll_misc.h
++++ b/dlls/ntdll/ntdll_misc.h
+@@ -51,6 +51,8 @@
+ 
+ static const UINT_PTR page_size = 0x1000;
+ 
++extern BOOL delay_heap_free;
++
+ /* exceptions */
+ extern NTSTATUS call_seh_handlers( EXCEPTION_RECORD *rec, CONTEXT *context );
+ extern NTSTATUS WINAPI dispatch_exception( EXCEPTION_RECORD *rec, CONTEXT *context );
+--- a/dlls/ntdll/unix/virtual.c
++++ b/dlls/ntdll/unix/virtual.c
+@@ -241,6 +241,8 @@
+ static void *preload_reserve_end;
+ static BOOL force_exec_prot;  /* whether to force PROT_EXEC on all PROT_READ mmaps */
+ static BOOL enable_write_exceptions;  /* raise exception on writes to executable memory */
++static ULONG_PTR preferred_image_base;  /* image base that must remain stable for compatibility */
++static const char *preferred_image_name;
+ 
+ struct range_entry
+ {
+@@ -261,7 +263,30 @@
+ {
+     return (vprot & VPROT_EXEC) && (vprot & (VPROT_WRITE | VPROT_WRITECOPY));
+ }
++
++static BOOL image_name_matches( const UNICODE_STRING *name, const char *basename )
++{
++    SIZE_T basename_len = strlen( basename );
++    SIZE_T name_len = name->Length / sizeof(WCHAR);
++    const WCHAR *suffix;
++    SIZE_T i;
+ 
++    if (!basename_len || basename_len > name_len) return FALSE;
++    suffix = name->Buffer + name_len - basename_len;
++    if (suffix != name->Buffer && suffix[-1] != '\\' && suffix[-1] != '/') return FALSE;
++
++    for (i = 0; i < basename_len; ++i)
++    {
++        WCHAR left = suffix[i];
++        unsigned char right = basename[i];
++
++        if (left >= 'A' && left <= 'Z') left += 'a' - 'A';
++        if (right >= 'A' && right <= 'Z') right += 'a' - 'A';
++        if (left != right) return FALSE;
++    }
++    return TRUE;
++}
++
+ /* mmap() anonymous memory at a fixed address */
+ void *anon_mmap_fixed( void *start, size_t size, int prot, int flags )
+ {
+@@ -3392,6 +3417,9 @@
+     struct file_view *view;
+     unsigned int status;
+     sigset_t sigset;
++    BOOL force_preferred_base = preferred_image_base && preferred_image_name &&
++                                image_info->base == preferred_image_base &&
++                                image_name_matches( nt_name, preferred_image_name );
+ 
+     if (offset >= size)
+         return STATUS_INVALID_PARAMETER;
+@@ -3406,7 +3434,10 @@
+         return status;
+     }
+ 
+-    if (peb->OSMajorVersion > 5 && /* CW HACK 22939: ASLR is supported only on Windows Vista and later */
++    if (force_preferred_base) image_info->map_addr = 0;
++
++    if (!force_preferred_base &&
++        peb->OSMajorVersion > 5 && /* CW HACK 22939: ASLR is supported only on Windows Vista and later */
+         !image_info->map_addr &&
+         (image_info->image_charact & IMAGE_FILE_DLL) &&
+         (image_info->image_flags & IMAGE_FLAGS_ImageDynamicallyRelocated))
+@@ -3423,6 +3454,17 @@
+ 
+     status = map_image_view( &view, image_info, size, limit_low, limit_high, alloc_type );
+     if (status) goto done;
++    if (force_preferred_base && view->base != wine_server_get_ptr( preferred_image_base ))
++    {
++        WARN_(module)( "preferred image base %p is unavailable for %s\n",
++                       wine_server_get_ptr( preferred_image_base ), debugstr_us( nt_name ) );
++        delete_view( view );
++        status = STATUS_CONFLICTING_ADDRESSES;
++        goto done;
++    }
++    if (force_preferred_base)
++        WARN_(module)( "using preferred image base %p for %s\n",
++                       view->base, debugstr_us( nt_name ) );
+ 
+     status = map_image_into_view( view, nt_name, unix_fd, image_info, machine, shared_fd, needs_close );
+     if (status == STATUS_SUCCESS)
+@@ -3645,7 +3687,7 @@
+ void virtual_init(void)
+ {
+     const struct preload_info **preload_info = dlsym( RTLD_DEFAULT, "wine_main_preload_info" );
+-    const char *preload;
++    const char *preload, *preferred_base;
+     size_t size;
+     int i;
+     pthread_mutexattr_t attr;
+@@ -3669,6 +3711,18 @@
+ #endif
+ 
+     kernel_writewatch_init();
++
++    if ((preferred_base = getenv( "SECUNDA_PREFER_IMAGE_BASE" )))
++    {
++        char *end;
++        unsigned long long value = strtoull( preferred_base, &end, 0 );
++
++        if (*preferred_base && !*end && value && (ULONG_PTR)value == value)
++            preferred_image_base = value;
++        else
++            WARN( "ignoring invalid preferred image base %s\n", debugstr_a( preferred_base ) );
++    }
++    preferred_image_name = getenv( "SECUNDA_PREFER_IMAGE_NAME" );
+ 
+     if (preload_info && *preload_info)
+         for (i = 0; (*preload_info)[i].size; i++)

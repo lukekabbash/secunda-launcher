@@ -1,6 +1,6 @@
 import Foundation
 
-enum DisplayMode: String, Codable, CaseIterable, Sendable {
+enum DisplayMode: String, Codable, CaseIterable, Hashable, Sendable {
     case borderlessFullscreen
     case exclusiveFullscreen
     case windowed
@@ -50,9 +50,12 @@ struct GameSettings: Codable, Equatable, Sendable {
 struct LauncherSettings: Codable, Equatable, Sendable {
     var enableDiagnostics = false
     /// Wine's fast macOS synchronization. On by default; some titles fault
-    /// during start-up under it. The whole game space shares one setting,
-    /// so changing it takes effect after the game space is closed.
+    /// during start-up under it. This is the player's requested setting.
     var useFastSync = true
+    /// The setting used by the current or most recently closed wineserver.
+    /// Every process in one game space must agree, so a pending request is
+    /// promoted only while that game space is confirmed quiet.
+    var activeFastSync = true
     var games: [String: GameSettings] = [:]
     /// Selected default component per multi-component group (groupID → descriptorID).
     var groupDefaults: [String: String] = [:]
@@ -62,7 +65,11 @@ struct LauncherSettings: Codable, Equatable, Sendable {
     /// Settings for one game, falling back to defaults for games that have
     /// never been configured.
     func game(_ descriptor: GameDescriptor) -> GameSettings {
-        games[descriptor.id] ?? GameSettings()
+        if let stored = games[descriptor.id] { return stored }
+        var fresh = GameSettings()
+        fresh.displayMode = descriptor.preferredInitialDisplayMode
+        fresh.fieldOfView = descriptor.defaultFieldOfView
+        return fresh
     }
 
     mutating func setGame(_ settings: GameSettings, for descriptor: GameDescriptor) {
@@ -72,6 +79,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case enableDiagnostics
         case useFastSync
+        case activeFastSync
         case games
         case groupDefaults
         // Legacy flat keys from the single-game settings file.
@@ -87,6 +95,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enableDiagnostics = try container.decodeIfPresent(Bool.self, forKey: .enableDiagnostics) ?? false
         useFastSync = try container.decodeIfPresent(Bool.self, forKey: .useFastSync) ?? true
+        activeFastSync = try container.decodeIfPresent(Bool.self, forKey: .activeFastSync) ?? useFastSync
         groupDefaults = try container.decodeIfPresent([String: String].self, forKey: .groupDefaults) ?? [:]
         if let games = try container.decodeIfPresent([String: GameSettings].self, forKey: .games) {
             self.games = games
@@ -111,6 +120,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(enableDiagnostics, forKey: .enableDiagnostics)
         try container.encode(useFastSync, forKey: .useFastSync)
+        try container.encode(activeFastSync, forKey: .activeFastSync)
         try container.encode(games, forKey: .games)
         try container.encode(groupDefaults, forKey: .groupDefaults)
     }

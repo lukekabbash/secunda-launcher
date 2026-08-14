@@ -1,5 +1,11 @@
 import Foundation
 
+struct ExecutableDisplayPolicy: Equatable, Sendable {
+    let application: String
+    let decorated: Bool
+    let capturesDisplaysForFullscreen: Bool
+}
+
 final class BottleManager {
     static let gameDLLOverrides = [
         "x3daudio1_6",
@@ -14,6 +20,52 @@ final class BottleManager {
     ]
     static let forcedShutdownArguments = ["wineboot", "--kill", "--shutdown"]
     static let initializationWaitArguments = ["-w"]
+
+    /// Build an app-scoped Mac-driver decoration override. Keeping this
+    /// separate from the shared registry values prevents a fullscreen fix for
+    /// one game from changing Steam or another game in the bottle.
+    static func appMacDriverDecoration(
+        application: String,
+        decorated: Bool
+    ) -> (key: String, name: String, type: String, value: String)? {
+        guard !application.isEmpty,
+              !application.contains("\\"),
+              !application.contains("/")
+        else { return nil }
+        return (
+            key: "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(application)\\Mac Driver",
+            name: "Decorated",
+            type: "REG_SZ",
+            value: decorated ? "Y" : "N"
+        )
+    }
+
+    /// Emit only executable-scoped window policy. The X11 key owns Win32
+    /// decoration; the Mac key owns physical display capture.
+    static func appDisplayPolicyValues(
+        _ policy: ExecutableDisplayPolicy
+    ) -> [(key: String, name: String, type: String, value: String)] {
+        let application = policy.application
+        guard !application.isEmpty,
+              !application.contains("\\"),
+              !application.contains("/")
+        else { return [] }
+        let appKey = "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(application)"
+        return [
+            (
+                key: "\(appKey)\\X11 Driver",
+                name: "Decorated",
+                type: "REG_SZ",
+                value: policy.decorated ? "Y" : "N"
+            ),
+            (
+                key: "\(appKey)\\Mac Driver",
+                name: "CaptureDisplaysForFullscreen",
+                type: "REG_SZ",
+                value: policy.capturesDisplaysForFullscreen ? "Y" : "N"
+            )
+        ]
+    }
 
     private let paths: SecundaPaths
     private let processRunner: ProcessRunner
@@ -38,22 +90,37 @@ final class BottleManager {
         }
         try paths.prepareManagedDirectories()
 
-        if !hasWinePrefix(at: runtime.bottleRoot) {
+        let isNewPrefix = !hasWinePrefix(at: runtime.bottleRoot)
+        if isNewPrefix {
             try await createWineBottle(runtime: runtime, diagnostics: diagnostics)
         }
 
         try Self.preparePrivateDocuments(paths: paths, bottleRoot: runtime.bottleRoot)
-        try await configureMacDisplay(runtime: runtime, diagnostics: diagnostics)
+        // Existing prefixes may be carrying a deliberate per-game native-DPI
+        // contract. Reinitialization must not race that launch and put Retina
+        // cursor scaling back underneath a point-space game window.
+        if isNewPrefix {
+            try await configureMacDisplay(runtime: runtime, diagnostics: diagnostics)
+        }
     }
 
     func applyGameCompatibility(
         runtime: RuntimeDescriptor,
         diagnostics: Bool,
         logPixels: Int = GameProfileWriter.standardLogPixels,
+        retinaMode: Bool = true,
         nativeVoiceAudio: Bool = false,
-        d3d9Backend: D3D9Backend = .wined3d
+        d3d9Backend: D3D9Backend = .wined3d,
+        /// Optional per-executable Mac-driver decoration override. Keeping
+        /// this app-scoped avoids changing Steam or unrelated game windows in
+        /// the shared bottle.
+        macDriverApplication: String? = nil,
+        macDriverDecorated: Bool? = nil,
+        executableDisplayPolicies: [ExecutableDisplayPolicy] = [],
+        environment: [String: String]? = nil
     ) async throws {
-        let environment = runtimeManager.environment(for: runtime, diagnostics: diagnostics)
+        let effectiveEnvironment = environment
+            ?? runtimeManager.environment(for: runtime, diagnostics: diagnostics)
         let logURL = paths.logsDirectory.appendingPathComponent("game-compatibility.log")
 
         // The runtime has no WMA decode path, so xWMA voice lines are silent
@@ -79,7 +146,7 @@ final class BottleManager {
                     "reg", "add", "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides",
                     "/v", name, "/t", "REG_SZ", "/d", value, "/f"
                 ]),
-                environment: environment,
+                environment: effectiveEnvironment,
                 currentDirectory: runtime.bottleRoot,
                 logURL: logURL
             )
@@ -91,24 +158,48 @@ final class BottleManager {
         // Session DPI: 216 keeps Steam legible on Retina panels; 96 gives a
         // native-resolution game session exact 1:1 pixel mapping. The GL pin
         // keeps wined3d off its Vulkan backend now that MoltenVK is present.
+        // Retina mode goes with the DPI: win32 metrics report pixel-doubled
+        // geometry under it, but DXMT enumerates display modes through
+        // CoreGraphics in points — a maximized window and the game's mode
+        // list end up in different coordinate spaces and the image lands in
+        // a corner of the window. Native-DPI sessions drop to point space
+        // everywhere so window, desktop, and mode list agree.
         let registryValues: [(key: String, name: String, type: String, value: String)] = [
             (
                 key: "HKEY_CURRENT_USER\\Control Panel\\Desktop",
                 name: "LogPixels", type: "REG_DWORD", value: String(logPixels)
             ),
             (
+                key: "HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver",
+                name: "RetinaMode", type: "REG_SZ", value: retinaMode ? "Y" : "N"
+            ),
+            (
                 key: "HKEY_CURRENT_USER\\Software\\Wine\\Direct3D",
                 name: "renderer", type: "REG_SZ", value: "gl"
             )
         ]
-        for entry in registryValues {
+        var sessionRegistryValues = registryValues
+        if let macDriverApplication,
+           let macDriverDecorated,
+           let decoration = Self.appMacDriverDecoration(
+               application: macDriverApplication,
+               decorated: macDriverDecorated
+           ) {
+            sessionRegistryValues.append(decoration)
+        }
+        for executableDisplayPolicy in executableDisplayPolicies {
+            sessionRegistryValues.append(
+                contentsOf: Self.appDisplayPolicyValues(executableDisplayPolicy)
+            )
+        }
+        for entry in sessionRegistryValues {
             let result = try await processRunner.run(
                 executable: runtime.wineExecutable,
                 arguments: runtime.wineArguments(for: [
                     "reg", "add", entry.key,
                     "/v", entry.name, "/t", entry.type, "/d", entry.value, "/f"
                 ]),
-                environment: environment,
+                environment: effectiveEnvironment,
                 currentDirectory: runtime.bottleRoot,
                 logURL: logURL
             )

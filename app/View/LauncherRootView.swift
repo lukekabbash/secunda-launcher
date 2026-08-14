@@ -44,7 +44,7 @@ struct LauncherRootView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 MoonMark(size: 35)
                 VStack(alignment: .leading, spacing: 1) {
@@ -60,52 +60,54 @@ struct LauncherRootView: View {
                 }
             }
             .padding(.horizontal, 22)
+            .padding(.bottom, 24)
 
-            VStack(alignment: .leading, spacing: 4) {
-                SidebarRow(
-                    title: "Games",
-                    isSelected: model.selection == .games,
-                    icon: { SidebarSymbol(name: "square.grid.2x2.fill") }
-                ) {
-                    select(.games)
-                }
-
-                Text("LIBRARY")
-                    .font(.system(size: SecundaTheme.FontSize.micro, weight: .semibold))
-                    .tracking(1.8)
-                    .foregroundStyle(SecundaTheme.secondaryText)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 18)
-                    .padding(.bottom, 4)
-
-                ForEach(GameGroup.all) { group in
-                    let running = model.runningComponent(in: group)
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 4) {
                     SidebarRow(
-                        title: group.shortTitle,
-                        subtitle: sidebarSubtitle(for: group),
-                        isSelected: model.selection == .game(group.id),
-                        isRunning: running != nil,
-                        forceStopTitle: "Force stop \(group.shortTitle)?",
-                        onForceStop: running.map { component in
-                            { model.forceStopGame(component) }
-                        },
-                        icon: {
-                            SidebarGameThumb(
-                                descriptor: group.artworkComponent ?? model.defaultComponent(for: group),
-                                candidates: model.artworkCandidates(
-                                    for: group.artworkComponent ?? model.defaultComponent(for: group),
-                                    hero: false
-                                )
-                            )
-                        }
+                        title: "Games",
+                        isSelected: model.selection == .games,
+                        icon: { SidebarSymbol(name: "square.grid.2x2.fill") }
                     ) {
-                        select(.game(group.id))
+                        select(.games)
+                    }
+
+                    Text("LIBRARY")
+                        .font(.system(size: SecundaTheme.FontSize.micro, weight: .semibold))
+                        .tracking(1.8)
+                        .foregroundStyle(SecundaTheme.secondaryText)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 18)
+                        .padding(.bottom, 4)
+
+                    ForEach(GameGroup.all.filter { model.anyComponentInstalled(in: $0) }) { group in
+                        let isActive = model.isGroupActive(group)
+                        SidebarRow(
+                            title: group.shortTitle,
+                            subtitle: sidebarSubtitle(for: group),
+                            isSelected: model.selection == .game(group.id),
+                            isRunning: isActive,
+                            stopTitle: "Stop \(group.shortTitle)?",
+                            onStop: isActive ? { model.stopActiveGameSpace() } : nil,
+                            icon: {
+                                SidebarGameThumb(
+                                    descriptor: group.artworkComponent ?? model.defaultComponent(for: group),
+                                    candidates: model.artworkCandidates(
+                                        for: group.artworkComponent ?? model.defaultComponent(for: group),
+                                        hero: false
+                                    )
+                                )
+                            }
+                        ) {
+                            select(.game(group.id))
+                        }
                     }
                 }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 10)
-
-            Spacer()
+            .scrollIndicators(.hidden)
+            .frame(maxHeight: .infinity)
 
             VStack(spacing: 0) {
                 Rectangle()
@@ -140,13 +142,9 @@ struct LauncherRootView: View {
     }
 
     private func sidebarSubtitle(for group: GameGroup) -> String? {
-        if model.runningComponent(in: group) != nil { return "Running" }
-        if model.anyComponentInstalled(in: group) { return nil }
-        let anyChecking = group.components.contains {
-            if case .working = model.snapshot.game($0).state { return true }
-            return false
-        }
-        return anyChecking ? nil : "Not installed"
+        if model.isGroupLaunching(group) { return "Launching" }
+        if model.isGroupRunning(group) { return "Running" }
+        return nil
     }
 
     private func select(_ item: SidebarItem) {
@@ -213,14 +211,14 @@ private struct SidebarGameThumb: View {
 }
 
 /// Full-width sidebar row with a large forgiving hit area, hover state,
-/// and an optional hover-revealed force-stop control for game rows.
+/// and an optional hover-revealed stop control for the active game row.
 private struct SidebarRow<Icon: View>: View {
     let title: String
     var subtitle: String?
     let isSelected: Bool
     var isRunning = false
-    var forceStopTitle: String?
-    var onForceStop: (() -> Void)?
+    var stopTitle: String?
+    var onStop: (() -> Void)?
     @ViewBuilder var icon: Icon
     let action: () -> Void
 
@@ -243,14 +241,14 @@ private struct SidebarRow<Icon: View>: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if isRunning, !isHovering || onForceStop == nil {
+                if isRunning, !isHovering || onStop == nil {
                     Circle()
                         .fill(SecundaTheme.aurora)
                         .frame(width: 6, height: 6)
                         .transition(.opacity)
                         .help("\(title) is running")
                 }
-                if isHovering, onForceStop != nil {
+                if isHovering, onStop != nil {
                     Button {
                         showsStopConfirmation = true
                     } label: {
@@ -264,7 +262,7 @@ private struct SidebarRow<Icon: View>: View {
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .help("Force stop — for hung games; skips saving")
+                    .help("Stop the active game and close Secunda’s shared Windows space")
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
@@ -281,16 +279,16 @@ private struct SidebarRow<Icon: View>: View {
         .animation(.easeOut(duration: 0.14), value: isHovering)
         .onHover { isHovering = $0 }
         .confirmationDialog(
-            forceStopTitle ?? "Force stop?",
+            stopTitle ?? "Stop the active game?",
             isPresented: $showsStopConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Force Stop", role: .destructive) {
-                onForceStop?()
+            Button("Stop Game", role: .destructive) {
+                onStop?()
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Immediately kills this game's processes, including hung or orphaned ones. Unsaved progress is lost.")
+            Text("Save first when possible. This closes the active game and every Windows app in Secunda’s shared game space.")
         }
     }
 }

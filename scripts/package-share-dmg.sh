@@ -45,6 +45,14 @@ NETTLE_ARCHIVE="$REPOSITORY_ROOT/build/source-cache/nettle-3.10.tar.gz"
 EXPECTED_NETTLE_SHA256=b4c518adb174e484cb4acea54118f02380c7133771e7e9beb98a0787194ee47c
 EXPECTED_SOURCE_SHA256=$(/usr/bin/plutil -extract sourceArchive.sha256 raw -o - \
     "$REPOSITORY_ROOT/packaging/runtime-provenance.json")
+required_source_bundle_files=(
+    tools/secunda-rosetta-debug-broker.c
+    scripts/fetch-vulkan-stack.sh
+    licenses/DXMT-v0.80-LICENSE.txt
+    licenses/DXVK-v1.10.3-LICENSE.txt
+    licenses/MoltenVK-v1.4.2-LICENSE.txt
+    licenses/SDL2-v2.32.10-LICENSE.txt
+)
 
 cleanup() {
     rm -rf "$STAGING_ROOT"
@@ -72,6 +80,12 @@ if [[ ! -f "$NETTLE_ARCHIVE" ]]; then
     echo "Run scripts/build-runtime-dependencies.sh before packaging." >&2
     exit 1
 fi
+for required_source_bundle_file in "${required_source_bundle_files[@]}"; do
+    if [[ ! -f "$REPOSITORY_ROOT/$required_source_bundle_file" ]]; then
+        echo "Required source-bundle input is missing: $required_source_bundle_file" >&2
+        exit 1
+    fi
+done
 "$SCRIPT_DIR/verify-build-provenance.sh" "$SOURCE_ARCHIVE"
 SECUNDA_BUNDLE_RUNTIME=1 SECUNDA_RUNTIME_SOURCE="$RUNTIME_SOURCE" \
     "$SCRIPT_DIR/package-app.sh"
@@ -101,8 +115,9 @@ if [[ "$actual_source_sha256" != "$EXPECTED_SOURCE_SHA256" ]]; then
 fi
 
 SOURCE_STAGING="$STAGING_ROOT/Sources"
-mkdir -p "$SOURCE_STAGING/scripts" "$SOURCE_STAGING/packaging" \
-    "$SOURCE_STAGING/licenses" "$SOURCE_STAGING/build/source-cache"
+mkdir -p "$SOURCE_STAGING/scripts" "$SOURCE_STAGING/tools" \
+    "$SOURCE_STAGING/packaging" "$SOURCE_STAGING/licenses" \
+    "$SOURCE_STAGING/build/source-cache"
 ditto "$SOURCE_ARCHIVE" "$SOURCE_STAGING/$SOURCE_ARCHIVE_NAME"
 actual_nettle_sha256=$(shasum -a 256 "$NETTLE_ARCHIVE" | awk '{print $1}')
 if [[ "$actual_nettle_sha256" != "$EXPECTED_NETTLE_SHA256" ]]; then
@@ -121,14 +136,23 @@ install -m 0644 "$REPOSITORY_ROOT/packaging/runtime-sbom.spdx.json" \
     "$SOURCE_STAGING/packaging/runtime-sbom.spdx.json"
 install -m 0644 "$REPOSITORY_ROOT/packaging/WineRuntime.entitlements" \
     "$SOURCE_STAGING/packaging/WineRuntime.entitlements"
-install -m 0644 "$REPOSITORY_ROOT/licenses/DXMT-v0.80-LICENSE.txt" \
-    "$SOURCE_STAGING/licenses/DXMT-v0.80-LICENSE.txt"
+install -m 0644 "$REPOSITORY_ROOT/tools/secunda-rosetta-debug-broker.c" \
+    "$SOURCE_STAGING/tools/secunda-rosetta-debug-broker.c"
+for runtime_license in \
+    DXMT-v0.80-LICENSE.txt \
+    DXVK-v1.10.3-LICENSE.txt \
+    MoltenVK-v1.4.2-LICENSE.txt \
+    SDL2-v2.32.10-LICENSE.txt; do
+    install -m 0644 "$REPOSITORY_ROOT/licenses/$runtime_license" \
+        "$SOURCE_STAGING/licenses/$runtime_license"
+done
 for build_script in \
     build-runtime-dependencies.sh \
     build-runtime-from-archive.sh \
     build-runtime.sh \
     create-runtime-integrity.sh \
     fetch-dxmt.sh \
+    fetch-vulkan-stack.sh \
     publish-runtime-directory.sh \
     relocate-runtime.sh \
     stage-runtime-notices.sh \

@@ -31,6 +31,10 @@ RUNTIME_PATCHES=(
     "$REPOSITORY_ROOT/patches/wine-secunda-identity.patch"
     "$REPOSITORY_ROOT/patches/wine-clang-syscall-abi.patch"
     "$REPOSITORY_ROOT/patches/wine-secunda-cef-in-process-gpu.patch"
+    "$REPOSITORY_ROOT/patches/wine-secunda-rosetta-debug-registers.patch"
+    "$REPOSITORY_ROOT/patches/wine-secunda-compat-knobs.patch"
+    "$REPOSITORY_ROOT/patches/wine-avrt-mmcss-priority.patch"
+    "$REPOSITORY_ROOT/patches/wine-secunda-sdl-controller-bus.patch"
 )
 
 cleanup() {
@@ -155,10 +159,25 @@ cd "$BUILD_ROOT_ALIAS"
 
 grep -q '#define SONAME_LIBFREETYPE' include/config.h
 grep -q '#define SONAME_LIBGNUTLS' include/config.h
+# winebus dlopens SDL2 for controller support; without it the macOS IOHID bus
+# takes over and only Xbox pads reach XInput.
+grep -q '#define SONAME_LIBSDL2' include/config.h
 
 BUILD_JOBS=$(sysctl -n hw.logicalcpu 2>/dev/null || echo 8)
 make -j"$BUILD_JOBS"
 make install DESTDIR="$STAGE_CONTAINER"
+/usr/bin/clang \
+    -arch arm64 \
+    -isysroot "$(xcrun --sdk macosx --show-sdk-path)" \
+    -mmacosx-version-min="$DEPLOYMENT_TARGET" \
+    -O2 \
+    -g0 \
+    -Wall \
+    -Wextra \
+    -Werror \
+    -I"$SOURCE_ROOT/server" \
+    "$REPOSITORY_ROOT/tools/secunda-rosetta-debug-broker.c" \
+    -o "$STAGE_ROOT/bin/secunda-rosetta-debug-broker"
 RUNTIME_STAGE=$(mktemp -d "${RUNTIME_ROOT:h}/.secunda-runtime-stage.XXXXXX")
 ditto "$STAGE_ROOT" "$RUNTIME_STAGE"
 chmod 0755 "$RUNTIME_STAGE"
@@ -173,11 +192,21 @@ relocate_runtime_libraries "$RUNTIME_STAGE"
 
 while IFS= read -r -d '' runtime_file; do
     if file "$runtime_file" | grep -q 'Mach-O'; then
-        codesign --force --sign - "$runtime_file"
+        if [[ "$runtime_file" == "$RUNTIME_STAGE/bin/secunda-rosetta-debug-broker" ]]; then
+            codesign --force --sign - --options runtime "$runtime_file"
+        else
+            codesign --force --sign - "$runtime_file"
+        fi
     fi
 done < <(find "$RUNTIME_STAGE" -type f -print0)
 
 "$REPOSITORY_ROOT/scripts/relocate-runtime.sh" "$RUNTIME_STAGE" --fix
+# Relocation re-signs every modified Mach-O. Restore the native relay's
+# hardened-runtime option after that final load-command mutation.
+codesign --force --sign - --options runtime \
+    "$RUNTIME_STAGE/bin/secunda-rosetta-debug-broker"
+"$REPOSITORY_ROOT/scripts/verify-runtime-dependencies.sh" \
+    "$RUNTIME_STAGE" "$DEPLOYMENT_TARGET" --write-stamp
 "$REPOSITORY_ROOT/scripts/stage-runtime-notices.sh" "$RUNTIME_STAGE"
 "$REPOSITORY_ROOT/scripts/create-runtime-integrity.sh" "$RUNTIME_STAGE"
 SECUNDA_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \

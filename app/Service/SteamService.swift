@@ -10,6 +10,11 @@ final class SteamService {
         "-cef-allow-browser-underlays"
     ]
     static let interactiveOutput: ProcessOutput = .discard
+
+    static func launchOutput(diagnostics: Bool, logURL: URL) -> ProcessOutput {
+        diagnostics ? .append(logURL) : interactiveOutput
+    }
+
     private let paths: SecundaPaths
     private let processRunner: ProcessRunner
     private let runtimeManager: RuntimeManager
@@ -65,21 +70,25 @@ final class SteamService {
         runtime: RuntimeDescriptor,
         arguments: [String] = [],
         diagnostics: Bool,
-        extraEnvironment: [String: String] = [:]
+        environment: [String: String]? = nil
     ) throws -> Int32 {
         guard let executable = executable(in: runtime) else {
             throw CocoaError(.fileNoSuchFile)
         }
-        var environment = runtimeManager.environment(for: runtime, diagnostics: diagnostics)
-        environment.merge(extraEnvironment) { _, new in new }
         return try processRunner.launch(
             executable: runtime.wineExecutable,
             arguments: runtime.wineArguments(for: [
                 executable.path
             ] + Self.compatibilityArguments + arguments),
-            environment: environment,
+            // Steam is long-lived, so its environment must match the
+            // handoff's session stamp without receiving game-process values.
+            environment: environment
+                ?? runtimeManager.environment(for: runtime, diagnostics: diagnostics),
             currentDirectory: executable.deletingLastPathComponent(),
-            output: Self.interactiveOutput
+            output: Self.launchOutput(
+                diagnostics: diagnostics,
+                logURL: paths.logsDirectory.appendingPathComponent("steam-launch.log")
+            )
         )
     }
 

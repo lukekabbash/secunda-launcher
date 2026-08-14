@@ -56,14 +56,20 @@ required_paths=(
     "$SOURCE_ROOT/crossover-sources-26.3.0.tar.gz"
     "$SOURCE_ROOT/build/source-cache/nettle-3.10.tar.gz"
     "$SOURCE_ROOT/patches"
+    "$SOURCE_ROOT/tools/secunda-rosetta-debug-broker.c"
     "$SOURCE_ROOT/scripts/build-runtime-from-archive.sh"
     "$SOURCE_ROOT/scripts/build-runtime.sh"
+    "$SOURCE_ROOT/scripts/fetch-vulkan-stack.sh"
     "$SOURCE_ROOT/scripts/publish-runtime-directory.sh"
     "$SOURCE_ROOT/scripts/verify-runtime-payload.sh"
     "$SOURCE_ROOT/scripts/verify-runtime-integrity.sh"
     "$SOURCE_ROOT/packaging/WineRuntime.entitlements"
     "$SOURCE_ROOT/packaging/runtime-provenance.json"
     "$SOURCE_ROOT/packaging/runtime-sbom.spdx.json"
+    "$SOURCE_ROOT/licenses/DXMT-v0.80-LICENSE.txt"
+    "$SOURCE_ROOT/licenses/DXVK-v1.10.3-LICENSE.txt"
+    "$SOURCE_ROOT/licenses/MoltenVK-v1.4.2-LICENSE.txt"
+    "$SOURCE_ROOT/licenses/SDL2-v2.32.10-LICENSE.txt"
     "$SOURCE_ROOT/SOURCE_FILES.sha256"
 )
 for required_path in "${required_paths[@]}"; do
@@ -74,6 +80,15 @@ for required_path in "${required_paths[@]}"; do
 done
 
 "$SCRIPT_DIR/verify-packaged-app.sh" "$APP_ROOT"
+MOUNTED_LAUNCHER="$APP_ROOT/Contents/MacOS/SecundaLauncher"
+echo "Running mounted launcher self-test."
+env -i \
+    HOME="$SMOKE_HOME" \
+    LANG=en_US.UTF-8 \
+    LC_CTYPE=UTF-8 \
+    PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    TMPDIR="${TMPDIR:-/tmp}" \
+    "$MOUNTED_LAUNCHER" --self-test
 if find "$SOURCE_ROOT" -type l -print -quit | grep -q .; then
     echo "Corresponding source bundle contains an unexpected symlink." >&2
     exit 1
