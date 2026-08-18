@@ -30,14 +30,14 @@ The app creates its own private Windows prefix. Steam handles sign-in, ownership
 
 ## Compatibility
 
-Proven means played on a 2026 MacBook Air M5 with 24 GB of memory.
+I have run these on my 2026 MacBook Air M5 with 24 GB of memory.
 
 | Title or group | Current status |
 | --- | --- |
-| Skyrim Special Edition | Runs on a 2026 MacBook Air M5 (24 GB). |
-| Fallout 4 | Runs on a 2026 MacBook Air M5 (24 GB). |
-| Supreme Commander 2 | Runs on a 2026 MacBook Air M5 (24 GB). |
-| Insurgency | Runs on a 2026 MacBook Air M5 (24 GB). |
+| Skyrim Special Edition | I have run this on my 2026 MacBook Air M5 (24 GB). |
+| Fallout 4 | I have run this on my 2026 MacBook Air M5 (24 GB). |
+| Supreme Commander 2 | I have run this on my 2026 MacBook Air M5 (24 GB). |
+| Insurgency | I have run this on my 2026 MacBook Air M5 (24 GB). |
 | Black Ops II | Campaign exits early. Multiplayer and Zombies still need gameplay acceptance. |
 | Battlefront II Classic, Supreme Commander, Supreme Commander: Forged Alliance, and Angels Fall First | Catalogued. Untested. |
 
@@ -64,7 +64,7 @@ The current catalog contains:
 - Angels Fall First
 - Call of Duty: Black Ops II — Campaign, Multiplayer, and Zombies
 
-Skyrim Special Edition, Fallout 4, Supreme Commander 2, and Insurgency run on a 2026 MacBook Air M5 with 24 GB of memory. Supreme Commander, Forged Alliance, Battlefront II Classic, and Angels Fall First are catalogued and untested.
+I have run Skyrim Special Edition, Fallout 4, Supreme Commander 2, and Insurgency on my 2026 MacBook Air M5 with 24 GB of memory. I have not tested Supreme Commander, Forged Alliance, Battlefront II Classic, or Angels Fall First.
 
 ## Platform
 
