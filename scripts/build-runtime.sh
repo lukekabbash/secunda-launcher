@@ -59,6 +59,19 @@ apply_runtime_patch() {
     exit 1
 }
 
+relocate_prefixed_load_commands() {
+    local runtime_file=$1
+    local dependency
+    while IFS= read -r dependency; do
+        case "$dependency" in
+            @*|/usr/lib/*|/System/Library/*|/Library/Apple/*) ;;
+            /*)
+                install_name_tool -change "$dependency" "@rpath/${dependency:t}" "$runtime_file"
+                ;;
+        esac
+    done < <(otool -L "$runtime_file" 2>/dev/null | tail -n +2 | awk '{print $1}')
+}
+
 relocate_runtime_libraries() {
     local runtime_root=$1
     local library_root="$runtime_root/lib"
@@ -68,15 +81,11 @@ relocate_runtime_libraries() {
     install_name_tool -id @rpath/libhogweed.6.dylib "$library_root/libhogweed.6.9.dylib"
     install_name_tool -id @rpath/libgnutls.30.dylib "$library_root/libgnutls.30.dylib"
 
-    install_name_tool \
-        -change "$DEPS_ROOT_ALIAS/lib/libnettle.8.dylib" @rpath/libnettle.8.dylib \
-        -change "$DEPS_ROOT_ALIAS/lib/libgmp.10.dylib" @rpath/libgmp.10.dylib \
-        "$library_root/libhogweed.6.9.dylib"
-    install_name_tool \
-        -change "$DEPS_ROOT_ALIAS/lib/libhogweed.6.dylib" @rpath/libhogweed.6.dylib \
-        -change "$DEPS_ROOT_ALIAS/lib/libnettle.8.dylib" @rpath/libnettle.8.dylib \
-        -change "$DEPS_ROOT_ALIAS/lib/libgmp.10.dylib" @rpath/libgmp.10.dylib \
-        "$library_root/libgnutls.30.dylib"
+    # Use the LC_LOAD_DYLIB strings the linker actually wrote. A guessed
+    # $DEPS_ROOT_ALIAS miss (TMPDIR trailing slash -> T// vs T/) is a silent
+    # install_name_tool no-op.
+    relocate_prefixed_load_commands "$library_root/libhogweed.6.9.dylib"
+    relocate_prefixed_load_commands "$library_root/libgnutls.30.dylib"
 }
 
 if [[ ! -x "$SOURCE_ROOT/configure" ]]; then

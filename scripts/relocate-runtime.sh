@@ -30,6 +30,17 @@ runtime_rpath_for() {
     esac
 }
 
+is_system_or_relocated_dependency() {
+    case "$1" in
+        @*|/usr/lib/*|/System/Library/*|/Library/Apple/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+list_load_dylibs() {
+    otool -L "$1" 2>/dev/null | tail -n +2 | awk '{print $1}'
+}
+
 list_rpaths() {
     otool -l "$1" 2>/dev/null | awk '
         /cmd LC_RPATH/ { awaiting_path = 1; next }
@@ -82,20 +93,36 @@ while IFS= read -r -d '' runtime_file; do
         fi
     fi
 
+    # Rewrite whatever absolute prefix the build actually recorded. Autotools
+    # GnuTLS/Nettle store LC_LOAD_DYLIB from --prefix, and that string can
+    # differ from SECUNDA_DEPENDENCY_PREFIX_ALIAS (collapsed slashes, /var vs
+    # /private/var). install_name_tool -change is an exact match, so --fix
+    # must use the load-command text otool prints, not a guessed alias.
+    absolute_dependencies=()
+    while IFS= read -r dependency; do
+        is_system_or_relocated_dependency "$dependency" && continue
+        [[ "$dependency" == /* ]] && absolute_dependencies+=("$dependency")
+    done < <(list_load_dylibs "$runtime_file")
+
+    if (( ${#absolute_dependencies[@]} > 0 )); then
+        if [[ "$MODE" == "--fix" ]]; then
+            for dependency in "${absolute_dependencies[@]}"; do
+                echo "Relocating absolute dependency: $runtime_file -> $dependency => @rpath/${dependency:t}"
+                install_name_tool -change "$dependency" "@rpath/${dependency:t}" "$runtime_file"
+            done
+            file_changed=1
+        else
+            for dependency in "${absolute_dependencies[@]}"; do
+                echo "Non-system absolute dependency: $runtime_file -> $dependency" >&2
+                (( invalid_dependency_count += 1 ))
+            done
+        fi
+    fi
+
     if [[ "$MODE" == "--fix" && $file_changed -eq 1 ]]; then
         codesign --force --sign - "$runtime_file" >/dev/null
         (( fixed_file_count += 1 ))
     fi
-
-    while IFS= read -r dependency; do
-        case "$dependency" in
-            @*|/usr/lib/*|/System/Library/*|/Library/Apple/*) ;;
-            /*)
-                echo "Non-system absolute dependency: $runtime_file -> $dependency" >&2
-                (( invalid_dependency_count += 1 ))
-                ;;
-        esac
-    done < <(otool -L "$runtime_file" 2>/dev/null | tail -n +2 | awk '{print $1}')
 done < <(find "$RUNTIME_ROOT" -type f -print0)
 
 if (( invalid_dependency_count > 0 )); then
