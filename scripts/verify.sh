@@ -15,3 +15,4 @@ swift run \
 
 "$REPOSITORY_ROOT/scripts/test-source-only-provenance.sh"
 "$REPOSITORY_ROOT/scripts/test-relocate-runtime.sh"
+"$REPOSITORY_ROOT/scripts/test-package-share-source-root.sh"
