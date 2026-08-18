@@ -38,6 +38,7 @@ DMG_CANDIDATE_ROOT=$(mktemp -d "$REPOSITORY_ROOT/dist/.secunda-dmg-stage.XXXXXX"
 DMG_PATH="$DMG_CANDIDATE_ROOT/${FINAL_DMG_PATH:t}"
 CHECKSUM_PATH="$DMG_CANDIDATE_ROOT/${FINAL_CHECKSUM_PATH:t}"
 PRESERVE_DMG_CANDIDATE=0
+SOURCE_EXTRACT_ROOT=''
 SOURCE_ARCHIVE=${SECUNDA_SOURCE_ARCHIVE:-"$REPOSITORY_ROOT/crossover-sources-26.3.0.tar.gz"}
 SOURCE_ARCHIVE_NAME=crossover-sources-26.3.0.tar.gz
 RUNTIME_SOURCE=${SECUNDA_RUNTIME_SOURCE:-"$REPOSITORY_ROOT/Runtime/wine-macos15"}
@@ -56,6 +57,9 @@ required_source_bundle_files=(
 
 cleanup() {
     rm -rf "$STAGING_ROOT"
+    if [[ -n "${SOURCE_EXTRACT_ROOT:-}" ]]; then
+        rm -rf "$SOURCE_EXTRACT_ROOT"
+    fi
     if (( ${PRESERVE_DMG_CANDIDATE:-0} == 1 )); then
         echo "Preserved failed DMG publication transaction for recovery: $DMG_CANDIDATE_ROOT" >&2
     else
@@ -87,6 +91,19 @@ for required_source_bundle_file in "${required_source_bundle_files[@]}"; do
     fi
 done
 "$SCRIPT_DIR/verify-build-provenance.sh" "$SOURCE_ARCHIVE"
+if [[ -n "${SECUNDA_SOURCE_ROOT:-}" ]]; then
+    if [[ ! -f "$SECUNDA_SOURCE_ROOT/wine/LICENSE" ]]; then
+        echo "SECUNDA_SOURCE_ROOT is missing wine/LICENSE: $SECUNDA_SOURCE_ROOT" >&2
+        exit 1
+    fi
+elif [[ ! -f "$REPOSITORY_ROOT/sources/wine/LICENSE" ]]; then
+    # macos-15 CI restores Runtime/wine-macos15 and never checks out sources/.
+    # package-app.sh calls stage-runtime-notices.sh, which reads those files.
+    SOURCE_EXTRACT_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/secunda-source-extract.XXXXXX")
+    SECUNDA_SOURCE_ROOT=$("$SCRIPT_DIR/prepare-source-root.sh" \
+        "$SOURCE_ARCHIVE" "$SOURCE_EXTRACT_ROOT")
+    export SECUNDA_SOURCE_ROOT
+fi
 SECUNDA_BUNDLE_RUNTIME=1 SECUNDA_RUNTIME_SOURCE="$RUNTIME_SOURCE" \
     "$SCRIPT_DIR/package-app.sh"
 

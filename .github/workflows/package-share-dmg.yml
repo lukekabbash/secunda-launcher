@@ -222,6 +222,15 @@ jobs:
             echo "No Apple signing secrets present; packaging a TEST-ONLY DMG."
           fi
 
+      - name: Extract sources for runtime notices
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/secunda-source-root"
+          rm -rf "$dest"
+          source_root="$(./scripts/prepare-source-root.sh "$SOURCE_ARCHIVE" "$dest")"
+          echo "SECUNDA_SOURCE_ROOT=$source_root" >> "$GITHUB_ENV"
+          echo "Prepared $source_root for stage-runtime-notices.sh"
+
       - name: Package share DMG
         run: |
           set -euo pipefail
