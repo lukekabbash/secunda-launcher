@@ -3,7 +3,7 @@ import Foundation
 enum AppVersion {
     static var marketing: String {
         let bundled = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        guard let bundled, !bundled.isEmpty else { return "0.1.1" }
+        guard let bundled, !bundled.isEmpty else { return "0.1.0" }
         return bundled
     }
 
