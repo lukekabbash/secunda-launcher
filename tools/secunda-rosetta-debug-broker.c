@@ -42,6 +42,7 @@ struct debug_thread
     int unix_tid;
     uint16_t machine;
     unsigned int replay_pending;
+    unsigned int exit_trace_consumed;
     struct secunda_debug_registers registers;
 };
 
@@ -55,6 +56,9 @@ static struct debug_thread *debug_threads;
 static mach_port_t command_port;
 static mach_port_t pending_signal_thread;
 static int trace_enabled;
+static uint64_t exit_import_address;
+
+#define SECUNDA_ARM_WATCHPOINT_COUNT 4
 
 extern boolean_t exc_server(mach_msg_header_t *request, mach_msg_header_t *reply);
 extern int __pthread_kill(mach_port_t thread, int signal);
@@ -117,20 +121,38 @@ static unsigned int x86_watch_length(uint64_t dr7, unsigned int index)
     return lengths[(dr7 >> (18 + index * 4)) & 3];
 }
 
-static uint64_t arm_watch_control(uint64_t address, unsigned int length,
-                                  unsigned int access)
+static uint64_t arm_watch_control_with_access(uint64_t address, unsigned int length,
+                                              unsigned int load_store)
 {
     uint64_t byte_mask = ((UINT64_C(1) << length) - 1) << (address & 7);
-    unsigned int load_store = access == 1 ? 2 : 3;
 
     return UINT64_C(1) | (UINT64_C(3) << 1) |
            ((uint64_t)load_store << 3) | (byte_mask << 5);
 }
 
-static kern_return_t apply_debug_registers(struct debug_thread *entry)
+static uint64_t arm_watch_control(uint64_t address, unsigned int length,
+                                  unsigned int access)
+{
+    return arm_watch_control_with_access(address, length, access == 1 ? 2 : 3);
+}
+
+static int private_exit_watchpoint_slot(const struct debug_thread *entry)
+{
+    uint64_t dr7 = entry->registers.dr[7];
+    int slot;
+
+    if (!exit_import_address || entry->exit_trace_consumed) return -1;
+    for (slot = SECUNDA_ARM_WATCHPOINT_COUNT - 1; slot >= 0; --slot)
+        if (!(dr7 & (UINT64_C(3) << (slot * 2)))) return slot;
+    return -1;
+}
+
+static kern_return_t write_debug_state(struct debug_thread *entry,
+                                       int include_exit_trace)
 {
     struct arm_debug_state64_compat state;
     uint64_t dr7 = entry->registers.dr[7];
+    int exit_slot = include_exit_trace ? private_exit_watchpoint_slot(entry) : -1;
     unsigned int i;
 
     memset(&state, 0, sizeof(state));
@@ -148,9 +170,23 @@ static kern_return_t apply_debug_registers(struct debug_thread *entry)
             state.wcr[i] = arm_watch_control(address, x86_watch_length(dr7, i), access);
         }
     }
+    if (exit_slot >= 0)
+    {
+        state.wvr[exit_slot] = exit_import_address & ~UINT64_C(7);
+        /* Import binding writes this slot before the program can call through
+         * it. Observe loads only so that initialization cannot consume the
+         * single diagnostic event intended for the eventual exit call. */
+        state.wcr[exit_slot] =
+            arm_watch_control_with_access(exit_import_address, sizeof(uint32_t), 1);
+    }
     return thread_set_state(entry->port, ARM_DEBUG_STATE64_COMPAT,
                             (thread_state_t)&state,
                             sizeof(state) / sizeof(uint32_t));
+}
+
+static kern_return_t apply_debug_registers(struct debug_thread *entry)
+{
+    return write_debug_state(entry, !entry->exit_trace_consumed);
 }
 
 static kern_return_t suspend_hardware_debug_events(struct debug_thread *entry)
@@ -169,10 +205,12 @@ static kern_return_t configure_exception_port(struct debug_thread *entry)
     mach_port_t port = MACH_PORT_NULL;
     unsigned int i;
 
+    if (private_exit_watchpoint_slot(entry) >= 0) port = command_port;
+
     /* Guest execute breakpoints are stepped inside ntdll. Keeping this Mach
      * exception port attached for them would bounce every internal step
      * through the broker even though Rosetta reports translated ARM PCs. */
-    for (i = 0; i < 4; ++i)
+    for (i = 0; port == MACH_PORT_NULL && i < 4; ++i)
     {
         unsigned int access = (dr7 >> (16 + i * 4)) & 3;
 
@@ -264,6 +302,21 @@ static void handle_command(const struct secunda_debug_command *command)
     send_command_reply(command, result, &registers);
 }
 
+static int debug_address_matches(uint64_t watched_address,
+                                 uint64_t reported_address,
+                                 int data_event)
+{
+    if (!data_event) return watched_address == reported_address;
+
+    /* ARM reports the start of the translated memory access, which can be
+     * outside the selected bytes when a wider access overlaps them. The WVR
+     * and BAS fields identify the eight-byte hardware watchpoint granule, so
+     * any reported address in that granule belongs to the event already
+     * filtered by the processor. */
+    return (watched_address & ~UINT64_C(7)) ==
+           (reported_address & ~UINT64_C(7));
+}
+
 static unsigned int debug_event_hit_mask(const struct debug_thread *entry,
                                          uint64_t address,
                                          int data_event)
@@ -274,13 +327,10 @@ static unsigned int debug_event_hit_mask(const struct debug_thread *entry,
     for (i = 0; i < 4; i++)
     {
         unsigned int access = (dr7 >> (16 + i * 4)) & 3;
-        unsigned int length;
 
         if (!(dr7 & (UINT64_C(3) << (i * 2)))) continue;
         if (!!access != !!data_event) continue;
-        length = access ? x86_watch_length(dr7, i) : 1;
-        if (address >= entry->registers.dr[i] &&
-            address < entry->registers.dr[i] + length)
+        if (debug_address_matches(entry->registers.dr[i], address, data_event))
             mask |= 1u << i;
     }
     return mask;
@@ -320,6 +370,26 @@ kern_return_t catch_exception_raise(mach_port_t exception_port,
     }
 
     data_event = code[0] == EXC_ARM_DA_DEBUG;
+    if (data_event && exit_import_address && !entry->exit_trace_consumed &&
+        debug_address_matches(exit_import_address, (uint32_t)code[1], 1))
+    {
+        entry->exit_trace_consumed = 1;
+        result = write_debug_state(entry, 0);
+        if (result != KERN_SUCCESS)
+        {
+            entry->exit_trace_consumed = 0;
+            return result;
+        }
+        fprintf(stderr,
+                "SECUNDA_EXIT_IMPORT event=read thread=%u address=%#x\n",
+                entry->thread_id, (unsigned int)code[1]);
+        pending_signal_thread = thread;
+        if (!__pthread_kill(thread, SIGUSR2)) return KERN_SUCCESS;
+
+        entry->exit_trace_consumed = 0;
+        apply_debug_registers(entry);
+        return KERN_FAILURE;
+    }
     if (!(hit_mask = debug_event_hit_mask(entry, (uint32_t)code[1], data_event)))
         return KERN_FAILURE;
     entry->registers.dr[6] = SECUNDA_DEBUG_DR6_BASE | hit_mask;
@@ -455,10 +525,22 @@ static void run_broker(void)
 
 int main(int argc, char **argv)
 {
+    const char *exit_import_text;
+    char *exit_import_end;
     kern_return_t result;
 
     if (argc != 2) return 64;
     trace_enabled = getenv("SECUNDA_DEBUG_RELAY_TRACE") != NULL;
+    if ((exit_import_text = getenv("SECUNDA_TRACE_EXIT_IAT")))
+    {
+        exit_import_address = strtoull(exit_import_text, &exit_import_end, 0);
+        if (!exit_import_address || *exit_import_end || exit_import_address > UINT32_MAX)
+        {
+            fprintf(stderr, "SECUNDA_EXIT_IMPORT status=invalid-address value=%s\n",
+                    exit_import_text);
+            exit_import_address = 0;
+        }
+    }
     result = mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &command_port);
     if (result != KERN_SUCCESS) return 1;
     result = mach_port_insert_right(mach_task_self(), command_port, command_port,

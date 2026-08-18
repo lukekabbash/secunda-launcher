@@ -1,3 +1,1 @@
-# The self-contained macOS test bundle is large binary content. Store it in
-# Git LFS so normal Git history stays small while a clone can hydrate the app.
-"dist/Secunda Launcher.app/**" filter=lfs diff=lfs merge=lfs -text
+# Generated app bundles and Wine runtimes stay out of Git. See .gitignore.

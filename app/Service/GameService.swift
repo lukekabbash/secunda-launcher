@@ -232,13 +232,17 @@ final class GameService {
             }
             throw GameLaunchError.gameSpaceBusy(active.shortTitle)
         }
-        var sessionEnvironment = runtimeManager.environment(
-            for: runtime,
-            diagnostics: diagnostics,
-            sessionScope: Self.displaySessionScope(
-                descriptor: descriptor,
-                contract: displayContract
-            )
+        var sessionEnvironment = Self.sessionEnvironment(
+            base: runtimeManager.environment(
+                for: runtime,
+                diagnostics: diagnostics,
+                sessionScope: Self.displaySessionScope(
+                    descriptor: descriptor,
+                    contract: displayContract
+                )
+            ),
+            descriptor: descriptor,
+            diagnostics: diagnostics
         )
         try await ensureTrustedSessionEnvironment(
             runtime: runtime,
@@ -256,13 +260,17 @@ final class GameService {
                 descriptor: descriptor,
                 displayGeometry: refreshed
             )
-            let refreshedEnvironment = runtimeManager.environment(
-                for: runtime,
-                diagnostics: diagnostics,
-                sessionScope: Self.displaySessionScope(
-                    descriptor: descriptor,
-                    contract: refreshedContract
-                )
+            let refreshedEnvironment = Self.sessionEnvironment(
+                base: runtimeManager.environment(
+                    for: runtime,
+                    diagnostics: diagnostics,
+                    sessionScope: Self.displaySessionScope(
+                        descriptor: descriptor,
+                        contract: refreshedContract
+                    )
+                ),
+                descriptor: descriptor,
+                diagnostics: diagnostics
             )
             if refreshedEnvironment[RuntimeManager.sessionFingerprintKey]
                 != sessionEnvironment[RuntimeManager.sessionFingerprintKey] {
@@ -384,7 +392,7 @@ final class GameService {
         let handoff = try await processProbe.waitForHandoff(
             runtime: runtime,
             diagnostics: diagnostics,
-            timeoutSeconds: 90,
+            timeoutSeconds: descriptor.steamAuthorizationTimeoutSeconds,
             gameImages: descriptor.gameProcessImageNames,
             launcherImages: descriptor.launcherProcessImageNames,
             requiredStableSeconds: descriptor.preferredMaxFrameRate == nil
@@ -828,6 +836,40 @@ final class GameService {
         environment["SteamGameId"] = descriptor.steamAppID
         environment.merge(dxmtEnvironmentOverrides(for: descriptor)) { _, new in new }
         return environment
+    }
+
+    /// A protected child inherits process-latched compatibility state from
+    /// its parent. Apply the narrow translated-code policy before that shared
+    /// session begins, then restamp the complete environment.
+    static func sessionEnvironment(
+        base: [String: String],
+        descriptor: GameDescriptor,
+        diagnostics: Bool
+    ) -> [String: String] {
+        switch descriptor.id {
+        case "bo2-campaign", "bo2-multiplayer", "bo2-zombies":
+            var environment = base
+            environment["SECUNDA_ROSETTA_GUARDED_EXECUTE_READS"] = "1"
+            environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] = "1"
+            environment["SECUNDA_PREFER_IMAGE_BASE"] = "0x38000000"
+            environment["SECUNDA_PREFER_IMAGE_NAME"] = "steamclient.dll"
+            if diagnostics {
+                environment["SECUNDA_TRACE_PROTECTED_TRANSFORM"] = "1"
+                if let address = descriptor.diagnosticExitImportAddress {
+                    environment["SECUNDA_TRACE_EXIT_IAT"] = address
+                }
+                if let address = descriptor.diagnosticProtectedExitEntryAddress {
+                    environment["SECUNDA_TRACE_EXECUTE_ENTRY"] = address
+                }
+                environment["WINEDEBUG"] =
+                    "-all,err+thread,err+process,err+seh,warn+module,warn+debugstr"
+            }
+            environment[RuntimeManager.sessionFingerprintKey] =
+                RuntimeManager.sessionFingerprint(environment: environment)
+            return environment
+        default:
+            return base
+        }
     }
 
     /// DXMT config fragments that must land on the game process itself.

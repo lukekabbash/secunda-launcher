@@ -68,8 +68,18 @@ enum SelfCheck {
                 && GameDescriptor.blackOps2Zombies.steamAppID == "212910"
                 && GameDescriptor.blackOps2SP.gameImageName == "t6sp.exe"
                 && GameDescriptor.blackOps2MP.gameImageName == "t6mp.exe"
-                && GameDescriptor.blackOps2Zombies.gameImageName == "t6zm.exe",
-            "Black Ops II descriptors",
+                && GameDescriptor.blackOps2Zombies.gameImageName == "t6zm.exe"
+                && GameDescriptor.blackOps2SP.launchProfile.requiresVisibleWindow
+                && GameDescriptor.blackOps2MP.launchProfile.requiresVisibleWindow
+                && GameDescriptor.blackOps2Zombies.launchProfile.requiresVisibleWindow
+                && GameDescriptor.blackOps2SP.steamRunningDirectLaunch == nil
+                && GameDescriptor.blackOps2MP.steamRunningDirectLaunch == nil
+                && GameDescriptor.blackOps2Zombies.steamRunningDirectLaunch == nil
+                && GameDescriptor.blackOps2SP.steamAuthorizationTimeoutSeconds == 180
+                && GameDescriptor.blackOps2MP.steamAuthorizationTimeoutSeconds == 180
+                && GameDescriptor.blackOps2Zombies.steamAuthorizationTimeoutSeconds == 180
+                && GameDescriptor.skyrimSE.steamAuthorizationTimeoutSeconds == 90,
+            "Black Ops II keeps a measured Steam handoff window and requires a rendered surface",
             passes: &passes,
             failures: &failures
         )
@@ -570,6 +580,18 @@ enum SelfCheck {
                 )
                 && !GameLaunchRecorder.recordsFrameOutcome(
                     for: .fallout4,
+                    diagnostics: true
+                )
+                && GameLaunchRecorder.recordsFrameOutcome(
+                    for: .blackOps2SP,
+                    diagnostics: true
+                )
+                && GameLaunchRecorder.recordsFrameOutcome(
+                    for: .blackOps2MP,
+                    diagnostics: true
+                )
+                && GameLaunchRecorder.recordsFrameOutcome(
+                    for: .blackOps2Zombies,
                     diagnostics: true
                 )
                 && !GameLaunchRecorder.recordsFrameOutcome(
@@ -1302,6 +1324,12 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+        expect(
+            ProcessRunnerSelfCheck.appendLogsStayBounded(),
+            "diagnostic process logs stay within their byte budget and rotate",
+            passes: &passes,
+            failures: &failures
+        )
 
         let profile = GameProfileWriter.updatingDisplaySection(
             in: "[Display]\r\nbFull Screen=1\r\n[Audio]\r\nfMusicDuckingSeconds=6.0\r\n",
@@ -1937,6 +1965,72 @@ enum SelfCheck {
                 && sessionOnlyEnvironment["SteamAppId"] == nil
                 && gameOnlyEnvironment["SteamAppId"] == GameDescriptor.insurgency.steamAppID,
             "session stamps isolate process-latched display state, not resolution choices",
+            passes: &passes,
+            failures: &failures
+        )
+        let tracedBO2Environment = GameService.sessionEnvironment(
+            base: sessionOnlyEnvironment,
+            descriptor: .blackOps2Zombies,
+            diagnostics: true
+        )
+        let quietBO2Environment = GameService.sessionEnvironment(
+            base: sessionOnlyEnvironment,
+            descriptor: .blackOps2Zombies,
+            diagnostics: false
+        )
+        let tracedBO2MPEnvironment = GameService.sessionEnvironment(
+            base: sessionOnlyEnvironment,
+            descriptor: .blackOps2MP,
+            diagnostics: true
+        )
+        let tracedNonBO2Environment = GameService.sessionEnvironment(
+            base: sessionOnlyEnvironment,
+            descriptor: .insurgency,
+            diagnostics: true
+        )
+        expect(
+            tracedBO2Environment["SteamAppId"] == nil
+                && tracedBO2Environment["SteamGameId"] == nil
+                && quietBO2Environment["SteamAppId"] == nil
+                && quietBO2Environment["SteamGameId"] == nil
+                && tracedBO2Environment["SECUNDA_TRACE_PROTECTED_TRANSFORM"] == "1"
+                && tracedBO2Environment["SECUNDA_TRACE_EXIT_STACK"] == nil
+                && tracedBO2Environment["SECUNDA_TRACE_STARTUP_GATES"] == nil
+                && tracedBO2Environment["SECUNDA_TRACE_EXIT_IAT"] == "0x00B6A1C8"
+                && tracedBO2MPEnvironment["SECUNDA_TRACE_EXIT_IAT"] == "0x00B701C8"
+                && tracedBO2Environment["SECUNDA_TRACE_EXECUTE_ENTRY"] == "0x009AF460"
+                && tracedBO2MPEnvironment["SECUNDA_TRACE_EXECUTE_ENTRY"]
+                    == "0x009B2DB0,0x009B2E80,0x009B2F50"
+                && tracedBO2Environment["SECUNDA_ROSETTA_GUARDED_EXECUTE_READS"] == "1"
+                && tracedBO2Environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] == "1"
+                && tracedBO2Environment["SECUNDA_PREFER_IMAGE_BASE"] == "0x38000000"
+                && tracedBO2Environment["SECUNDA_PREFER_IMAGE_NAME"] == "steamclient.dll"
+                && tracedBO2Environment["WINEDEBUG"]
+                    == "-all,err+thread,err+process,err+seh,warn+module,warn+debugstr"
+                && quietBO2Environment["SECUNDA_TRACE_PROTECTED_TRANSFORM"] == nil
+                && quietBO2Environment["SECUNDA_TRACE_EXIT_STACK"] == nil
+                && quietBO2Environment["SECUNDA_TRACE_STARTUP_GATES"] == nil
+                && quietBO2Environment["SECUNDA_TRACE_EXIT_IAT"] == nil
+                && quietBO2Environment["SECUNDA_TRACE_EXECUTE_ENTRY"] == nil
+                && quietBO2Environment["WINEDEBUG"] == nil
+                && quietBO2Environment["SECUNDA_ROSETTA_GUARDED_EXECUTE_READS"] == "1"
+                && quietBO2Environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] == "1"
+                && quietBO2Environment["SECUNDA_PREFER_IMAGE_BASE"] == "0x38000000"
+                && quietBO2Environment["SECUNDA_PREFER_IMAGE_NAME"] == "steamclient.dll"
+                && tracedNonBO2Environment["SECUNDA_TRACE_PROTECTED_TRANSFORM"] == nil
+                && tracedNonBO2Environment["SECUNDA_TRACE_STARTUP_GATES"] == nil
+                && tracedNonBO2Environment["SECUNDA_TRACE_EXIT_IAT"] == nil
+                && tracedNonBO2Environment["SECUNDA_TRACE_EXECUTE_ENTRY"] == nil
+                && tracedNonBO2Environment["WINEDEBUG"] == nil
+                && tracedNonBO2Environment["SECUNDA_ROSETTA_GUARDED_EXECUTE_READS"] == nil
+                && tracedNonBO2Environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] == nil
+                && tracedNonBO2Environment["SECUNDA_PREFER_IMAGE_BASE"] == nil
+                && tracedNonBO2Environment["SECUNDA_PREFER_IMAGE_NAME"] == nil
+                && tracedBO2Environment[RuntimeManager.sessionFingerprintKey]
+                    == RuntimeManager.sessionFingerprint(environment: tracedBO2Environment)
+                && tracedBO2Environment[RuntimeManager.sessionFingerprintKey]
+                    != sessionOnlyEnvironment[RuntimeManager.sessionFingerprintKey],
+            "BO2 diagnostics trace and fingerprint the protected startup session",
             passes: &passes,
             failures: &failures
         )

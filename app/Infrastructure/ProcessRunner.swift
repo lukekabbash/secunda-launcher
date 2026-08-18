@@ -65,16 +65,28 @@ private final class ProcessRunCompletion: @unchecked Sendable {
 
 private struct ConfiguredProcess {
     let process: Process
-    let ownedOutputHandle: FileHandle?
+    let boundedLog: BoundedProcessLog?
+
+    func childDidLaunch() {
+        boundedLog?.childDidLaunch()
+    }
 
     func closeOutput() {
-        try? ownedOutputHandle?.close()
+        boundedLog?.finish()
     }
 }
 
 final class ProcessRunner {
+    static let defaultMaximumLogBytes = 8 * 1_024 * 1_024
+
     private let lock = NSLock()
+    private let maximumLogBytes: Int
     private var activeProcesses: [Int32: Process] = [:]
+
+    init(maximumLogBytes: Int = ProcessRunner.defaultMaximumLogBytes) {
+        precondition(maximumLogBytes > 0)
+        self.maximumLogBytes = maximumLogBytes
+    }
 
     func run(
         executable: URL,
@@ -110,7 +122,14 @@ final class ProcessRunner {
                         ))
                     }
                 }
-                try process.run()
+                do {
+                    try process.run()
+                } catch {
+                    configured.childDidLaunch()
+                    configured.closeOutput()
+                    throw error
+                }
+                configured.childDidLaunch()
                 scheduleTimeout(
                     seconds: timeoutSeconds,
                     process: process,
@@ -234,7 +253,14 @@ final class ProcessRunner {
             self?.activeProcesses.removeValue(forKey: process.processIdentifier)
             self?.lock.unlock()
         }
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            configured.childDidLaunch()
+            configured.closeOutput()
+            throw error
+        }
+        configured.childDidLaunch()
 
         lock.lock()
         activeProcesses[process.processIdentifier] = process
@@ -258,22 +284,14 @@ final class ProcessRunner {
 
         switch output {
         case .append(let logURL):
-            try FileManager.default.createDirectory(
-                at: logURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            if !FileManager.default.fileExists(atPath: logURL.path) {
-                FileManager.default.createFile(atPath: logURL.path, contents: nil)
-            }
-            let handle = try FileHandle(forWritingTo: logURL)
-            try handle.seekToEnd()
-            process.standardOutput = handle
-            process.standardError = handle
-            return ConfiguredProcess(process: process, ownedOutputHandle: handle)
+            let log = try BoundedProcessLog(url: logURL, maximumBytes: maximumLogBytes)
+            process.standardOutput = log.pipe
+            process.standardError = log.pipe
+            return ConfiguredProcess(process: process, boundedLog: log)
         case .discard:
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
-            return ConfiguredProcess(process: process, ownedOutputHandle: nil)
+            return ConfiguredProcess(process: process, boundedLog: nil)
         }
     }
 

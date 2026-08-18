@@ -18,6 +18,65 @@ private final class CaptureContractResult: @unchecked Sendable {
 }
 
 enum ProcessRunnerSelfCheck {
+    static func appendLogsStayBounded() -> Bool {
+        let completion = DispatchSemaphore(value: 0)
+        let result = CaptureContractResult()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("secunda-process-log-self-check-\(UUID().uuidString)")
+        let log = directory.appendingPathComponent("diagnostic.log")
+
+        Task.detached {
+            defer {
+                try? FileManager.default.removeItem(at: directory)
+                completion.signal()
+            }
+            do {
+                let runner = ProcessRunner(maximumLogBytes: 1_024)
+                let first = try await runner.run(
+                    executable: URL(fileURLWithPath: "/bin/sh"),
+                    arguments: ["-c", "/usr/bin/awk 'BEGIN { for (i = 0; i < 4096; i++) printf \"x\" }'"],
+                    environment: [:],
+                    logURL: log,
+                    timeoutSeconds: 2
+                )
+                let firstData = try Data(contentsOf: log)
+                if firstData.count != 1_024 {
+                    let detail = "bounded-log-self-check first-before-rotate=\(firstData.count)\n"
+                    try? FileHandle.standardError.write(contentsOf: Data(detail.utf8))
+                }
+                let second = try await runner.run(
+                    executable: URL(fileURLWithPath: "/usr/bin/printf"),
+                    arguments: ["new"],
+                    environment: [:],
+                    logURL: log,
+                    timeoutSeconds: 2
+                )
+                let archive = directory.appendingPathComponent("diagnostic.previous.log")
+                let secondData = try Data(contentsOf: log)
+                let archiveData = try Data(contentsOf: archive)
+                let passed =
+                    first.terminationStatus == 0
+                        && second.terminationStatus == 0
+                        && firstData == Data(repeating: 120, count: 1_024)
+                        && secondData == Data("new".utf8)
+                        && archiveData.count == 1_024
+                if !passed {
+                    let detail = "bounded-log-self-check first=\(firstData.count) second=\(secondData.count) archive=\(archiveData.count)\n"
+                    try? FileHandle.standardError.write(contentsOf: Data(detail.utf8))
+                }
+                result.record(passed)
+            } catch {
+                let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+                let detail = "bounded-log-self-check error=\(error.localizedDescription) files=\(names.sorted())\n"
+                try? FileHandle.standardError.write(contentsOf: Data(detail.utf8))
+                result.record(false)
+            }
+        }
+
+        guard completion.wait(timeout: .now() + 5) == .success else { return false }
+        return result.snapshot()
+    }
+
     static func captureCompletesWhenChildInheritsOutput() -> Bool {
         runCaptureContract(
             command: "/bin/sleep 2 & /usr/bin/printf capture-complete",

@@ -1,3 +1,1701 @@
+diff --git a/dlls/ntdll/unix/signal_i386.c b/dlls/ntdll/unix/signal_i386.c
+--- a/dlls/ntdll/unix/signal_i386.c
++++ b/dlls/ntdll/unix/signal_i386.c
+@@ -2035,6 +2035,53 @@
+  *
+  * Handler for SIGTRAP.
+  */
++static BOOL get_relayed_debug_registers( CONTEXT *context )
++{
++#ifdef __APPLE__
++    DWORD saved_flags;
++
++    saved_flags = context->ContextFlags;
++    context->ContextFlags = CONTEXT_DEBUG_REGISTERS;
++    if (NtGetContextThread( GetCurrentThread(), context ))
++    {
++        context->ContextFlags = saved_flags;
++        return FALSE;
++    }
++    context->ContextFlags |= saved_flags;
++    return TRUE;
++#else
++    return FALSE;
++#endif
++}
++
++static BOOL is_relayed_debug_trap( ucontext_t *ucontext, CONTEXT *context )
++{
++#ifdef __APPLE__
++    if (TRAP_sig(ucontext) != 0xde) return FALSE;
++    if (!get_relayed_debug_registers( context )) return FALSE;
++    return !!(context->Dr6 & 0xf);
++#endif
++    return FALSE;
++}
++
++#ifdef __APPLE__
++static void replay_data_watchpoint_handler( int signal, siginfo_t *siginfo, void *sigcontext )
++{
++    ucontext_t *ucontext = sigcontext;
++    struct xcontext xcontext;
++
++    (void)signal;
++    (void)siginfo;
++
++    /* The broker reserves this signal for data-watchpoint replay. Refresh the
++     * logical debug state, then execute exactly one interrupted instruction. */
++    init_handler( ucontext );
++    save_context( &xcontext, ucontext );
++    get_relayed_debug_registers( &xcontext.c );
++    EFL_sig(ucontext) |= 0x100;
++}
++#endif
++
+ static void trap_handler( int signal, siginfo_t *siginfo, void *sigcontext )
+ {
+     EXCEPTION_RECORD rec = { 0 };
+@@ -2044,7 +2091,9 @@
+ 
+     if (handle_syscall_trap( ucontext, siginfo )) return;
+ 
+-    switch (TRAP_sig(ucontext))
++    if (is_relayed_debug_trap( ucontext, &xcontext.c ))
++        rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
++    else switch (TRAP_sig(ucontext))
+     {
+     case TRAP_x86_TRCTRAP:  /* Single-step exception */
+         rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
+@@ -2421,6 +2470,10 @@
+     if (sigaction( SIGUSR1, &sig_act, NULL ) == -1) goto error;
+     sig_act.sa_sigaction = trap_handler;
+     if (sigaction( SIGTRAP, &sig_act, NULL ) == -1) goto error;
++#ifdef __APPLE__
++    sig_act.sa_sigaction = replay_data_watchpoint_handler;
++    if (sigaction( SIGEMT, &sig_act, NULL ) == -1) goto error;
++#endif
+     sig_act.sa_sigaction = segv_handler;
+     if (sigaction( SIGSEGV, &sig_act, NULL ) == -1) goto error;
+     if (sigaction( SIGILL, &sig_act, NULL ) == -1) goto error;
+diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
+--- a/dlls/ntdll/unix/signal_x86_64.c
++++ b/dlls/ntdll/unix/signal_x86_64.c
+@@ -27,6 +27,7 @@
+ #include "config.h"
+ 
+ #include <assert.h>
++#include <errno.h>
+ #include <pthread.h>
+ #include <signal.h>
+ #include <stdlib.h>
+@@ -63,6 +64,7 @@
+ #endif
+ #ifdef __APPLE__
+ # include <mach/mach.h>
++# include <mach/mach_vm.h>
+ #endif
+ 
+ #include "ntstatus.h"
+@@ -84,6 +86,17 @@
+ /* CW Hack 24256 */
+ #include <sys/sysctl.h>
+ static BOOL is_rosetta2;
++static BOOL trace_i386_exception_stacks;
++static BOOL trace_i386_protected_transform;
++static BOOL trace_i386_exit_import;
++#define I386_EXECUTE_ENTRY_COUNT 4
++static DWORD_PTR trace_i386_execute_entries[I386_EXECUTE_ENTRY_COUNT];
++static unsigned int trace_i386_execute_entry_count;
++static volatile LONG i386_execute_entry_state;
++static const TEB *i386_execute_entry_owner;
++static BOOL preserve_i386_guarded_execute_reads;
++static BOOL emulate_i386_protected_hash_copy_reads;
++static BOOL emulate_i386_protected_hash_copy_smoke;
+ 
+ /* CW Hack 23427 */
+ static BOOL sequoia_or_later = FALSE;
+@@ -93,6 +106,22 @@
+ static USHORT cs64_sel;  /* selector for %cs in 64-bit mode */
+ static USHORT ds64_sel;  /* selector for %ds/%es/%ss in 64-bit mode */
+ static USHORT fs32_sel;  /* selector for %fs in 32-bit mode */
++
++#ifdef __APPLE__
++struct xcontext;
++#define I386_DR6_BASE 0xffff0ff0u
++static void update_i386_execute_breakpoints( const I386_CONTEXT *context );
++static void schedule_i386_execute_breakpoint_resume( I386_CONTEXT *context );
++static unsigned int i386_execute_breakpoint_hit_mask( const CONTEXT *context, ULONG_PTR address );
++static void consume_i386_execute_breakpoint( unsigned int hit_mask );
++static BOOL i386_data_breakpoint_hit_values( ULONG64 dr6, ULONG64 dr7 );
++static int handle_i386_execute_page_fault( ucontext_t *ucontext,
++                                           EXCEPTION_RECORD *rec,
++                                           struct xcontext *context );
++static BOOL emulate_i386_protected_hash_copy( ucontext_t *ucontext,
++                                              const EXCEPTION_RECORD *rec,
++                                              const CONTEXT *context );
++#endif
+ 
+ /***********************************************************************
+  * signal context platform-specific definitions
+@@ -508,6 +537,17 @@
+     void                **instrumentation_callback; /* 0330 */
+     DWORD                 fs;            /* 0338 WOW TEB selector */
+     DWORD                 mxcsr;         /* 033c Unix-side mxcsr register */
++#ifdef __APPLE__
++    DWORD_PTR             execute_bp[4];
++    DWORD_PTR             execute_step_page;
++    BYTE                  execute_bp_active;
++    BYTE                  execute_bp_suppressed;
++    BYTE                  execute_step_guest_tf;
++    BYTE                  execute_page_stepping;
++    BYTE                  execute_step_foreign;
++    BYTE                  data_replay_tf;
++    BYTE                  execute_dispatch_pending;
++#endif
+ };
+ 
+ C_ASSERT( sizeof(struct amd64_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
+@@ -1118,6 +1158,19 @@
+     DWORD flags = context->ContextFlags & ~CONTEXT_AMD64;
+     BOOL self = (handle == GetCurrentThread());
+     struct syscall_frame *frame = get_syscall_frame();
++    const int trace_handoff = !self && getenv( "SECUNDA_TRACE_REMOTE_HANDOFF" ) != NULL;
++
++    if (trace_handoff)
++        fprintf( stderr,
++                 "SECUNDA_REMOTE_CONTEXT pid=%u thread=%p flags=%08x rip=%llx rsp=%llx dr0=%llx dr1=%llx dr2=%llx dr3=%llx dr7=%llx phase=begin\n",
++                 (unsigned int)getpid(), handle, flags,
++                 (unsigned long long)((flags & CONTEXT_CONTROL) ? context->Rip : 0),
++                 (unsigned long long)((flags & CONTEXT_CONTROL) ? context->Rsp : 0),
++                 (unsigned long long)((flags & CONTEXT_DEBUG_REGISTERS) ? context->Dr0 : 0),
++                 (unsigned long long)((flags & CONTEXT_DEBUG_REGISTERS) ? context->Dr1 : 0),
++                 (unsigned long long)((flags & CONTEXT_DEBUG_REGISTERS) ? context->Dr2 : 0),
++                 (unsigned long long)((flags & CONTEXT_DEBUG_REGISTERS) ? context->Dr3 : 0),
++                 (unsigned long long)((flags & CONTEXT_DEBUG_REGISTERS) ? context->Dr7 : 0) );
+ 
+     if ((flags & CONTEXT_XSTATE) && xstate_extended_features)
+     {
+@@ -1153,7 +1206,13 @@
+             ret = STATUS_SUCCESS;
+         }
+ #endif
+-        if (ret || !self) return ret;
++        if (ret || !self)
++        {
++            if (trace_handoff)
++                fprintf( stderr, "SECUNDA_REMOTE_CONTEXT pid=%u thread=%p status=%08x self=%u phase=end\n",
++                         (unsigned int)getpid(), handle, ret, self );
++            return ret;
++        }
+         if (flags & CONTEXT_DEBUG_REGISTERS)
+         {
+             amd64_thread_data()->dr0 = context->Dr0;
+@@ -1207,6 +1266,9 @@
+     }
+ 
+     frame->restore_flags |= flags & ~CONTEXT_INTEGER;
++    if (trace_handoff)
++        fprintf( stderr, "SECUNDA_REMOTE_CONTEXT pid=%u thread=%p status=%08x self=%u phase=end\n",
++                 (unsigned int)getpid(), handle, STATUS_SUCCESS, self );
+     return STATUS_SUCCESS;
+ }
+ 
+@@ -1414,6 +1476,10 @@
+         wow_frame->Ebp    = context->Ebp;
+         wow_frame->Eip    = context->Eip;
+         wow_frame->EFlags = context->EFlags;
++#ifdef __APPLE__
++        if (is_rosetta2 && amd64_thread_data()->data_replay_tf)
++            wow_frame->EFlags &= ~0x100;
++#endif
+         wow_frame->SegCs  = context->SegCs;
+         wow_frame->SegSs  = context->SegSs;
+         cpu->Flags |= WOW64_CPURESERVED_FLAG_RESET_STATE;
+@@ -1433,6 +1499,28 @@
+         wow_frame->Dr3 = context->Dr3;
+         wow_frame->Dr6 = context->Dr6;
+         wow_frame->Dr7 = context->Dr7;
++#ifdef __APPLE__
++        if (is_rosetta2)
++        {
++            struct amd64_thread_data *data = amd64_thread_data();
++
++            update_i386_execute_breakpoints( context );
++            if (!data->execute_bp_active && data->execute_page_stepping &&
++                !data->execute_step_foreign)
++            {
++                if (!data->execute_step_guest_tf) wow_frame->EFlags &= ~0x100;
++                data->execute_step_guest_tf = 0;
++                data->execute_page_stepping = 0;
++                data->execute_step_page = 0;
++                data->execute_step_foreign = 0;
++            }
++            if (flags & CONTEXT_I386_CONTROL)
++                schedule_i386_execute_breakpoint_resume( wow_frame );
++            if (data->data_replay_tf &&
++                !i386_data_breakpoint_hit_values( context->Dr6, context->Dr7 ))
++                data->data_replay_tf = 0;
++        }
++#endif
+     }
+     if (flags & CONTEXT_I386_EXTENDED_REGISTERS)
+     {
+@@ -2490,6 +2578,50 @@
+ }
+ 
+ 
++#ifdef __APPLE__
++/***********************************************************************
++ *           trace_i386_exception_stack
++ *
++ * Emit a bounded stack snapshot for 32-bit faults translated by Rosetta.
++ */
++static void trace_i386_exception_stack( const EXCEPTION_RECORD *rec, const CONTEXT *context )
++{
++    DWORD words[512];
++    const void *snapshot;
++    SIZE_T bytes, count;
++    unsigned int i;
++
++    if (!trace_i386_exception_stacks || context->SegCs != cs32_sel ||
++        rec->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
++        return;
++
++    /* Keep the read on the faulting stack page. A large snapshot can cross the
++     * stack allocation boundary and make an otherwise readable continuation
++     * look empty. Aligning down preserves the words around the current guest
++     * stack pointer. */
++    snapshot = (const void *)(ULONG_PTR)((DWORD)context->Rsp & ~15u);
++    bytes = virtual_uninterrupted_read_memory( snapshot, words, sizeof(words) );
++    count = bytes / sizeof(*words);
++    TRACE_(seh)( "i386 exception stack eip=%08x esp=%08x snapshot=%p bytes=%lu\n",
++                 (DWORD)context->Rip, (DWORD)context->Rsp, snapshot, bytes );
++
++    for (i = 0; i < count; i += 4)
++    {
++        if (count - i >= 4)
++            TRACE_(seh)( " stack[%03u]=%08x %08x %08x %08x\n", i,
++                         words[i], words[i + 1], words[i + 2], words[i + 3] );
++        else if (count - i == 3)
++            TRACE_(seh)( " stack[%03u]=%08x %08x %08x\n", i,
++                         words[i], words[i + 1], words[i + 2] );
++        else if (count - i == 2)
++            TRACE_(seh)( " stack[%03u]=%08x %08x\n", i, words[i], words[i + 1] );
++        else
++            TRACE_(seh)( " stack[%03u]=%08x\n", i, words[i] );
++    }
++}
++#endif
++
++
+ /**********************************************************************
+  *		segv_handler
+  *
+@@ -2542,6 +2674,37 @@
+         rec.NumberParameters = 2;
+         rec.ExceptionInformation[0] = (ERROR_sig(ucontext) >> 1) & 0x09;
+         rec.ExceptionInformation[1] = (ULONG_PTR)siginfo->si_addr;
++#ifdef __APPLE__
++        if (trace_i386_protected_transform &&
++            ((DWORD)context.c.Rip == 0x00a6c847 ||
++             (DWORD)context.c.Rip == 0x00a72c37))
++            fprintf( stderr,
++                     "SECUNDA_PROTECTED_SIGNAL tid=%p signal=%d trap=%u error=%#x "
++                     "access=%lu fault=%08x eip=%08x esi=%08x edi=%08x ecx=%08x\n",
++                     NtCurrentTeb()->ClientId.UniqueThread, signal,
++                     TRAP_sig(ucontext), ERROR_sig(ucontext),
++                     rec.ExceptionInformation[0], (DWORD)rec.ExceptionInformation[1],
++                     (DWORD)context.c.Rip, (DWORD)context.c.Rsi,
++                     (DWORD)context.c.Rdi, (DWORD)context.c.Rcx );
++        if (emulate_i386_protected_hash_copy( ucontext, &rec, &context.c ))
++        {
++            leave_handler( ucontext );
++            return;
++        }
++        if (is_rosetta2 &&
++            rec.ExceptionInformation[0] == EXCEPTION_EXECUTE_FAULT)
++        {
++            int execute_breakpoint = handle_i386_execute_page_fault( ucontext, &rec,
++                                                                      &context );
++
++            if (execute_breakpoint == 1)
++            {
++                leave_handler( ucontext );
++                return;
++            }
++            if (execute_breakpoint == 2) break;
++        }
++#endif
+         if (!virtual_handle_fault( &rec, (void *)RSP_sig(ucontext) ) || check_invalid_gsbase( ucontext ))
+         {
+             leave_handler( ucontext );
+@@ -2582,6 +2745,9 @@
+         break;
+     }
+     if (handle_syscall_fault( ucontext, &rec, &context.c )) return;
++#ifdef __APPLE__
++    trace_i386_exception_stack( &rec, &context.c );
++#endif
+     setup_raise_exception( ucontext, &rec, &context );
+ }
+ 
+@@ -2591,19 +2757,1277 @@
+  *
+  * Handler for SIGTRAP.
+  */
++static BOOL get_relayed_debug_registers( CONTEXT *context )
++{
++#ifdef __APPLE__
++    DWORD saved_flags;
++
++    saved_flags = context->ContextFlags;
++    context->ContextFlags = CONTEXT_DEBUG_REGISTERS;
++    if (NtGetContextThread( GetCurrentThread(), context ))
++    {
++        context->ContextFlags = saved_flags;
++        return FALSE;
++    }
++    context->ContextFlags |= saved_flags;
++    return TRUE;
++#else
++    return FALSE;
++#endif
++}
++
++static BOOL get_relayed_debug_event( ucontext_t *ucontext, CONTEXT *context,
++                                     BOOL *data_replay )
++{
++#ifdef __APPLE__
++    const ULONG64 replay_marker = (ULONG64)1 << 63;
++    ULONG_PTR trap = TRAP_sig(ucontext);
++
++    if (trap != 0xde &&
++        (trap != TRAP_x86_TRCTRAP ||
++         !i386_data_breakpoint_hit_values( context->Dr6, context->Dr7 )))
++        return FALSE;
++    if (!get_relayed_debug_registers( context )) return FALSE;
++    *data_replay = !!(context->Dr6 & replay_marker);
++    context->Dr6 &= ~replay_marker;
++    amd64_thread_data()->dr6 &= ~replay_marker;
++    return TRUE;
++#endif
++    return FALSE;
++}
++
++#ifdef __APPLE__
++static DWORD i386_debug_address( const I386_CONTEXT *context, unsigned int index )
++{
++    switch (index)
++    {
++    case 0: return context->Dr0;
++    case 1: return context->Dr1;
++    case 2: return context->Dr2;
++    default: return context->Dr3;
++    }
++}
++
++static BOOL i386_execute_breakpoint_enabled( const I386_CONTEXT *context, unsigned int index )
++{
++    return (context->Dr7 & (3u << (index * 2))) &&
++           !((context->Dr7 >> (16 + index * 4)) & 3);
++}
++
++static BOOL i386_data_breakpoint_hit_values( ULONG64 dr6, ULONG64 dr7 )
++{
++    unsigned int i;
++
++    for (i = 0; i < 4; i++)
++    {
++        if (!(dr6 & ((ULONG64)1 << i))) continue;
++        if (!(dr7 & ((ULONG64)3 << (i * 2)))) continue;
++        if ((dr7 >> (16 + i * 4)) & 3) return TRUE;
++    }
++    return FALSE;
++}
++
++static BOOL i386_data_breakpoint_hit( const CONTEXT *context )
++{
++    return i386_data_breakpoint_hit_values( context->Dr6, context->Dr7 );
++}
++
++static DWORD_PTR i386_execute_page( DWORD_PTR address )
++{
++    return address & ~((DWORD_PTR)page_size - 1);
++}
++
++static DWORD i386_tracked_execute_address( const struct amd64_thread_data *data,
++                                           unsigned int index )
++{
++    return data->execute_bp[index];
++}
++
++static int i386_tracked_execute_protection( const struct amd64_thread_data *data,
++                                            unsigned int index )
++{
++    return data->execute_bp[index] >> 32;
++}
++
++static BOOL query_i386_execute_page_protection( DWORD_PTR address, int *protection )
++{
++    mach_vm_address_t page = i386_execute_page( address );
++    mach_vm_address_t region = page;
++    mach_vm_size_t size = 0;
++    vm_region_basic_info_data_64_t info;
++    mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
++    mach_port_t object = MACH_PORT_NULL;
++    kern_return_t status;
++
++    status = mach_vm_region( mach_task_self(), &region, &size, VM_REGION_BASIC_INFO_64,
++                             (vm_region_info_t)&info, &count, &object );
++    if (object != MACH_PORT_NULL) mach_port_deallocate( mach_task_self(), object );
++    if (status != KERN_SUCCESS || !size || region > page || page - region >= size)
++        return FALSE;
++    *protection = info.protection;
++    return TRUE;
++}
++
++static BOOL set_i386_execute_page_protection( DWORD_PTR address, int protection )
++{
++    DWORD_PTR page = i386_execute_page( address );
++
++    if (!mprotect( (void *)page, page_size, protection )) return TRUE;
++    WARN_(seh)( "Unable to set Rosetta x86 execute-breakpoint page %p protection %#x: %s\n",
++                (void *)page, protection, strerror( errno ) );
++    return FALSE;
++}
++
++static __thread DWORD_PTR i386_protected_hash_copy_page;
++
++static BOOL read_i386_protected_hash_memory( DWORD address, void *destination,
++                                             SIZE_T size, int *original_protection )
++{
++    if ((address & (page_size - 1)) + size > page_size ||
++        !query_i386_execute_page_protection( address, original_protection ) ||
++        *original_protection != PROT_NONE ||
++        !set_i386_execute_page_protection( address, PROT_READ ))
++        return FALSE;
++
++    memcpy( destination, (const void *)(ULONG_PTR)address, size );
++    if (set_i386_execute_page_protection( address, *original_protection )) return TRUE;
++
++    ERR_(seh)( "Unable to restore protected hash page at %08x\n", address );
++    return FALSE;
++}
++
++static BOOL emulate_i386_protected_hash_tail( ucontext_t *ucontext,
++                                              const EXCEPTION_RECORD *rec,
++                                              const CONTEXT *context )
++{
++    const DWORD zombies_tail_copy = 0x00a6c944;
++    const DWORD multiplayer_tail_copy = 0x00a72d34;
++    const DWORD smoke_tail_copy = 0x10030000;
++    const BYTE expected_instruction[] = {0x8b, 0x44, 0x8e, 0xfc};
++    DWORD source_address, destination_address, value;
++    int source_protection, destination_protection;
++    BYTE instruction[ARRAY_SIZE(expected_instruction)];
++
++    source_address = (DWORD)context->Rsi + (DWORD)context->Rcx * sizeof(DWORD) -
++                     sizeof(DWORD);
++    destination_address = (DWORD)context->Rdi +
++                          (DWORD)context->Rcx * sizeof(DWORD) - sizeof(DWORD);
++    if (!emulate_i386_protected_hash_copy_reads || !is_rosetta2 ||
++        context->SegCs != cs32_sel ||
++        !((DWORD)context->Rip == zombies_tail_copy ||
++          (DWORD)context->Rip == multiplayer_tail_copy ||
++          (emulate_i386_protected_hash_copy_smoke &&
++           (DWORD)context->Rip == smoke_tail_copy)) ||
++        (DWORD)context->Rcx != 1 ||
++        i386_protected_hash_copy_page != i386_execute_page( source_address ) ||
++        rec->ExceptionInformation[0] != EXCEPTION_READ_FAULT ||
++        (DWORD)rec->ExceptionInformation[1] != source_address ||
++        (context->EFlags & 0x400) ||
++        virtual_uninterrupted_read_memory( (const void *)(ULONG_PTR)context->Rip,
++                                           instruction, sizeof(instruction) )
++            != sizeof(instruction) ||
++        memcmp( instruction, expected_instruction, sizeof(instruction) ) ||
++        !query_i386_execute_page_protection( destination_address,
++                                             &destination_protection ) ||
++        !(destination_protection & PROT_WRITE) ||
++        !read_i386_protected_hash_memory( source_address, &value, sizeof(value),
++                                          &source_protection ))
++        return FALSE;
++
++    RAX_sig(ucontext) = value;
++    RIP_sig(ucontext) += sizeof(instruction);
++    i386_protected_hash_copy_page = 0;
++    if (trace_i386_protected_transform)
++        fprintf( stderr,
++                 "SECUNDA_PROTECTED_COPY_EMULATED tid=%p phase=tail eip=%08x "
++                 "source=%08x destination=%08x bytes=%lu source_protection=%x\n",
++                 NtCurrentTeb()->ClientId.UniqueThread, (DWORD)context->Rip,
++                 source_address, destination_address, (unsigned long)sizeof(value),
++                 source_protection );
++    return TRUE;
++}
++
++/* A translated protected-code check copies bounded hash blocks from a
++   temporarily inaccessible page. Preserve the guest instruction's exact
++   register semantics without widening access beyond each individual copy. */
++static BOOL emulate_i386_protected_hash_copy( ucontext_t *ucontext,
++                                              const EXCEPTION_RECORD *rec,
++                                              const CONTEXT *context )
++{
++    const DWORD zombies_initial_copy = 0x00a6c847;
++    const DWORD multiplayer_initial_copy = 0x00a72c37;
++    const DWORD zombies_block_copy = 0x0041515f;
++    const DWORD multiplayer_block_copy = 0x0050d81f;
++    const DWORD smoke_initial_copy = 0x10010000;
++    const DWORD smoke_block_copy = 0x10020000;
++    DWORD_PTR source_page;
++    SIZE_T dword_count, copy_size;
++    BOOL initial_copy, block_copy;
++    BYTE instruction[2];
++    DWORD copy[16];
++    int source_protection, destination_protection;
++    NTSTATUS status;
++
++    if (emulate_i386_protected_hash_tail( ucontext, rec, context )) return TRUE;
++
++    dword_count = (DWORD)context->Rcx;
++    copy_size = dword_count * sizeof(DWORD);
++    source_page = i386_execute_page( context->Rsi );
++    initial_copy = ((DWORD)context->Rip == zombies_initial_copy ||
++                    (DWORD)context->Rip == multiplayer_initial_copy ||
++                    (emulate_i386_protected_hash_copy_smoke &&
++                     (DWORD)context->Rip == smoke_initial_copy)) &&
++                   dword_count == 15;
++    block_copy = ((DWORD)context->Rip == zombies_block_copy ||
++                  (DWORD)context->Rip == multiplayer_block_copy ||
++                  (emulate_i386_protected_hash_copy_smoke &&
++                   (DWORD)context->Rip == smoke_block_copy)) &&
++                 dword_count == ARRAY_SIZE(copy) &&
++                 i386_protected_hash_copy_page == source_page;
++
++    if (!emulate_i386_protected_hash_copy_reads || !is_rosetta2 ||
++        context->SegCs != cs32_sel ||
++        (!initial_copy && !block_copy) ||
++        rec->ExceptionInformation[0] != EXCEPTION_READ_FAULT ||
++        (DWORD)rec->ExceptionInformation[1] != (DWORD)context->Rsi ||
++        (context->EFlags & 0x400) ||
++        virtual_uninterrupted_read_memory( (const void *)(ULONG_PTR)context->Rip,
++                                           instruction, sizeof(instruction) )
++            != sizeof(instruction) ||
++        instruction[0] != 0xf3 || instruction[1] != 0xa5 ||
++        !query_i386_execute_page_protection( context->Rdi, &destination_protection ) ||
++        !(destination_protection & PROT_WRITE) ||
++        !read_i386_protected_hash_memory( (DWORD)context->Rsi, copy, copy_size,
++                                          &source_protection ))
++        return FALSE;
++
++    status = virtual_uninterrupted_write_memory(
++        (void *)(ULONG_PTR)context->Rdi, copy, copy_size );
++    if (status) return FALSE;
++
++    RIP_sig(ucontext) += sizeof(instruction);
++    RSI_sig(ucontext) += copy_size;
++    RDI_sig(ucontext) += copy_size;
++    RCX_sig(ucontext) = 0;
++    if (initial_copy) i386_protected_hash_copy_page = source_page;
++    if (trace_i386_protected_transform)
++        fprintf( stderr,
++                 "SECUNDA_PROTECTED_COPY_EMULATED tid=%p phase=%s eip=%08x "
++                 "source=%08x destination=%08x bytes=%lu source_protection=%x\n",
++                 NtCurrentTeb()->ClientId.UniqueThread,
++                 initial_copy ? "initial" : "block", (DWORD)context->Rip,
++                 (DWORD)context->Rsi,
++                 (DWORD)context->Rdi,
++                 (unsigned long)copy_size, source_protection );
++    return TRUE;
++}
++
++static int i386_execute_guard_protection( int protection )
++{
++    int guarded = protection & ~PROT_EXEC;
++
++    /* A translated hardware breakpoint must not make the guarded code page
++       unreadable to another thread while execution remains suppressed. */
++    if (preserve_i386_guarded_execute_reads) guarded |= PROT_READ;
++    return guarded;
++}
++
++#define I386_EXECUTE_PAGE_GUARD_COUNT 256
++#define I386_EXECUTE_PAGE_OWNER_COUNT 16
++
++struct i386_execute_page_owner
++{
++    const TEB *teb;
++    mach_port_t thread;
++    unsigned int references;
++};
++
++struct i386_execute_page_guard
++{
++    DWORD_PTR page;
++    int protection;
++    unsigned int references;
++    struct i386_execute_page_owner owners[I386_EXECUTE_PAGE_OWNER_COUNT];
++};
++
++static struct i386_execute_page_guard i386_execute_page_guards[I386_EXECUTE_PAGE_GUARD_COUNT];
++static volatile LONG i386_execute_page_guard_lock;
++static __thread mach_port_t i386_suspended_execute_owners[I386_EXECUTE_PAGE_OWNER_COUNT];
++static __thread unsigned int i386_suspended_execute_owner_count;
++
++enum i386_execute_page_owner_state
++{
++    I386_EXECUTE_PAGE_NOT_FOUND,
++    I386_EXECUTE_PAGE_OWNERS_ACTIVE,
++    I386_EXECUTE_PAGE_OWNERS_RETIRED
++};
++
++static void lock_i386_execute_page_guards( void )
++{
++    while (InterlockedCompareExchange( &i386_execute_page_guard_lock, 1, 0 ))
++        __asm__ __volatile__( "pause" );
++}
++
++static void unlock_i386_execute_page_guards( void )
++{
++    InterlockedExchange( &i386_execute_page_guard_lock, 0 );
++}
++
++static void discard_dead_i386_execute_page_owners(
++    struct i386_execute_page_guard *guard )
++{
++    unsigned int i;
++
++    for (i = 0; i < ARRAY_SIZE(guard->owners); ++i)
++    {
++        struct i386_execute_page_owner *owner = &guard->owners[i];
++        mach_port_type_t type;
++
++        if (!owner->teb ||
++            (mach_port_type( mach_task_self(), owner->thread, &type ) == KERN_SUCCESS &&
++             !(type & MACH_PORT_TYPE_DEAD_NAME)))
++            continue;
++        guard->references -= owner->references;
++        memset( owner, 0, sizeof(*owner) );
++    }
++}
++
++static BOOL get_i386_execute_page_guard( DWORD_PTR address, int *protection )
++{
++    DWORD_PTR page = i386_execute_page( address );
++    unsigned int i;
++    BOOL found = FALSE;
++
++    lock_i386_execute_page_guards();
++    for (i = 0; i < ARRAY_SIZE(i386_execute_page_guards); ++i)
++    {
++        const struct i386_execute_page_guard *guard = &i386_execute_page_guards[i];
++
++        if (guard->page != page) continue;
++        *protection = guard->protection;
++        found = TRUE;
++        break;
++    }
++    unlock_i386_execute_page_guards();
++    return found;
++}
++
++static void arm_shared_i386_execute_page_guard( DWORD_PTR address )
++{
++    DWORD_PTR page = i386_execute_page( address );
++    unsigned int i;
++
++    lock_i386_execute_page_guards();
++    for (i = 0; i < ARRAY_SIZE(i386_execute_page_guards); ++i)
++    {
++        const struct i386_execute_page_guard *guard = &i386_execute_page_guards[i];
++
++        if (guard->page != page) continue;
++        if (guard->references > 1)
++            set_i386_execute_page_protection(
++                address, i386_execute_guard_protection( guard->protection ) );
++        break;
++    }
++    unlock_i386_execute_page_guards();
++}
++
++static BOOL retain_i386_execute_page( DWORD_PTR address, int *protection )
++{
++    struct i386_execute_page_guard *available = NULL;
++    struct i386_execute_page_owner *available_owner;
++    DWORD_PTR page = i386_execute_page( address );
++    const TEB *owner = NtCurrentTeb();
++    mach_port_t owner_thread = pthread_mach_thread_np( pthread_self() );
++    unsigned int i, j;
++    BOOL retained = FALSE;
++
++    lock_i386_execute_page_guards();
++    for (i = 0; i < ARRAY_SIZE(i386_execute_page_guards); ++i)
++    {
++        struct i386_execute_page_guard *guard = &i386_execute_page_guards[i];
++
++        if (guard->page == page)
++        {
++            if (!set_i386_execute_page_protection(
++                    address, i386_execute_guard_protection( guard->protection ) ))
++                goto done;
++            discard_dead_i386_execute_page_owners( guard );
++            available_owner = NULL;
++            for (j = 0; j < ARRAY_SIZE(guard->owners); ++j)
++            {
++                struct i386_execute_page_owner *entry = &guard->owners[j];
++
++                if (entry->teb == owner)
++                {
++                    entry->references++;
++                    break;
++                }
++                if (!entry->teb && !available_owner) available_owner = entry;
++            }
++            if (j == ARRAY_SIZE(guard->owners))
++            {
++                if (!available_owner)
++                {
++                    WARN_(seh)( "Rosetta x86 execute-breakpoint page %p owner table is full\n",
++                                (void *)page );
++                    goto done;
++                }
++                available_owner->teb = owner;
++                available_owner->thread = owner_thread;
++                available_owner->references = 1;
++            }
++            guard->references++;
++            *protection = guard->protection;
++            retained = TRUE;
++            goto done;
++        }
++        if (!guard->page && !available) available = guard;
++    }
++
++    if (available && query_i386_execute_page_protection( address, protection ) &&
++        (*protection & PROT_EXEC) &&
++        set_i386_execute_page_protection(
++            address, i386_execute_guard_protection( *protection ) ))
++    {
++        if (trace_i386_protected_transform)
++            fprintf( stderr,
++                     "SECUNDA_PROTECTED_GUARD address=%08x page=%08x "
++                     "original=%x guarded=%x\n", (DWORD)address, (DWORD)page,
++                     *protection, i386_execute_guard_protection( *protection ) );
++        available->page = page;
++        available->protection = *protection;
++        available->references = 1;
++        available->owners[0].teb = owner;
++        available->owners[0].thread = owner_thread;
++        available->owners[0].references = 1;
++        retained = TRUE;
++    }
++
++done:
++    unlock_i386_execute_page_guards();
++    if (!retained && !available)
++        WARN_(seh)( "Rosetta x86 execute-breakpoint page table is full\n" );
++    return retained;
++}
++
++static void release_i386_execute_page( DWORD_PTR address, const TEB *owner )
++{
++    DWORD_PTR page = i386_execute_page( address );
++    unsigned int i, j;
++
++    lock_i386_execute_page_guards();
++    for (i = 0; i < ARRAY_SIZE(i386_execute_page_guards); ++i)
++    {
++        struct i386_execute_page_guard *guard = &i386_execute_page_guards[i];
++
++        if (guard->page != page) continue;
++        for (j = 0; j < ARRAY_SIZE(guard->owners); ++j)
++        {
++            struct i386_execute_page_owner *entry = &guard->owners[j];
++
++            if (entry->teb != owner) continue;
++            if (!--entry->references) memset( entry, 0, sizeof(*entry) );
++            break;
++        }
++        if (j == ARRAY_SIZE(guard->owners))
++        {
++            WARN_(seh)( "Rosetta x86 execute-breakpoint page %p owner %p not found\n",
++                        (void *)page, owner );
++            break;
++        }
++        if (--guard->references) break;
++        if (set_i386_execute_page_protection( page, guard->protection ))
++        {
++            memset( guard, 0, sizeof(*guard) );
++        }
++        break;
++    }
++    unlock_i386_execute_page_guards();
++}
++
++static void arm_i386_execute_entry_observer( void )
++{
++    DWORD_PTR address;
++    int protection;
++
++    if (!trace_i386_execute_entry_count ||
++        InterlockedCompareExchange( &i386_execute_entry_state, -1, 0 ))
++        return;
++    address = trace_i386_execute_entries[0];
++    if (!retain_i386_execute_page( address, &protection ))
++    {
++        InterlockedExchange( &i386_execute_entry_state, 0 );
++        return;
++    }
++
++    i386_execute_entry_owner = NtCurrentTeb();
++    InterlockedExchange( &i386_execute_entry_state, 1 );
++    ERR_(seh)( "SECUNDA_EXECUTE_ENTRY_ARMED address=%08x page=%08x "
++               "targets=%u owner=%p protection=%x\n", (DWORD)address,
++               (DWORD)i386_execute_page( address ),
++               trace_i386_execute_entry_count, i386_execute_entry_owner,
++               protection );
++}
++
++static BOOL capture_i386_execute_entry( ucontext_t *ucontext, DWORD_PTR address )
++{
++    BYTE instruction[16] = {0};
++    DWORD stack[12] = {0};
++    SIZE_T instruction_bytes, stack_bytes;
++    unsigned int i, stack_words;
++    const TEB *owner;
++    BOOL matches = FALSE;
++
++    for (i = 0; i < trace_i386_execute_entry_count; ++i)
++        if (address == trace_i386_execute_entries[i]) matches = TRUE;
++    if (!matches ||
++        InterlockedCompareExchange( &i386_execute_entry_state, 2, 1 ) != 1)
++        return FALSE;
++
++    instruction_bytes = virtual_uninterrupted_read_memory(
++        (const void *)(ULONG_PTR)address, instruction, sizeof(instruction) );
++    stack_bytes = virtual_uninterrupted_read_memory(
++        (const void *)(ULONG_PTR)RSP_sig(ucontext), stack, sizeof(stack) );
++    stack_words = stack_bytes / sizeof(*stack);
++    ERR_(seh)( "SECUNDA_EXECUTE_ENTRY_CONTEXT eip=%08x esp=%08x ebp=%08x "
++               "eax=%08x ebx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x "
++               "return=%08x instruction_bytes=%lu stack_bytes=%lu "
++               "instruction=%02x%02x%02x%02x%02x%02x%02x%02x"
++               "%02x%02x%02x%02x%02x%02x%02x%02x\n",
++               (DWORD)address, (DWORD)RSP_sig(ucontext),
++               (DWORD)RBP_sig(ucontext), (DWORD)RAX_sig(ucontext),
++               (DWORD)RBX_sig(ucontext), (DWORD)RCX_sig(ucontext),
++               (DWORD)RDX_sig(ucontext), (DWORD)RSI_sig(ucontext),
++               (DWORD)RDI_sig(ucontext), stack_words ? stack[0] : 0,
++               (unsigned long)instruction_bytes, (unsigned long)stack_bytes,
++               instruction[0], instruction[1], instruction[2], instruction[3],
++               instruction[4], instruction[5], instruction[6], instruction[7],
++               instruction[8], instruction[9], instruction[10], instruction[11],
++               instruction[12], instruction[13], instruction[14], instruction[15] );
++    for (i = 0; i < stack_words; i += 4)
++    {
++        ERR_(seh)( "SECUNDA_EXECUTE_ENTRY_STACK index=%u "
++                   "values=%08x,%08x,%08x,%08x\n", i, stack[i],
++                   i + 1 < stack_words ? stack[i + 1] : 0,
++                   i + 2 < stack_words ? stack[i + 2] : 0,
++                   i + 3 < stack_words ? stack[i + 3] : 0 );
++    }
++
++    owner = i386_execute_entry_owner;
++    i386_execute_entry_owner = NULL;
++    if (owner) release_i386_execute_page( trace_i386_execute_entries[0], owner );
++    return TRUE;
++}
++
++static mach_port_t resume_i386_execute_page_owners( void )
++{
++    mach_port_t preferred = MACH_PORT_NULL;
++
++    while (i386_suspended_execute_owner_count)
++    {
++        mach_port_t owner =
++            i386_suspended_execute_owners[--i386_suspended_execute_owner_count];
++        kern_return_t status = thread_resume( owner );
++
++        TRACE_(seh)( "Resumed Rosetta x86 execute-breakpoint owner thread=%#x status=%#x\n",
++                     owner, status );
++        if (status == KERN_SUCCESS && preferred == MACH_PORT_NULL) preferred = owner;
++    }
++    return preferred;
++}
++
++static enum i386_execute_page_owner_state suspend_i386_execute_page_owners(
++    DWORD_PTR address, int *protection )
++{
++    DWORD_PTR page = i386_execute_page( address );
++    mach_port_t current = pthread_mach_thread_np( pthread_self() );
++    unsigned int i, j;
++    BOOL found = FALSE, failed = FALSE, retired = FALSE;
++
++    if (i386_suspended_execute_owner_count)
++        return get_i386_execute_page_guard( address, protection )
++               ? I386_EXECUTE_PAGE_OWNERS_ACTIVE
++               : I386_EXECUTE_PAGE_NOT_FOUND;
++
++    lock_i386_execute_page_guards();
++    for (i = 0; i < ARRAY_SIZE(i386_execute_page_guards); ++i)
++    {
++        struct i386_execute_page_guard *guard = &i386_execute_page_guards[i];
++
++        if (guard->page != page) continue;
++        *protection = guard->protection;
++        found = TRUE;
++        discard_dead_i386_execute_page_owners( guard );
++        if (!guard->references)
++        {
++            memset( guard, 0, sizeof(*guard) );
++            retired = TRUE;
++            break;
++        }
++        for (j = 0; j < ARRAY_SIZE(guard->owners); ++j)
++        {
++            mach_port_t owner = guard->owners[j].thread;
++
++            if (!owner || owner == current) continue;
++            if (thread_suspend( owner ) != KERN_SUCCESS)
++            {
++                failed = TRUE;
++                break;
++            }
++            i386_suspended_execute_owners[i386_suspended_execute_owner_count++] = owner;
++        }
++        break;
++    }
++    unlock_i386_execute_page_guards();
++
++    if (failed)
++    {
++        WARN_(seh)( "Unable to suspend every Rosetta x86 execute-breakpoint owner for page %p\n",
++                    (void *)page );
++        resume_i386_execute_page_owners();
++        return I386_EXECUTE_PAGE_NOT_FOUND;
++    }
++    if (!found) return I386_EXECUTE_PAGE_NOT_FOUND;
++    return retired ? I386_EXECUTE_PAGE_OWNERS_RETIRED
++                   : I386_EXECUTE_PAGE_OWNERS_ACTIVE;
++}
++
++static void rearm_i386_foreign_execute_page( struct amd64_thread_data *data,
++                                             BOOL resume_owners )
++{
++    mach_port_t preferred;
++    kern_return_t status;
++    int protection;
++
++    if (!data->execute_step_foreign) return;
++    if (get_i386_execute_page_guard( data->execute_step_page, &protection ))
++        set_i386_execute_page_protection(
++            data->execute_step_page, i386_execute_guard_protection( protection ) );
++    if (!resume_owners) return;
++    preferred = resume_i386_execute_page_owners();
++    if (preferred != MACH_PORT_NULL)
++    {
++        status = thread_switch( preferred, SWITCH_OPTION_WAIT, 1 );
++        TRACE_(seh)( "Yielded Rosetta x86 execute page to owner thread=%#x status=%#x\n",
++                     preferred, status );
++    }
++}
++
++static int i386_execute_page_original_protection( DWORD_PTR address )
++{
++    const struct amd64_thread_data *data = amd64_thread_data();
++    DWORD_PTR page = i386_execute_page( address );
++    unsigned int i;
++
++    for (i = 0; i < ARRAY_SIZE(data->execute_bp); ++i)
++        if (((data->execute_bp_active | data->execute_bp_suppressed) & (1u << i)) &&
++            i386_execute_page( i386_tracked_execute_address( data, i ) ) == page)
++            return i386_tracked_execute_protection( data, i );
++    return PROT_READ | PROT_EXEC;
++}
++
++static unsigned int i386_execute_breakpoint_page_mask( DWORD_PTR address )
++{
++    const struct amd64_thread_data *data = amd64_thread_data();
++    DWORD_PTR page = i386_execute_page( address );
++    unsigned int i, mask = 0;
++
++    for (i = 0; i < ARRAY_SIZE(data->execute_bp); ++i)
++        if ((data->execute_bp_active & (1u << i)) &&
++            i386_execute_page( i386_tracked_execute_address( data, i ) ) == page)
++            mask |= 1u << i;
++    return mask;
++}
++
++static __thread DWORD i386_protected_transform_output;
++
++static void trace_i386_protected_transform_state( const I386_CONTEXT *context )
++{
++    const DWORD zombies_transform_entry = 0x009b01a0;
++    const DWORD zombies_transform_redirect = 0x009b0210;
++    const DWORD protected_followup = 0x004f8347;
++    const DWORD zombies_hash_copy = 0x00a6c847;
++    const DWORD multiplayer_hash_copy = 0x00a72c37;
++    DWORD stack[4] = {0};
++    DWORD output[4] = {0};
++    DWORD source[4] = {0};
++    DWORD destination[4] = {0};
++    const char *phase;
++    int source_protection = 0, destination_protection = 0;
++    BOOL source_mapped = FALSE, destination_mapped = FALSE;
++    SIZE_T stack_bytes = 0, output_bytes = 0;
++    SIZE_T source_bytes = 0, destination_bytes = 0;
++
++    if (!trace_i386_protected_transform) return;
++
++    if (context->Eip == zombies_transform_entry)
++        phase = "entry";
++    else if (context->Eip == zombies_transform_redirect)
++        phase = "redirect";
++    else if (context->Eip == protected_followup)
++        phase = "followup";
++    else if (context->Eip == zombies_hash_copy ||
++             context->Eip == multiplayer_hash_copy)
++        phase = "hash-fault";
++    else
++        return;
++
++    if (context->Eip == zombies_transform_entry ||
++        context->Eip == zombies_transform_redirect)
++    {
++        stack_bytes = virtual_uninterrupted_read_memory(
++            (const void *)(ULONG_PTR)context->Esp, stack, sizeof(stack) );
++        if (stack_bytes == sizeof(stack)) i386_protected_transform_output = stack[3];
++    }
++
++    if (i386_protected_transform_output)
++        output_bytes = virtual_uninterrupted_read_memory(
++            (const void *)(ULONG_PTR)i386_protected_transform_output,
++            output, sizeof(output) );
++
++    if (context->Eip == zombies_hash_copy ||
++        context->Eip == multiplayer_hash_copy)
++    {
++        source_mapped = query_i386_execute_page_protection(
++            context->Esi, &source_protection );
++        destination_mapped = query_i386_execute_page_protection(
++            context->Edi, &destination_protection );
++        source_bytes = virtual_uninterrupted_read_memory(
++            (const void *)(ULONG_PTR)context->Esi, source, sizeof(source) );
++        destination_bytes = virtual_uninterrupted_read_memory(
++            (const void *)(ULONG_PTR)context->Edi, destination,
++            sizeof(destination) );
++    }
++
++    fprintf( stderr,
++             "SECUNDA_PROTECTED_TRANSFORM phase=%s tid=%p eip=%08x esp=%08x "
++             "stack_bytes=%lu return=%08x input=%08x:%08x output_ptr=%08x "
++             "output_bytes=%lu output=%08x:%08x:%08x:%08x dr6=%08x dr7=%08x\n",
++             phase, NtCurrentTeb()->ClientId.UniqueThread, context->Eip,
++             context->Esp, (unsigned long)stack_bytes, stack[0], stack[1],
++             stack[2], i386_protected_transform_output,
++             (unsigned long)output_bytes, output[0], output[1], output[2],
++             output[3], context->Dr6, context->Dr7 );
++    if (context->Eip == zombies_hash_copy ||
++        context->Eip == multiplayer_hash_copy)
++        fprintf( stderr,
++                 "SECUNDA_PROTECTED_COPY eax=%08x ebx=%08x ecx=%08x edx=%08x "
++                 "esi=%08x edi=%08x source_bytes=%lu "
++                 "source=%08x:%08x:%08x:%08x destination_bytes=%lu "
++                 "destination=%08x:%08x:%08x:%08x source_mapped=%u "
++                 "source_protection=%x destination_mapped=%u "
++                 "destination_protection=%x\n",
++                 context->Eax, context->Ebx, context->Ecx, context->Edx,
++                 context->Esi, context->Edi, (unsigned long)source_bytes,
++                 source[0], source[1], source[2], source[3],
++                 (unsigned long)destination_bytes, destination[0],
++                 destination[1], destination[2], destination[3], source_mapped,
++                 source_protection, destination_mapped, destination_protection );
++}
++
++static void update_i386_execute_breakpoints( const I386_CONTEXT *context )
++{
++    struct amd64_thread_data *data = amd64_thread_data();
++    unsigned int i;
++
++    arm_i386_execute_entry_observer();
++    trace_i386_protected_transform_state( context );
++
++    TRACE_(seh)( "Rosetta x86 debug update tid=%p eip=%#x esp=%#x eflags=%#x "
++                 "eax=%#x ebx=%#x ecx=%#x edx=%#x esi=%#x edi=%#x "
++                 "dr0=%#x dr1=%#x dr2=%#x dr3=%#x dr6=%#x dr7=%#x "
++                 "active=%#x suppressed=%#x\n",
++                 NtCurrentTeb()->ClientId.UniqueThread, context->Eip, context->Esp,
++                 context->EFlags, context->Eax, context->Ebx, context->Ecx,
++                 context->Edx, context->Esi, context->Edi,
++                 context->Dr0, context->Dr1,
++                 context->Dr2, context->Dr3, context->Dr6, context->Dr7,
++                 data->execute_bp_active, data->execute_bp_suppressed );
++
++    for (i = 0; i < 4; i++)
++    {
++        BYTE bit = 1u << i;
++        DWORD address = i386_debug_address( context, i );
++        DWORD_PTR old_address;
++
++        if (!(data->execute_bp_active & bit) && !(data->execute_bp_suppressed & bit))
++            continue;
++        if (i386_execute_breakpoint_enabled( context, i ) &&
++            i386_tracked_execute_address( data, i ) == address)
++            continue;
++
++        old_address = i386_tracked_execute_address( data, i );
++        data->execute_bp_active &= ~bit;
++        data->execute_bp_suppressed &= ~bit;
++        release_i386_execute_page( old_address, NtCurrentTeb() );
++        data->execute_bp[i] = 0;
++    }
++
++    for (i = 0; i < 4; i++)
++    {
++        BYTE bit = 1u << i;
++        DWORD address = i386_debug_address( context, i );
++        int protection;
++
++        if (!i386_execute_breakpoint_enabled( context, i ) ||
++            (data->execute_bp_suppressed & bit) ||
++            (data->execute_bp_active & bit))
++            continue;
++
++        if (retain_i386_execute_page( address, &protection ))
++        {
++            data->execute_bp[i] = (DWORD_PTR)address |
++                                  ((DWORD_PTR)(unsigned int)protection << 32);
++            data->execute_bp_active |= bit;
++            TRACE_(seh)( "Rosetta x86 execute breakpoint guarded tid=%p dr%u=%#x "
++                         "page=%p protection=%#x\n",
++                         NtCurrentTeb()->ClientId.UniqueThread, i, address,
++                         (void *)i386_execute_page( address ), protection );
++        }
++    }
++}
++
++static unsigned int i386_execute_breakpoint_hit_mask( const CONTEXT *context,
++                                                      ULONG_PTR address )
++{
++    const struct amd64_thread_data *data = amd64_thread_data();
++    const ULONG64 registers[] = {context->Dr0, context->Dr1, context->Dr2, context->Dr3};
++    unsigned int i, mask = 0;
++
++    for (i = 0; i < ARRAY_SIZE(registers); i++)
++    {
++        if (!(data->execute_bp_active & (1u << i))) continue;
++        if (!(context->Dr7 & ((ULONG64)3 << (i * 2)))) continue;
++        if ((context->Dr7 >> (16 + i * 4)) & 3) continue;
++        if (registers[i] == address &&
++            i386_tracked_execute_address( data, i ) == address)
++            mask |= 1u << i;
++    }
++    return mask;
++}
++
++static void consume_i386_execute_breakpoint( unsigned int hit_mask )
++{
++    struct amd64_thread_data *data = amd64_thread_data();
++
++    data->execute_bp_active &= ~hit_mask;
++    data->execute_bp_suppressed |= hit_mask;
++}
++
++static void enable_i386_suppressed_execute_pages( void )
++{
++    const struct amd64_thread_data *data = amd64_thread_data();
++    unsigned int i, j;
++
++    for (i = 0; i < ARRAY_SIZE(data->execute_bp); ++i)
++    {
++        DWORD_PTR address, page;
++
++        if (!(data->execute_bp_suppressed & (1u << i))) continue;
++        address = i386_tracked_execute_address( data, i );
++        page = i386_execute_page( address );
++        for (j = 0; j < i; ++j)
++            if ((data->execute_bp_suppressed & (1u << j)) &&
++                i386_execute_page( i386_tracked_execute_address( data, j ) ) == page)
++                break;
++        if (j == i)
++            set_i386_execute_page_protection(
++                address, i386_tracked_execute_protection( data, i ) );
++    }
++}
++
++static void schedule_i386_execute_breakpoint_resume( I386_CONTEXT *context )
++{
++    struct amd64_thread_data *data = amd64_thread_data();
++
++    if (data->execute_dispatch_pending)
++    {
++        data->execute_dispatch_pending = 0;
++        TRACE_(seh)( "Rosetta x86 execute breakpoint dispatch context retained "
++                     "tid=%p eip=%#x suppressed=%#x\n",
++                     NtCurrentTeb()->ClientId.UniqueThread, context->Eip,
++                     data->execute_bp_suppressed );
++        return;
++    }
++    if (!data->execute_bp_suppressed || data->execute_page_stepping) return;
++    enable_i386_suppressed_execute_pages();
++    data->execute_step_page = 0;
++    data->execute_step_guest_tf = !!(context->EFlags & 0x100);
++    data->execute_page_stepping = 1;
++    data->execute_step_foreign = 0;
++    context->EFlags |= 0x100;
++    TRACE_(seh)( "Rosetta x86 execute breakpoint resume scheduled tid=%p "
++                 "eip=%#x suppressed=%#x guest_tf=%u\n",
++                 NtCurrentTeb()->ClientId.UniqueThread, context->Eip,
++                 data->execute_bp_suppressed, data->execute_step_guest_tf );
++}
++
++static void rearm_i386_execute_breakpoints( void )
++{
++    struct amd64_thread_data *data = amd64_thread_data();
++    unsigned int pending = data->execute_bp_suppressed;
++    unsigned int i, j;
++
++    data->execute_bp_suppressed = 0;
++    data->execute_bp_active |= pending;
++    for (i = 0; i < ARRAY_SIZE(data->execute_bp); ++i)
++    {
++        DWORD_PTR address, page;
++        int protection;
++
++        if (!(pending & (1u << i))) continue;
++        address = i386_tracked_execute_address( data, i );
++        page = i386_execute_page( address );
++        for (j = 0; j < i; ++j)
++            if ((pending & (1u << j)) &&
++                i386_execute_page( i386_tracked_execute_address( data, j ) ) == page)
++                break;
++        if (j != i) continue;
++        protection = i386_tracked_execute_protection( data, i );
++        set_i386_execute_page_protection(
++            address, i386_execute_guard_protection( protection ) );
++    }
++}
++
++static BOOL complete_i386_execute_breakpoint_resume( ucontext_t *ucontext,
++                                                      CONTEXT *context,
++                                                      I386_CONTEXT *wow_context )
++{
++    struct amd64_thread_data *data = amd64_thread_data();
++    BOOL guest_tf = data->execute_step_guest_tf;
++
++    rearm_i386_execute_breakpoints();
++    data->execute_step_guest_tf = 0;
++    data->execute_page_stepping = 0;
++    data->execute_step_page = 0;
++    data->execute_step_foreign = 0;
++    context->EFlags &= ~0x10000;
++    EFL_sig(ucontext) &= ~0x10000;
++    if (wow_context) wow_context->EFlags &= ~0x10000;
++    if (guest_tf)
++    {
++        context->Dr6 |= 1u << 14;
++        return TRUE;
++    }
++    context->EFlags &= ~0x100;
++    EFL_sig(ucontext) &= ~0x100;
++    if (wow_context) wow_context->EFlags &= ~0x100;
++    return FALSE;
++}
++
++static void sync_i386_signal_context( I386_CONTEXT *context, const ucontext_t *ucontext )
++{
++    context->Eax = RAX_sig(ucontext);
++    context->Ebx = RBX_sig(ucontext);
++    context->Ecx = RCX_sig(ucontext);
++    context->Edx = RDX_sig(ucontext);
++    context->Esi = RSI_sig(ucontext);
++    context->Edi = RDI_sig(ucontext);
++    context->Esp = RSP_sig(ucontext);
++    context->Ebp = RBP_sig(ucontext);
++    context->Eip = RIP_sig(ucontext);
++    context->EFlags = EFL_sig(ucontext);
++}
++
++static void prepare_i386_execute_breakpoint( ucontext_t *ucontext,
++                                             EXCEPTION_RECORD *rec,
++                                             struct xcontext *context,
++                                             unsigned int hit_mask )
++{
++    struct amd64_thread_data *data = amd64_thread_data();
++    I386_CONTEXT *wow_context = get_cpu_area( IMAGE_FILE_MACHINE_I386 );
++    DWORD saved_flags;
++
++    TRACE_(seh)( "Rosetta x86 execute breakpoint hit tid=%p address=%p mask=%#x\n",
++                 NtCurrentTeb()->ClientId.UniqueThread,
++                 (void *)RIP_sig(ucontext), hit_mask );
++    rec->ExceptionCode = EXCEPTION_SINGLE_STEP;
++    rec->ExceptionAddress = (void *)RIP_sig(ucontext);
++    rec->NumberParameters = 0;
++    consume_i386_execute_breakpoint( hit_mask );
++    arm_shared_i386_execute_page_guard( RIP_sig(ucontext) );
++    data->execute_dispatch_pending = 1;
++    context->c.Dr6 = I386_DR6_BASE | hit_mask;
++    context->c.EFlags |= 0x10000;
++    EFL_sig(ucontext) |= 0x10000;
++    if (wow_context) wow_context->EFlags |= 0x10000;
++    if (!data->execute_step_guest_tf)
++    {
++        context->c.EFlags &= ~0x100;
++        EFL_sig(ucontext) &= ~0x100;
++        if (wow_context) wow_context->EFlags &= ~0x100;
++    }
++    else context->c.Dr6 |= 1u << 14;
++    data->execute_step_guest_tf = 0;
++    data->execute_page_stepping = 0;
++    data->execute_step_page = 0;
++    data->execute_step_foreign = 0;
++    saved_flags = context->c.ContextFlags;
++    context->c.ContextFlags = CONTEXT_DEBUG_REGISTERS;
++    NtSetContextThread( GetCurrentThread(), &context->c );
++    context->c.ContextFlags = saved_flags;
++}
++
++static int handle_i386_execute_page_fault( ucontext_t *ucontext,
++                                           EXCEPTION_RECORD *rec,
++                                           struct xcontext *context )
++{
++    struct amd64_thread_data *data = amd64_thread_data();
++    I386_CONTEXT *wow_context = get_cpu_area( IMAGE_FILE_MACHINE_I386 );
++    DWORD_PTR address = RIP_sig(ucontext);
++    unsigned int page_mask, hit_mask;
++    BOOL entry_captured = FALSE;
++    enum i386_execute_page_owner_state owner_state = I386_EXECUTE_PAGE_OWNERS_ACTIVE;
++    int protection;
++
++    page_mask = i386_execute_breakpoint_page_mask( address );
++    if (page_mask)
++    {
++        protection = i386_execute_page_original_protection( address );
++        entry_captured = capture_i386_execute_entry( ucontext, address );
++    }
++    else
++    {
++        owner_state = suspend_i386_execute_page_owners( address, &protection );
++        if (owner_state == I386_EXECUTE_PAGE_NOT_FOUND) return 0;
++        if (owner_state == I386_EXECUTE_PAGE_OWNERS_RETIRED)
++        {
++            if (!set_i386_execute_page_protection( address, protection )) return 0;
++            return 1;
++        }
++        entry_captured = capture_i386_execute_entry( ucontext, address );
++        if (entry_captured && !get_i386_execute_page_guard( address, &protection ))
++        {
++            resume_i386_execute_page_owners();
++            return 1;
++        }
++    }
++    get_relayed_debug_registers( &context->c );
++
++    if (wow_context) sync_i386_signal_context( wow_context, ucontext );
++    if (!data->execute_page_stepping)
++        data->execute_step_guest_tf = !!(EFL_sig(ucontext) & 0x100);
++    if (!set_i386_execute_page_protection( address, protection ))
++    {
++        if (!page_mask) resume_i386_execute_page_owners();
++        return 0;
++    }
++    data->execute_step_page = i386_execute_page( address );
++    data->execute_page_stepping = 1;
++    data->execute_step_foreign = !page_mask;
++    hit_mask = i386_execute_breakpoint_hit_mask( &context->c, address );
++    if (hit_mask)
++    {
++        prepare_i386_execute_breakpoint( ucontext, rec, context, hit_mask );
++        return 2;
++    }
++
++    TRACE_(seh)( "Rosetta x86 execute page entered tid=%p eip=%p page=%p mask=%#x\n",
++                 NtCurrentTeb()->ClientId.UniqueThread, (void *)address,
++                 (void *)data->execute_step_page, page_mask );
++    EFL_sig(ucontext) |= 0x100;
++    if (wow_context) wow_context->EFlags |= 0x100;
++    return 1;
++}
++#endif
++
++#ifdef __APPLE__
++static void trace_i386_exit_import_handler( int signal, siginfo_t *siginfo,
++                                            void *sigcontext )
++{
++    ucontext_t *ucontext = init_handler( sigcontext );
++    BYTE instruction[16] = {0};
++    DWORD stack[12] = {0};
++    DWORD frame[12] = {0};
++    SIZE_T instruction_bytes, stack_bytes, frame_bytes;
++    unsigned int i, stack_words, frame_words;
++
++    (void)signal;
++    (void)siginfo;
++
++    instruction_bytes = virtual_uninterrupted_read_memory(
++        (const void *)(ULONG_PTR)RIP_sig(ucontext), instruction, sizeof(instruction) );
++    stack_bytes = virtual_uninterrupted_read_memory(
++        (const void *)(ULONG_PTR)RSP_sig(ucontext), stack, sizeof(stack) );
++    frame_bytes = virtual_uninterrupted_read_memory(
++        (const void *)(ULONG_PTR)RBP_sig(ucontext), frame, sizeof(frame) );
++    stack_words = stack_bytes / sizeof(*stack);
++    frame_words = frame_bytes / sizeof(*frame);
++
++    ERR_(seh)( "SECUNDA_EXIT_IMPORT_CONTEXT eip=%08x esp=%08x ebp=%08x "
++               "eax=%08x ebx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x "
++               "instruction_bytes=%lu stack_bytes=%lu "
++               "instruction=%02x%02x%02x%02x%02x%02x%02x%02x"
++               "%02x%02x%02x%02x%02x%02x%02x%02x\n",
++               (DWORD)RIP_sig(ucontext), (DWORD)RSP_sig(ucontext),
++               (DWORD)RBP_sig(ucontext), (DWORD)RAX_sig(ucontext),
++               (DWORD)RBX_sig(ucontext), (DWORD)RCX_sig(ucontext),
++               (DWORD)RDX_sig(ucontext), (DWORD)RSI_sig(ucontext),
++               (DWORD)RDI_sig(ucontext), instruction_bytes, stack_bytes,
++               instruction[0], instruction[1], instruction[2], instruction[3],
++               instruction[4], instruction[5], instruction[6], instruction[7],
++               instruction[8], instruction[9], instruction[10], instruction[11],
++               instruction[12], instruction[13], instruction[14], instruction[15] );
++    for (i = 0; i < stack_words; i += 4)
++    {
++        ERR_(seh)( "SECUNDA_EXIT_IMPORT_STACK index=%u values=%08x,%08x,%08x,%08x\n",
++                   i, stack[i], i + 1 < stack_words ? stack[i + 1] : 0,
++                   i + 2 < stack_words ? stack[i + 2] : 0,
++                   i + 3 < stack_words ? stack[i + 3] : 0 );
++    }
++    for (i = 0; i < frame_words; i += 4)
++    {
++        ERR_(seh)( "SECUNDA_EXIT_IMPORT_FRAME index=%u values=%08x,%08x,%08x,%08x\n",
++                   i, frame[i], i + 1 < frame_words ? frame[i + 1] : 0,
++                   i + 2 < frame_words ? frame[i + 2] : 0,
++                   i + 3 < frame_words ? frame[i + 3] : 0 );
++    }
++    leave_handler( ucontext );
++}
++
++static void replay_data_watchpoint_handler( int signal, siginfo_t *siginfo, void *sigcontext )
++{
++    ucontext_t *ucontext = init_handler( sigcontext );
++    struct xcontext context;
++
++    (void)signal;
++    (void)siginfo;
++
++    /* The broker reserves this signal for data-watchpoint replay. Refresh the
++     * logical debug state, then execute exactly one interrupted instruction. */
++    save_context( &context, ucontext );
++    get_relayed_debug_registers( &context.c );
++    EFL_sig(ucontext) |= 0x100;
++    leave_handler( ucontext );
++}
++#endif
++
+ static void trap_handler( int signal, siginfo_t *siginfo, void *sigcontext )
+ {
+     ucontext_t *ucontext = init_handler( sigcontext );
+     EXCEPTION_RECORD rec = { 0 };
+     struct xcontext context;
++    BOOL data_replay = FALSE;
++    unsigned int hit_mask = 0;
+ 
+     if (handle_syscall_trap( ucontext, siginfo )) return;
+ 
+     rec.ExceptionAddress = (void *)RIP_sig(ucontext);
+     save_context( &context, ucontext );
++    get_relayed_debug_event( ucontext, &context.c, &data_replay );
++#ifdef __APPLE__
++    if (is_rosetta2 && TRAP_sig(ucontext) == TRAP_x86_TRCTRAP)
++    {
++        struct amd64_thread_data *data = amd64_thread_data();
++        I386_CONTEXT *wow_context = get_cpu_area( IMAGE_FILE_MACHINE_I386 );
+ 
+-    switch (TRAP_sig(ucontext))
++        if (wow_context) sync_i386_signal_context( wow_context, ucontext );
++
++        if (data->execute_page_stepping && !data->execute_step_page &&
++            data->execute_bp_suppressed &&
++            !complete_i386_execute_breakpoint_resume( ucontext, &context.c,
++                                                       wow_context ) &&
++            !i386_data_breakpoint_hit( &context.c ))
++        {
++            leave_handler( ucontext );
++            return;
++        }
++
++        if (i386_data_breakpoint_hit( &context.c ))
++        {
++            rearm_i386_foreign_execute_page( data, FALSE );
++            /* TF is an internal one-instruction replay mechanism here. A native
++             * x86 data-breakpoint exception exposes it cleared to the guest. */
++            data->data_replay_tf = 1;
++            context.c.EFlags &= ~0x100;
++            EFL_sig(ucontext) &= ~0x100;
++            if (wow_context) wow_context->EFlags &= ~0x100;
++        }
++        else if (!data_replay && data->execute_page_stepping)
++        {
++            hit_mask = i386_execute_breakpoint_hit_mask( &context.c,
++                                                         RIP_sig(ucontext) );
++            if (hit_mask)
++                prepare_i386_execute_breakpoint( ucontext, &rec, &context, hit_mask );
++            else if (i386_execute_page( RIP_sig(ucontext) ) == data->execute_step_page)
++            {
++                TRACE_(seh)( "Rosetta x86 execute step tid=%p eip=%p esp=%p "
++                             "ebp=%p ecx=%p eflags=%#lx\n",
++                             NtCurrentTeb()->ClientId.UniqueThread,
++                             (void *)RIP_sig(ucontext), (void *)RSP_sig(ucontext),
++                             (void *)RBP_sig(ucontext), (void *)RCX_sig(ucontext),
++                             (ULONG_PTR)EFL_sig(ucontext) );
++                /* The guarded page can contain a polling loop that waits on
++                 * its breakpoint owner. Rearm before waking the owner, then
++                 * arbitrate the next instruction through a fresh page fault.
++                 * Holding the owner suspended for the whole page traversal
++                 * would deadlock that legitimate same-page dependency. */
++                rearm_i386_foreign_execute_page( data, TRUE );
++                EFL_sig(ucontext) |= 0x100;
++                if (wow_context) wow_context->EFlags |= 0x100;
++                leave_handler( ucontext );
++                return;
++            }
++            else
++            {
++                DWORD_PTR guarded_page = data->execute_step_page;
++                BOOL foreign = data->execute_step_foreign;
++
++                data->execute_page_stepping = 0;
++                data->execute_step_page = 0;
++                data->execute_step_foreign = 0;
++                if (foreign)
++                {
++                    data->execute_step_page = guarded_page;
++                    data->execute_step_foreign = 1;
++                    rearm_i386_foreign_execute_page( data, TRUE );
++                    data->execute_step_page = 0;
++                    data->execute_step_foreign = 0;
++                }
++                else if (i386_execute_breakpoint_page_mask( guarded_page ))
++                    set_i386_execute_page_protection(
++                        guarded_page,
++                        i386_execute_page_original_protection( guarded_page ) & ~PROT_EXEC );
++                if (!data->execute_step_guest_tf)
++                {
++                    EFL_sig(ucontext) &= ~0x100;
++                    if (wow_context) wow_context->EFlags &= ~0x100;
++                }
++                data->execute_step_guest_tf = 0;
++                leave_handler( ucontext );
++                return;
++            }
++        }
++        else if (!data_replay && data->execute_bp_active)
++        {
++            hit_mask = i386_execute_breakpoint_hit_mask( &context.c,
++                                                         RIP_sig(ucontext) );
++            if (hit_mask)
++                prepare_i386_execute_breakpoint( ucontext, &rec, &context, hit_mask );
++            else context.c.Dr6 |= 1u << 14;
++        }
++    }
++    if (is_rosetta2)
+     {
++        const struct amd64_thread_data *data = amd64_thread_data();
++        TRACE_(seh)( "Rosetta trap tid=%p trap=%lu rip=%p replay=%u dr0=%p dr1=%p "
++                     "dr2=%p dr3=%p dr6=%p dr7=%p active=%#x suppressed=%#x\n",
++                     NtCurrentTeb()->ClientId.UniqueThread, (ULONG_PTR)TRAP_sig(ucontext),
++                     (void *)RIP_sig(ucontext), data_replay, (void *)context.c.Dr0,
++                     (void *)context.c.Dr1, (void *)context.c.Dr2, (void *)context.c.Dr3,
++                     (void *)context.c.Dr6, (void *)context.c.Dr7,
++                     data->execute_bp_active, data->execute_bp_suppressed );
++    }
++#endif
++
++    if (data_replay)
++        rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
++#ifdef __APPLE__
++    else if (hit_mask)
++        rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
++#endif
++    else switch (TRAP_sig(ucontext))
++    {
+     case TRAP_x86_TRCTRAP:
+         rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
+         break;
+@@ -2942,7 +4366,18 @@
+ void signal_free_thread( TEB *teb )
+ {
+     struct amd64_thread_data *thread_data = (struct amd64_thread_data *)&teb->GdiTebBatch;
++#ifdef __APPLE__
++    unsigned int i;
+ 
++    if (is_rosetta2)
++    {
++        if (teb == NtCurrentTeb()) resume_i386_execute_page_owners();
++        for (i = 0; i < ARRAY_SIZE(thread_data->execute_bp); ++i)
++            if ((thread_data->execute_bp_active | thread_data->execute_bp_suppressed) & (1u << i))
++                release_i386_execute_page( i386_tracked_execute_address( thread_data, i ), teb );
++    }
++#endif
++
+     if (teb->WowTebOffset && !fs32_sel) ldt_free_entry( thread_data->fs );
+ }
+ 
+@@ -3010,7 +4445,41 @@
+         else
+             is_rosetta2 = ret;
+     }
++    trace_i386_exception_stacks = is_rosetta2 && getenv( "SECUNDA_X86_EXCEPTION_TRACE" );
++    trace_i386_protected_transform =
++        is_rosetta2 && getenv( "SECUNDA_TRACE_PROTECTED_TRANSFORM" );
++    trace_i386_exit_import = is_rosetta2 && getenv( "SECUNDA_TRACE_EXIT_IAT" );
++    if (is_rosetta2)
++    {
++        const char *cursor = getenv( "SECUNDA_TRACE_EXECUTE_ENTRY" );
++        char *end;
++        unsigned long address;
+ 
++        while (cursor && *cursor &&
++               trace_i386_execute_entry_count < I386_EXECUTE_ENTRY_COUNT)
++        {
++            address = strtoul( cursor, &end, 0 );
++            if (!address || address > ~(DWORD)0 || end == cursor ||
++                (*end && *end != ',') ||
++                (trace_i386_execute_entry_count &&
++                 i386_execute_page( address ) !=
++                 i386_execute_page( trace_i386_execute_entries[0] )))
++            {
++                trace_i386_execute_entry_count = 0;
++                break;
++            }
++            trace_i386_execute_entries[trace_i386_execute_entry_count++] = address;
++            cursor = *end ? end + 1 : end;
++        }
++    }
++    preserve_i386_guarded_execute_reads =
++        is_rosetta2 && getenv( "SECUNDA_ROSETTA_GUARDED_EXECUTE_READS" );
++    emulate_i386_protected_hash_copy_reads =
++        is_rosetta2 && getenv( "SECUNDA_ROSETTA_PROTECTED_HASH_COPY" );
++    emulate_i386_protected_hash_copy_smoke =
++        emulate_i386_protected_hash_copy_reads &&
++        getenv( "SECUNDA_ROSETTA_PROTECTED_HASH_COPY_SMOKE" );
++
+     /* CW Hack 23427: __builtin_available presumably isn't signal-safe. */
+     if (__builtin_available( macOS 15.0, * ))
+         sequoia_or_later = TRUE;
+@@ -3031,6 +4500,15 @@
+     if (sigaction( SIGUSR1, &sig_act, NULL ) == -1) goto error;
+     sig_act.sa_sigaction = trap_handler;
+     if (sigaction( SIGTRAP, &sig_act, NULL ) == -1) goto error;
++#ifdef __APPLE__
++    if (trace_i386_exit_import)
++    {
++        sig_act.sa_sigaction = trace_i386_exit_import_handler;
++        if (sigaction( SIGUSR2, &sig_act, NULL ) == -1) goto error;
++    }
++    sig_act.sa_sigaction = replay_data_watchpoint_handler;
++    if (sigaction( SIGEMT, &sig_act, NULL ) == -1) goto error;
++#endif
+     sig_act.sa_sigaction = segv_handler;
+     if (sigaction( SIGSEGV, &sig_act, NULL ) == -1) goto error;
+     if (sigaction( SIGILL, &sig_act, NULL ) == -1) goto error;
+diff --git a/server/mach.c b/server/mach.c
 --- a/server/mach.c
 +++ b/server/mach.c
 @@ -23,10 +23,14 @@
@@ -302,821 +2000,8 @@
          return;
      }
  
---- a/dlls/ntdll/unix/signal_i386.c
-+++ b/dlls/ntdll/unix/signal_i386.c
-@@ -2035,6 +2035,53 @@
-  *
-  * Handler for SIGTRAP.
-  */
-+static BOOL get_relayed_debug_registers( CONTEXT *context )
-+{
-+#ifdef __APPLE__
-+    DWORD saved_flags;
-+
-+    saved_flags = context->ContextFlags;
-+    context->ContextFlags = CONTEXT_DEBUG_REGISTERS;
-+    if (NtGetContextThread( GetCurrentThread(), context ))
-+    {
-+        context->ContextFlags = saved_flags;
-+        return FALSE;
-+    }
-+    context->ContextFlags |= saved_flags;
-+    return TRUE;
-+#else
-+    return FALSE;
-+#endif
-+}
-+
-+static BOOL is_relayed_debug_trap( ucontext_t *ucontext, CONTEXT *context )
-+{
-+#ifdef __APPLE__
-+    if (TRAP_sig(ucontext) != 0xde) return FALSE;
-+    if (!get_relayed_debug_registers( context )) return FALSE;
-+    return !!(context->Dr6 & 0xf);
-+#endif
-+    return FALSE;
-+}
-+
-+#ifdef __APPLE__
-+static void replay_data_watchpoint_handler( int signal, siginfo_t *siginfo, void *sigcontext )
-+{
-+    ucontext_t *ucontext = sigcontext;
-+    struct xcontext xcontext;
-+
-+    (void)signal;
-+    (void)siginfo;
-+
-+    /* The broker reserves this signal for data-watchpoint replay. Refresh the
-+     * logical debug state, then execute exactly one interrupted instruction. */
-+    init_handler( ucontext );
-+    save_context( &xcontext, ucontext );
-+    get_relayed_debug_registers( &xcontext.c );
-+    EFL_sig(ucontext) |= 0x100;
-+}
-+#endif
-+
- static void trap_handler( int signal, siginfo_t *siginfo, void *sigcontext )
- {
-     EXCEPTION_RECORD rec = { 0 };
-@@ -2044,7 +2091,9 @@
- 
-     if (handle_syscall_trap( ucontext, siginfo )) return;
- 
--    switch (TRAP_sig(ucontext))
-+    if (is_relayed_debug_trap( ucontext, &xcontext.c ))
-+        rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
-+    else switch (TRAP_sig(ucontext))
-     {
-     case TRAP_x86_TRCTRAP:  /* Single-step exception */
-         rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
-@@ -2421,6 +2470,10 @@
-     if (sigaction( SIGUSR1, &sig_act, NULL ) == -1) goto error;
-     sig_act.sa_sigaction = trap_handler;
-     if (sigaction( SIGTRAP, &sig_act, NULL ) == -1) goto error;
-+#ifdef __APPLE__
-+    sig_act.sa_sigaction = replay_data_watchpoint_handler;
-+    if (sigaction( SIGEMT, &sig_act, NULL ) == -1) goto error;
-+#endif
-     sig_act.sa_sigaction = segv_handler;
-     if (sigaction( SIGSEGV, &sig_act, NULL ) == -1) goto error;
-     if (sigaction( SIGILL, &sig_act, NULL ) == -1) goto error;
---- a/dlls/ntdll/unix/signal_x86_64.c
-+++ b/dlls/ntdll/unix/signal_x86_64.c
-@@ -27,6 +27,7 @@
- #include "config.h"
- 
- #include <assert.h>
-+#include <errno.h>
- #include <pthread.h>
- #include <signal.h>
- #include <stdlib.h>
-@@ -63,6 +64,7 @@
- #endif
- #ifdef __APPLE__
- # include <mach/mach.h>
-+# include <mach/mach_vm.h>
- #endif
- 
- #include "ntstatus.h"
-@@ -84,6 +86,7 @@
- /* CW Hack 24256 */
- #include <sys/sysctl.h>
- static BOOL is_rosetta2;
-+static BOOL trace_i386_exception_stacks;
- 
- /* CW Hack 23427 */
- static BOOL sequoia_or_later = FALSE;
-@@ -94,6 +97,19 @@
- static USHORT ds64_sel;  /* selector for %ds/%es/%ss in 64-bit mode */
- static USHORT fs32_sel;  /* selector for %fs in 32-bit mode */
- 
-+#ifdef __APPLE__
-+struct xcontext;
-+#define I386_DR6_BASE 0xffff0ff0u
-+static void update_i386_execute_breakpoints( const I386_CONTEXT *context );
-+static void schedule_i386_execute_breakpoint_resume( I386_CONTEXT *context );
-+static unsigned int i386_execute_breakpoint_hit_mask( const CONTEXT *context, ULONG_PTR address );
-+static void consume_i386_execute_breakpoint( unsigned int hit_mask );
-+static BOOL i386_data_breakpoint_hit_values( ULONG64 dr6, ULONG64 dr7 );
-+static int handle_i386_execute_page_fault( ucontext_t *ucontext,
-+                                           EXCEPTION_RECORD *rec,
-+                                           struct xcontext *context );
-+#endif
-+
- /***********************************************************************
-  * signal context platform-specific definitions
-  */
-@@ -508,6 +524,16 @@
-     void                **instrumentation_callback; /* 0330 */
-     DWORD                 fs;            /* 0338 WOW TEB selector */
-     DWORD                 mxcsr;         /* 033c Unix-side mxcsr register */
-+#ifdef __APPLE__
-+    DWORD_PTR             execute_bp[4];
-+    DWORD_PTR             execute_step_page;
-+    BYTE                  execute_bp_active;
-+    BYTE                  execute_bp_suppressed;
-+    BYTE                  execute_step_guest_tf;
-+    BYTE                  execute_page_stepping;
-+    BYTE                  data_replay_tf;
-+    BYTE                  execute_dispatch_pending;
-+#endif
- };
- 
- C_ASSERT( sizeof(struct amd64_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
-@@ -1414,6 +1440,10 @@
-         wow_frame->Ebp    = context->Ebp;
-         wow_frame->Eip    = context->Eip;
-         wow_frame->EFlags = context->EFlags;
-+#ifdef __APPLE__
-+        if (is_rosetta2 && amd64_thread_data()->data_replay_tf)
-+            wow_frame->EFlags &= ~0x100;
-+#endif
-         wow_frame->SegCs  = context->SegCs;
-         wow_frame->SegSs  = context->SegSs;
-         cpu->Flags |= WOW64_CPURESERVED_FLAG_RESET_STATE;
-@@ -1433,6 +1463,26 @@
-         wow_frame->Dr3 = context->Dr3;
-         wow_frame->Dr6 = context->Dr6;
-         wow_frame->Dr7 = context->Dr7;
-+#ifdef __APPLE__
-+        if (is_rosetta2)
-+        {
-+            struct amd64_thread_data *data = amd64_thread_data();
-+
-+            update_i386_execute_breakpoints( context );
-+            if (!data->execute_bp_active && data->execute_page_stepping)
-+            {
-+                if (!data->execute_step_guest_tf) wow_frame->EFlags &= ~0x100;
-+                data->execute_step_guest_tf = 0;
-+                data->execute_page_stepping = 0;
-+                data->execute_step_page = 0;
-+            }
-+            if (flags & CONTEXT_I386_CONTROL)
-+                schedule_i386_execute_breakpoint_resume( wow_frame );
-+            if (data->data_replay_tf &&
-+                !i386_data_breakpoint_hit_values( context->Dr6, context->Dr7 ))
-+                data->data_replay_tf = 0;
-+        }
-+#endif
-     }
-     if (flags & CONTEXT_I386_EXTENDED_REGISTERS)
-     {
-@@ -2488,8 +2538,47 @@
- #endif
-     return TRUE;
- }
-+
-+
-+#ifdef __APPLE__
-+/***********************************************************************
-+ *           trace_i386_exception_stack
-+ *
-+ * Emit a bounded stack snapshot for 32-bit faults translated by Rosetta.
-+ */
-+static void trace_i386_exception_stack( const EXCEPTION_RECORD *rec, const CONTEXT *context )
-+{
-+    DWORD words[512];
-+    SIZE_T bytes, count;
-+    unsigned int i;
- 
-+    if (!trace_i386_exception_stacks || context->SegCs != cs32_sel ||
-+        rec->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
-+        return;
- 
-+    bytes = virtual_uninterrupted_read_memory( (const void *)(ULONG_PTR)(DWORD)context->Rsp,
-+                                               words, sizeof(words) );
-+    count = bytes / sizeof(*words);
-+    TRACE_(seh)( "i386 exception stack eip=%08x esp=%08x bytes=%lu\n",
-+                 (DWORD)context->Rip, (DWORD)context->Rsp, bytes );
-+
-+    for (i = 0; i < count; i += 4)
-+    {
-+        if (count - i >= 4)
-+            TRACE_(seh)( " stack[%03u]=%08x %08x %08x %08x\n", i,
-+                         words[i], words[i + 1], words[i + 2], words[i + 3] );
-+        else if (count - i == 3)
-+            TRACE_(seh)( " stack[%03u]=%08x %08x %08x\n", i,
-+                         words[i], words[i + 1], words[i + 2] );
-+        else if (count - i == 2)
-+            TRACE_(seh)( " stack[%03u]=%08x %08x\n", i, words[i], words[i + 1] );
-+        else
-+            TRACE_(seh)( " stack[%03u]=%08x\n", i, words[i] );
-+    }
-+}
-+#endif
-+
-+
- /**********************************************************************
-  *		segv_handler
-  *
-@@ -2542,6 +2631,21 @@
-         rec.NumberParameters = 2;
-         rec.ExceptionInformation[0] = (ERROR_sig(ucontext) >> 1) & 0x09;
-         rec.ExceptionInformation[1] = (ULONG_PTR)siginfo->si_addr;
-+#ifdef __APPLE__
-+        if (is_rosetta2 &&
-+            rec.ExceptionInformation[0] == EXCEPTION_EXECUTE_FAULT)
-+        {
-+            int execute_breakpoint = handle_i386_execute_page_fault( ucontext, &rec,
-+                                                                      &context );
-+
-+            if (execute_breakpoint == 1)
-+            {
-+                leave_handler( ucontext );
-+                return;
-+            }
-+            if (execute_breakpoint == 2) break;
-+        }
-+#endif
-         if (!virtual_handle_fault( &rec, (void *)RSP_sig(ucontext) ) || check_invalid_gsbase( ucontext ))
-         {
-             leave_handler( ucontext );
-@@ -2582,6 +2686,9 @@
-         break;
-     }
-     if (handle_syscall_fault( ucontext, &rec, &context.c )) return;
-+#ifdef __APPLE__
-+    trace_i386_exception_stack( &rec, &context.c );
-+#endif
-     setup_raise_exception( ucontext, &rec, &context );
- }
- 
-@@ -2591,18 +2698,535 @@
-  *
-  * Handler for SIGTRAP.
-  */
-+static BOOL get_relayed_debug_registers( CONTEXT *context )
-+{
-+#ifdef __APPLE__
-+    DWORD saved_flags;
-+
-+    saved_flags = context->ContextFlags;
-+    context->ContextFlags = CONTEXT_DEBUG_REGISTERS;
-+    if (NtGetContextThread( GetCurrentThread(), context ))
-+    {
-+        context->ContextFlags = saved_flags;
-+        return FALSE;
-+    }
-+    context->ContextFlags |= saved_flags;
-+    return TRUE;
-+#else
-+    return FALSE;
-+#endif
-+}
-+
-+static BOOL get_relayed_debug_event( ucontext_t *ucontext, CONTEXT *context,
-+                                     BOOL *data_replay )
-+{
-+#ifdef __APPLE__
-+    const ULONG64 replay_marker = (ULONG64)1 << 63;
-+    ULONG_PTR trap = TRAP_sig(ucontext);
-+
-+    if (trap != 0xde &&
-+        (trap != TRAP_x86_TRCTRAP ||
-+         !i386_data_breakpoint_hit_values( context->Dr6, context->Dr7 )))
-+        return FALSE;
-+    if (!get_relayed_debug_registers( context )) return FALSE;
-+    *data_replay = !!(context->Dr6 & replay_marker);
-+    context->Dr6 &= ~replay_marker;
-+    amd64_thread_data()->dr6 &= ~replay_marker;
-+    return TRUE;
-+#endif
-+    return FALSE;
-+}
-+
-+#ifdef __APPLE__
-+static DWORD i386_debug_address( const I386_CONTEXT *context, unsigned int index )
-+{
-+    switch (index)
-+    {
-+    case 0: return context->Dr0;
-+    case 1: return context->Dr1;
-+    case 2: return context->Dr2;
-+    default: return context->Dr3;
-+    }
-+}
-+
-+static BOOL i386_execute_breakpoint_enabled( const I386_CONTEXT *context, unsigned int index )
-+{
-+    return (context->Dr7 & (3u << (index * 2))) &&
-+           !((context->Dr7 >> (16 + index * 4)) & 3);
-+}
-+
-+static BOOL i386_data_breakpoint_hit_values( ULONG64 dr6, ULONG64 dr7 )
-+{
-+    unsigned int i;
-+
-+    for (i = 0; i < 4; i++)
-+    {
-+        if (!(dr6 & ((ULONG64)1 << i))) continue;
-+        if (!(dr7 & ((ULONG64)3 << (i * 2)))) continue;
-+        if ((dr7 >> (16 + i * 4)) & 3) return TRUE;
-+    }
-+    return FALSE;
-+}
-+
-+static BOOL i386_data_breakpoint_hit( const CONTEXT *context )
-+{
-+    return i386_data_breakpoint_hit_values( context->Dr6, context->Dr7 );
-+}
-+
-+static DWORD_PTR i386_execute_page( DWORD_PTR address )
-+{
-+    return address & ~((DWORD_PTR)page_size - 1);
-+}
-+
-+static DWORD i386_tracked_execute_address( const struct amd64_thread_data *data,
-+                                           unsigned int index )
-+{
-+    return data->execute_bp[index];
-+}
-+
-+static int i386_tracked_execute_protection( const struct amd64_thread_data *data,
-+                                            unsigned int index )
-+{
-+    return data->execute_bp[index] >> 32;
-+}
-+
-+static BOOL query_i386_execute_page_protection( DWORD_PTR address, int *protection )
-+{
-+    mach_vm_address_t page = i386_execute_page( address );
-+    mach_vm_address_t region = page;
-+    mach_vm_size_t size = 0;
-+    vm_region_basic_info_data_64_t info;
-+    mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
-+    mach_port_t object = MACH_PORT_NULL;
-+    kern_return_t status;
-+
-+    status = mach_vm_region( mach_task_self(), &region, &size, VM_REGION_BASIC_INFO_64,
-+                             (vm_region_info_t)&info, &count, &object );
-+    if (object != MACH_PORT_NULL) mach_port_deallocate( mach_task_self(), object );
-+    if (status != KERN_SUCCESS || !size || region > page || page - region >= size)
-+        return FALSE;
-+    *protection = info.protection;
-+    return TRUE;
-+}
-+
-+static BOOL set_i386_execute_page_protection( DWORD_PTR address, int protection )
-+{
-+    DWORD_PTR page = i386_execute_page( address );
-+
-+    if (!mprotect( (void *)page, page_size, protection )) return TRUE;
-+    WARN_(seh)( "Unable to set Rosetta x86 execute-breakpoint page %p protection %#x: %s\n",
-+                (void *)page, protection, strerror( errno ) );
-+    return FALSE;
-+}
-+
-+static int i386_execute_page_original_protection( DWORD_PTR address )
-+{
-+    const struct amd64_thread_data *data = amd64_thread_data();
-+    DWORD_PTR page = i386_execute_page( address );
-+    unsigned int i;
-+
-+    for (i = 0; i < ARRAY_SIZE(data->execute_bp); ++i)
-+        if (((data->execute_bp_active | data->execute_bp_suppressed) & (1u << i)) &&
-+            i386_execute_page( i386_tracked_execute_address( data, i ) ) == page)
-+            return i386_tracked_execute_protection( data, i );
-+    return PROT_READ | PROT_EXEC;
-+}
-+
-+static unsigned int i386_execute_breakpoint_page_mask( DWORD_PTR address )
-+{
-+    const struct amd64_thread_data *data = amd64_thread_data();
-+    DWORD_PTR page = i386_execute_page( address );
-+    unsigned int i, mask = 0;
-+
-+    for (i = 0; i < ARRAY_SIZE(data->execute_bp); ++i)
-+        if ((data->execute_bp_active & (1u << i)) &&
-+            i386_execute_page( i386_tracked_execute_address( data, i ) ) == page)
-+            mask |= 1u << i;
-+    return mask;
-+}
-+
-+static void update_i386_execute_breakpoints( const I386_CONTEXT *context )
-+{
-+    struct amd64_thread_data *data = amd64_thread_data();
-+    unsigned int i;
-+
-+    TRACE_(seh)( "Rosetta x86 debug update tid=%p eip=%#x esp=%#x eflags=%#x "
-+                 "eax=%#x ebx=%#x ecx=%#x edx=%#x esi=%#x edi=%#x "
-+                 "dr0=%#x dr1=%#x dr2=%#x dr3=%#x dr6=%#x dr7=%#x "
-+                 "active=%#x suppressed=%#x\n",
-+                 NtCurrentTeb()->ClientId.UniqueThread, context->Eip, context->Esp,
-+                 context->EFlags, context->Eax, context->Ebx, context->Ecx,
-+                 context->Edx, context->Esi, context->Edi,
-+                 context->Dr0, context->Dr1,
-+                 context->Dr2, context->Dr3, context->Dr6, context->Dr7,
-+                 data->execute_bp_active, data->execute_bp_suppressed );
-+
-+    for (i = 0; i < 4; i++)
-+    {
-+        BYTE bit = 1u << i;
-+        DWORD address = i386_debug_address( context, i );
-+        DWORD_PTR old_address;
-+        int old_protection;
-+
-+        if (!(data->execute_bp_active & bit) && !(data->execute_bp_suppressed & bit))
-+            continue;
-+        if (i386_execute_breakpoint_enabled( context, i ) &&
-+            i386_tracked_execute_address( data, i ) == address)
-+            continue;
-+
-+        old_address = i386_tracked_execute_address( data, i );
-+        old_protection = i386_tracked_execute_protection( data, i );
-+        data->execute_bp_active &= ~bit;
-+        data->execute_bp_suppressed &= ~bit;
-+        if (!i386_execute_breakpoint_page_mask( old_address ) &&
-+            (!data->execute_page_stepping ||
-+             data->execute_step_page != i386_execute_page( old_address )))
-+            set_i386_execute_page_protection( old_address, old_protection );
-+        data->execute_bp[i] = 0;
-+    }
-+
-+    for (i = 0; i < 4; i++)
-+    {
-+        BYTE bit = 1u << i;
-+        DWORD address = i386_debug_address( context, i );
-+        int protection;
-+
-+        if (!i386_execute_breakpoint_enabled( context, i ) ||
-+            (data->execute_bp_suppressed & bit) ||
-+            (data->execute_bp_active & bit))
-+            continue;
-+
-+        if (query_i386_execute_page_protection( address, &protection ) &&
-+            (protection & PROT_EXEC) &&
-+            set_i386_execute_page_protection( address, protection & ~PROT_EXEC ))
-+        {
-+            data->execute_bp[i] = (DWORD_PTR)address |
-+                                  ((DWORD_PTR)(unsigned int)protection << 32);
-+            data->execute_bp_active |= bit;
-+            TRACE_(seh)( "Rosetta x86 execute breakpoint guarded tid=%p dr%u=%#x "
-+                         "page=%p protection=%#x\n",
-+                         NtCurrentTeb()->ClientId.UniqueThread, i, address,
-+                         (void *)i386_execute_page( address ), protection );
-+        }
-+    }
-+}
-+
-+static unsigned int i386_execute_breakpoint_hit_mask( const CONTEXT *context,
-+                                                      ULONG_PTR address )
-+{
-+    const struct amd64_thread_data *data = amd64_thread_data();
-+    const ULONG64 registers[] = {context->Dr0, context->Dr1, context->Dr2, context->Dr3};
-+    unsigned int i, mask = 0;
-+
-+    for (i = 0; i < ARRAY_SIZE(registers); i++)
-+    {
-+        if (!(data->execute_bp_active & (1u << i))) continue;
-+        if (!(context->Dr7 & ((ULONG64)3 << (i * 2)))) continue;
-+        if ((context->Dr7 >> (16 + i * 4)) & 3) continue;
-+        if (registers[i] == address &&
-+            i386_tracked_execute_address( data, i ) == address)
-+            mask |= 1u << i;
-+    }
-+    return mask;
-+}
-+
-+static void consume_i386_execute_breakpoint( unsigned int hit_mask )
-+{
-+    struct amd64_thread_data *data = amd64_thread_data();
-+
-+    data->execute_bp_active &= ~hit_mask;
-+    data->execute_bp_suppressed |= hit_mask;
-+}
-+
-+static void schedule_i386_execute_breakpoint_resume( I386_CONTEXT *context )
-+{
-+    struct amd64_thread_data *data = amd64_thread_data();
-+
-+    if (data->execute_dispatch_pending)
-+    {
-+        data->execute_dispatch_pending = 0;
-+        TRACE_(seh)( "Rosetta x86 execute breakpoint dispatch context retained "
-+                     "tid=%p eip=%#x suppressed=%#x\n",
-+                     NtCurrentTeb()->ClientId.UniqueThread, context->Eip,
-+                     data->execute_bp_suppressed );
-+        return;
-+    }
-+    if (!data->execute_bp_suppressed || data->execute_page_stepping) return;
-+    data->execute_step_page = 0;
-+    data->execute_step_guest_tf = !!(context->EFlags & 0x100);
-+    data->execute_page_stepping = 1;
-+    context->EFlags |= 0x100;
-+    TRACE_(seh)( "Rosetta x86 execute breakpoint resume scheduled tid=%p "
-+                 "eip=%#x suppressed=%#x guest_tf=%u\n",
-+                 NtCurrentTeb()->ClientId.UniqueThread, context->Eip,
-+                 data->execute_bp_suppressed, data->execute_step_guest_tf );
-+}
-+
-+static void rearm_i386_execute_breakpoints( void )
-+{
-+    struct amd64_thread_data *data = amd64_thread_data();
-+    unsigned int pending = data->execute_bp_suppressed;
-+    unsigned int i, j;
-+
-+    data->execute_bp_suppressed = 0;
-+    data->execute_bp_active |= pending;
-+    for (i = 0; i < ARRAY_SIZE(data->execute_bp); ++i)
-+    {
-+        DWORD_PTR address, page;
-+        int protection;
-+
-+        if (!(pending & (1u << i))) continue;
-+        address = i386_tracked_execute_address( data, i );
-+        page = i386_execute_page( address );
-+        for (j = 0; j < i; ++j)
-+            if ((pending & (1u << j)) &&
-+                i386_execute_page( i386_tracked_execute_address( data, j ) ) == page)
-+                break;
-+        if (j != i) continue;
-+        protection = i386_tracked_execute_protection( data, i );
-+        set_i386_execute_page_protection( address, protection & ~PROT_EXEC );
-+    }
-+}
-+
-+static BOOL complete_i386_execute_breakpoint_resume( ucontext_t *ucontext,
-+                                                      CONTEXT *context,
-+                                                      I386_CONTEXT *wow_context )
-+{
-+    struct amd64_thread_data *data = amd64_thread_data();
-+    BOOL guest_tf = data->execute_step_guest_tf;
-+
-+    rearm_i386_execute_breakpoints();
-+    data->execute_step_guest_tf = 0;
-+    data->execute_page_stepping = 0;
-+    data->execute_step_page = 0;
-+    context->EFlags &= ~0x10000;
-+    EFL_sig(ucontext) &= ~0x10000;
-+    if (wow_context) wow_context->EFlags &= ~0x10000;
-+    if (guest_tf)
-+    {
-+        context->Dr6 |= 1u << 14;
-+        return TRUE;
-+    }
-+    context->EFlags &= ~0x100;
-+    EFL_sig(ucontext) &= ~0x100;
-+    if (wow_context) wow_context->EFlags &= ~0x100;
-+    return FALSE;
-+}
-+
-+static void sync_i386_signal_context( I386_CONTEXT *context, const ucontext_t *ucontext )
-+{
-+    context->Eax = RAX_sig(ucontext);
-+    context->Ebx = RBX_sig(ucontext);
-+    context->Ecx = RCX_sig(ucontext);
-+    context->Edx = RDX_sig(ucontext);
-+    context->Esi = RSI_sig(ucontext);
-+    context->Edi = RDI_sig(ucontext);
-+    context->Esp = RSP_sig(ucontext);
-+    context->Ebp = RBP_sig(ucontext);
-+    context->Eip = RIP_sig(ucontext);
-+    context->EFlags = EFL_sig(ucontext);
-+}
-+
-+static void prepare_i386_execute_breakpoint( ucontext_t *ucontext,
-+                                             EXCEPTION_RECORD *rec,
-+                                             struct xcontext *context,
-+                                             unsigned int hit_mask )
-+{
-+    struct amd64_thread_data *data = amd64_thread_data();
-+    I386_CONTEXT *wow_context = get_cpu_area( IMAGE_FILE_MACHINE_I386 );
-+    DWORD saved_flags;
-+
-+    TRACE_(seh)( "Rosetta x86 execute breakpoint hit tid=%p address=%p mask=%#x\n",
-+                 NtCurrentTeb()->ClientId.UniqueThread,
-+                 (void *)RIP_sig(ucontext), hit_mask );
-+    rec->ExceptionCode = EXCEPTION_SINGLE_STEP;
-+    rec->ExceptionAddress = (void *)RIP_sig(ucontext);
-+    rec->NumberParameters = 0;
-+    consume_i386_execute_breakpoint( hit_mask );
-+    data->execute_dispatch_pending = 1;
-+    context->c.Dr6 = I386_DR6_BASE | hit_mask;
-+    context->c.EFlags |= 0x10000;
-+    EFL_sig(ucontext) |= 0x10000;
-+    if (wow_context) wow_context->EFlags |= 0x10000;
-+    if (!data->execute_step_guest_tf)
-+    {
-+        context->c.EFlags &= ~0x100;
-+        EFL_sig(ucontext) &= ~0x100;
-+        if (wow_context) wow_context->EFlags &= ~0x100;
-+    }
-+    else context->c.Dr6 |= 1u << 14;
-+    data->execute_step_guest_tf = 0;
-+    data->execute_page_stepping = 0;
-+    data->execute_step_page = 0;
-+    saved_flags = context->c.ContextFlags;
-+    context->c.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-+    NtSetContextThread( GetCurrentThread(), &context->c );
-+    context->c.ContextFlags = saved_flags;
-+}
-+
-+static int handle_i386_execute_page_fault( ucontext_t *ucontext,
-+                                           EXCEPTION_RECORD *rec,
-+                                           struct xcontext *context )
-+{
-+    struct amd64_thread_data *data = amd64_thread_data();
-+    I386_CONTEXT *wow_context = get_cpu_area( IMAGE_FILE_MACHINE_I386 );
-+    DWORD_PTR address = RIP_sig(ucontext);
-+    unsigned int page_mask, hit_mask;
-+
-+    if (!data->execute_bp_active) return 0;
-+    get_relayed_debug_registers( &context->c );
-+    page_mask = i386_execute_breakpoint_page_mask( address );
-+    if (!page_mask) return 0;
-+    if (!set_i386_execute_page_protection( address,
-+                                           i386_execute_page_original_protection( address ) ))
-+        return 0;
-+
-+    if (wow_context) sync_i386_signal_context( wow_context, ucontext );
-+    data->execute_step_page = i386_execute_page( address );
-+    data->execute_step_guest_tf = !!(EFL_sig(ucontext) & 0x100);
-+    data->execute_page_stepping = 1;
-+    hit_mask = i386_execute_breakpoint_hit_mask( &context->c, address );
-+    if (hit_mask)
-+    {
-+        prepare_i386_execute_breakpoint( ucontext, rec, context, hit_mask );
-+        return 2;
-+    }
-+
-+    TRACE_(seh)( "Rosetta x86 execute page entered tid=%p eip=%p page=%p mask=%#x\n",
-+                 NtCurrentTeb()->ClientId.UniqueThread, (void *)address,
-+                 (void *)data->execute_step_page, page_mask );
-+    EFL_sig(ucontext) |= 0x100;
-+    if (wow_context) wow_context->EFlags |= 0x100;
-+    return 1;
-+}
-+#endif
-+
-+#ifdef __APPLE__
-+static void replay_data_watchpoint_handler( int signal, siginfo_t *siginfo, void *sigcontext )
-+{
-+    ucontext_t *ucontext = init_handler( sigcontext );
-+    struct xcontext context;
-+
-+    (void)signal;
-+    (void)siginfo;
-+
-+    /* The broker reserves this signal for data-watchpoint replay. Refresh the
-+     * logical debug state, then execute exactly one interrupted instruction. */
-+    save_context( &context, ucontext );
-+    get_relayed_debug_registers( &context.c );
-+    EFL_sig(ucontext) |= 0x100;
-+    leave_handler( ucontext );
-+}
-+#endif
-+
- static void trap_handler( int signal, siginfo_t *siginfo, void *sigcontext )
- {
-     ucontext_t *ucontext = init_handler( sigcontext );
-     EXCEPTION_RECORD rec = { 0 };
-     struct xcontext context;
-+    BOOL data_replay = FALSE;
-+    unsigned int hit_mask = 0;
- 
-     if (handle_syscall_trap( ucontext, siginfo )) return;
- 
-     rec.ExceptionAddress = (void *)RIP_sig(ucontext);
-     save_context( &context, ucontext );
-+    get_relayed_debug_event( ucontext, &context.c, &data_replay );
-+#ifdef __APPLE__
-+    if (is_rosetta2 && TRAP_sig(ucontext) == TRAP_x86_TRCTRAP)
-+    {
-+        struct amd64_thread_data *data = amd64_thread_data();
-+        I386_CONTEXT *wow_context = get_cpu_area( IMAGE_FILE_MACHINE_I386 );
- 
--    switch (TRAP_sig(ucontext))
-+        if (wow_context) sync_i386_signal_context( wow_context, ucontext );
-+
-+        if (data->execute_page_stepping && !data->execute_step_page &&
-+            data->execute_bp_suppressed &&
-+            !complete_i386_execute_breakpoint_resume( ucontext, &context.c,
-+                                                       wow_context ) &&
-+            !i386_data_breakpoint_hit( &context.c ))
-+        {
-+            leave_handler( ucontext );
-+            return;
-+        }
-+
-+        if (i386_data_breakpoint_hit( &context.c ))
-+        {
-+            /* TF is an internal one-instruction replay mechanism here. A native
-+             * x86 data-breakpoint exception exposes it cleared to the guest. */
-+            data->data_replay_tf = 1;
-+            context.c.EFlags &= ~0x100;
-+            EFL_sig(ucontext) &= ~0x100;
-+            if (wow_context) wow_context->EFlags &= ~0x100;
-+        }
-+        else if (!data_replay && data->execute_page_stepping)
-+        {
-+            hit_mask = i386_execute_breakpoint_hit_mask( &context.c,
-+                                                         RIP_sig(ucontext) );
-+            if (hit_mask)
-+                prepare_i386_execute_breakpoint( ucontext, &rec, &context, hit_mask );
-+            else if (i386_execute_page( RIP_sig(ucontext) ) == data->execute_step_page)
-+            {
-+                TRACE_(seh)( "Rosetta x86 execute step tid=%p eip=%p esp=%p "
-+                             "ebp=%p ecx=%p eflags=%#lx\n",
-+                             NtCurrentTeb()->ClientId.UniqueThread,
-+                             (void *)RIP_sig(ucontext), (void *)RSP_sig(ucontext),
-+                             (void *)RBP_sig(ucontext), (void *)RCX_sig(ucontext),
-+                             (ULONG_PTR)EFL_sig(ucontext) );
-+                EFL_sig(ucontext) |= 0x100;
-+                if (wow_context) wow_context->EFlags |= 0x100;
-+                leave_handler( ucontext );
-+                return;
-+            }
-+            else
-+            {
-+                DWORD_PTR guarded_page = data->execute_step_page;
-+
-+                data->execute_page_stepping = 0;
-+                data->execute_step_page = 0;
-+                if (i386_execute_breakpoint_page_mask( guarded_page ))
-+                    set_i386_execute_page_protection(
-+                        guarded_page,
-+                        i386_execute_page_original_protection( guarded_page ) & ~PROT_EXEC );
-+                if (!data->execute_step_guest_tf)
-+                {
-+                    EFL_sig(ucontext) &= ~0x100;
-+                    if (wow_context) wow_context->EFlags &= ~0x100;
-+                }
-+                data->execute_step_guest_tf = 0;
-+                leave_handler( ucontext );
-+                return;
-+            }
-+        }
-+        else if (!data_replay && data->execute_bp_active)
-+        {
-+            hit_mask = i386_execute_breakpoint_hit_mask( &context.c,
-+                                                         RIP_sig(ucontext) );
-+            if (hit_mask)
-+                prepare_i386_execute_breakpoint( ucontext, &rec, &context, hit_mask );
-+            else context.c.Dr6 |= 1u << 14;
-+        }
-+    }
-+    if (is_rosetta2)
-+    {
-+        const struct amd64_thread_data *data = amd64_thread_data();
-+        TRACE_(seh)( "Rosetta trap tid=%p trap=%lu rip=%p replay=%u dr0=%p dr1=%p "
-+                     "dr2=%p dr3=%p dr6=%p dr7=%p active=%#x suppressed=%#x\n",
-+                     NtCurrentTeb()->ClientId.UniqueThread, (ULONG_PTR)TRAP_sig(ucontext),
-+                     (void *)RIP_sig(ucontext), data_replay, (void *)context.c.Dr0,
-+                     (void *)context.c.Dr1, (void *)context.c.Dr2, (void *)context.c.Dr3,
-+                     (void *)context.c.Dr6, (void *)context.c.Dr7,
-+                     data->execute_bp_active, data->execute_bp_suppressed );
-+    }
-+#endif
-+
-+    if (data_replay)
-+        rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
-+#ifdef __APPLE__
-+    else if (hit_mask)
-+        rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
-+#endif
-+    else switch (TRAP_sig(ucontext))
-     {
-     case TRAP_x86_TRCTRAP:
-         rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
-@@ -3010,6 +3634,7 @@
-         else
-             is_rosetta2 = ret;
-     }
-+    trace_i386_exception_stacks = is_rosetta2 && getenv( "SECUNDA_X86_EXCEPTION_TRACE" );
- 
-     /* CW Hack 23427: __builtin_available presumably isn't signal-safe. */
-     if (__builtin_available( macOS 15.0, * ))
-@@ -3031,6 +3656,10 @@
-     if (sigaction( SIGUSR1, &sig_act, NULL ) == -1) goto error;
-     sig_act.sa_sigaction = trap_handler;
-     if (sigaction( SIGTRAP, &sig_act, NULL ) == -1) goto error;
-+#ifdef __APPLE__
-+    sig_act.sa_sigaction = replay_data_watchpoint_handler;
-+    if (sigaction( SIGEMT, &sig_act, NULL ) == -1) goto error;
-+#endif
-     sig_act.sa_sigaction = segv_handler;
-     if (sigaction( SIGSEGV, &sig_act, NULL ) == -1) goto error;
-     if (sigaction( SIGILL, &sig_act, NULL ) == -1) goto error;
+diff --git a/server/secunda_debug.h b/server/secunda_debug.h
+new file mode 100644
 --- /dev/null
 +++ b/server/secunda_debug.h
 @@ -0,0 +1,57 @@

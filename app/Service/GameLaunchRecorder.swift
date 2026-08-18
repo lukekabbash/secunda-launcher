@@ -82,6 +82,12 @@ struct GameLaunchRecorder {
     static let fileName = "launch-records.jsonl"
     static let archiveFileName = "launch-records.previous.jsonl"
     static let maximumFileBytes = 1_048_576
+    private static let frameOutcomeGameIDs: Set<String> = [
+        "insurgency",
+        "bo2-campaign",
+        "bo2-multiplayer",
+        "bo2-zombies"
+    ]
 
     private let paths: SecundaPaths
 
@@ -94,7 +100,7 @@ struct GameLaunchRecorder {
     }
 
     static func recordsFrameOutcome(for descriptor: GameDescriptor, diagnostics: Bool) -> Bool {
-        diagnostics && descriptor.id == "insurgency"
+        diagnostics && frameOutcomeGameIDs.contains(descriptor.id)
     }
 
     func recordRequest(

@@ -327,6 +327,10 @@ extension GameDescriptor {
                 ),
                 requiresVisibleWindow: true
             )
+        case "bo2-campaign", "bo2-multiplayer", "bo2-zombies":
+            return GameLaunchProfile(
+                requiresVisibleWindow: true
+            )
         default:
             return GameLaunchProfile()
         }
@@ -354,6 +358,29 @@ extension GameDescriptor {
 
     var steamRunningDirectLaunch: SteamRunningDirectLaunch? {
         launchProfile.steamRunningDirectLaunch
+    }
+
+    var steamAuthorizationTimeoutSeconds: TimeInterval {
+        switch id {
+        case "bo2-campaign", "bo2-multiplayer", "bo2-zombies": 180
+        default: 90
+        }
+    }
+
+    var diagnosticExitImportAddress: String? {
+        switch id {
+        case "bo2-multiplayer": "0x00B701C8"
+        case "bo2-zombies": "0x00B6A1C8"
+        default: nil
+        }
+    }
+
+    var diagnosticProtectedExitEntryAddress: String? {
+        switch id {
+        case "bo2-multiplayer": "0x009B2DB0,0x009B2E80,0x009B2F50"
+        case "bo2-zombies": "0x009AF460"
+        default: nil
+        }
     }
 
     var gameProcessImageNames: [String] {

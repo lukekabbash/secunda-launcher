@@ -1,6 +1,9 @@
 #include <errno.h>
 #include <mach/mig.h>
 #include <mach/mach.h>
+#if defined(__arm64__)
+# include <mach/arm/thread_status.h>
+#endif
 #include <servers/bootstrap.h>
 #include <signal.h>
 #include <stdint.h>
@@ -12,6 +15,7 @@
 #include <unistd.h>
 
 #define ARM_DEBUG_STATE64_COMPAT 15
+#define X86_THREAD_STATE64_COMPAT 4
 #define PORT_KIND_TARGET 1
 #define PORT_KIND_BROKER 2
 
@@ -23,6 +27,13 @@ typedef struct
     uint64_t wcr[16];
     uint64_t mdscr_el1;
 } arm_debug_state64_compat_t;
+
+typedef struct
+{
+    uint64_t rax, rbx, rcx, rdx, rdi, rsi, rbp, rsp;
+    uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
+    uint64_t rip, rflags, cs, fs, gs;
+} x86_thread_state64_compat_t;
 
 typedef struct
 {
@@ -40,6 +51,7 @@ typedef struct
 
 static volatile uint32_t watched_value;
 static volatile sig_atomic_t exception_seen;
+static volatile sig_atomic_t state_signal_seen;
 static mach_port_t exception_thread = MACH_PORT_NULL;
 
 extern kern_return_t bootstrap_register2(mach_port_t bootstrap_port,
@@ -47,6 +59,34 @@ extern kern_return_t bootstrap_register2(mach_port_t bootstrap_port,
                                          mach_port_t service_port,
                                          uint64_t flags);
 extern boolean_t exc_server(mach_msg_header_t *request, mach_msg_header_t *reply);
+extern int __pthread_kill(mach_port_t thread, int signal);
+
+#if defined(__arm64__)
+static void trace_thread_state(mach_port_t thread)
+{
+    arm_thread_state64_t arm_state;
+    x86_thread_state64_compat_t x86_state;
+    mach_msg_type_number_t arm_count = ARM_THREAD_STATE64_COUNT;
+    mach_msg_type_number_t x86_count = sizeof(x86_state) / sizeof(uint32_t);
+    kern_return_t arm_result, x86_result;
+
+    memset(&arm_state, 0, sizeof(arm_state));
+    arm_result = thread_get_state(thread, ARM_THREAD_STATE64,
+                                  (thread_state_t)&arm_state, &arm_count);
+    memset(&x86_state, 0, sizeof(x86_state));
+    x86_result = thread_get_state(thread, X86_THREAD_STATE64_COMPAT,
+                                  (thread_state_t)&x86_state, &x86_count);
+
+    fprintf(stderr,
+            "THREAD_STATE arm_status=%d arm_pc=%#llx arm_sp=%#llx "
+            "x86_status=%d x86_rip=%#llx x86_rsp=%#llx\n",
+            arm_result,
+            (unsigned long long)arm_thread_state64_get_pc(arm_state),
+            (unsigned long long)arm_thread_state64_get_sp(arm_state),
+            x86_result, (unsigned long long)x86_state.rip,
+            (unsigned long long)x86_state.rsp);
+}
+#endif
 
 kern_return_t catch_exception_raise(mach_port_t exception_port,
                                     mach_port_t thread,
@@ -56,18 +96,38 @@ kern_return_t catch_exception_raise(mach_port_t exception_port,
                                     mach_msg_type_number_t code_count)
 {
     arm_debug_state64_compat_t state;
+#if defined(__arm64__)
+    arm_exception_state64_t exception_state;
+    mach_msg_type_number_t exception_state_count = ARM_EXCEPTION_STATE64_COUNT;
+    kern_return_t exception_state_result;
+#endif
     (void)exception_port;
     (void)task;
     if (exception != EXC_BREAKPOINT) return KERN_FAILURE;
     fprintf(stderr, "EXCEPTION type=%d count=%u code0=%d code1=%d\n",
             exception, code_count, code_count ? code[0] : 0,
             code_count > 1 ? code[1] : 0);
+#if defined(__arm64__)
+    trace_thread_state(thread);
+    memset(&exception_state, 0, sizeof(exception_state));
+    exception_state_result = thread_get_state(
+        thread,
+        ARM_EXCEPTION_STATE64,
+        (thread_state_t)&exception_state,
+        &exception_state_count
+    );
+    fprintf(stderr, "ARM_EXCEPTION status=%d esr=%#x far=%#llx exception=%#x\n",
+            exception_state_result, exception_state.__esr,
+            (unsigned long long)exception_state.__far,
+            exception_state.__exception);
+#endif
 
     memset(&state, 0, sizeof(state));
     if (thread_set_state(thread, ARM_DEBUG_STATE64_COMPAT,
                          (thread_state_t)&state,
                          sizeof(state) / sizeof(uint32_t)) != KERN_SUCCESS)
         return KERN_FAILURE;
+    if (__pthread_kill(thread, SIGUSR2)) return KERN_FAILURE;
     exception_thread = thread;
     exception_seen = 1;
     return KERN_SUCCESS;
@@ -194,6 +254,27 @@ static void trap_handler(int signal, siginfo_t *info, void *context)
     _exit(0);
 }
 
+static void state_handler(int signal, siginfo_t *info, void *context)
+{
+    char message[160];
+    int length;
+    (void)signal;
+    (void)info;
+#if defined(__x86_64__)
+    ucontext_t *ucontext = context;
+
+    length = snprintf(message, sizeof(message),
+                      "STATE_SIGNAL rip=%#llx rsp=%#llx\n",
+                      (unsigned long long)ucontext->uc_mcontext->__ss.__rip,
+                      (unsigned long long)ucontext->uc_mcontext->__ss.__rsp);
+#else
+    (void)context;
+    length = snprintf(message, sizeof(message), "STATE_SIGNAL unsupported\n");
+#endif
+    write(STDOUT_FILENO, message, (size_t)length);
+    state_signal_seen = 1;
+}
+
 static int target_main(const char *service_name)
 {
     struct sigaction action;
@@ -206,6 +287,8 @@ static int target_main(const char *service_name)
     action.sa_flags = SA_SIGINFO;
     sigemptyset(&action.sa_mask);
     sigaction(SIGTRAP, &action, NULL);
+    action.sa_sigaction = state_handler;
+    sigaction(SIGUSR2, &action, NULL);
 
     result = find_service(service_name, &service_port);
     if (result == KERN_SUCCESS)
@@ -220,21 +303,24 @@ static int target_main(const char *service_name)
     if (read(STDIN_FILENO, &command, 1) != 1) return 3;
 
     watched_value++;
-    printf("MISS %u\n", watched_value);
+    printf("RESUMED value=%u signal=%d\n", watched_value, state_signal_seen);
     fflush(stdout);
-    return 2;
+    return state_signal_seen ? 0 : 2;
 }
 
 static kern_return_t set_task_watchpoint(task_t task, mach_port_t exception_port,
                                          uintptr_t address,
                                          unsigned int *success_count)
 {
+    const char *slot_text = getenv("SECUNDA_PROBE_WATCHPOINT_SLOT");
     thread_act_array_t threads = NULL;
     mach_msg_type_number_t thread_count = 0;
     kern_return_t result;
+    unsigned long slot = slot_text ? strtoul(slot_text, NULL, 0) : 0;
     unsigned int i;
 
     *success_count = 0;
+    if (slot >= 16) return KERN_INVALID_ARGUMENT;
     result = task_threads(task, &threads, &thread_count);
     if (result != KERN_SUCCESS) return result;
 
@@ -255,8 +341,8 @@ static kern_return_t set_task_watchpoint(task_t task, mach_port_t exception_port
                 ports_result, port_count, port_count ? behaviors[0] : 0,
                 port_count ? flavors[0] : 0);
         while (port_count) mach_port_deallocate(mach_task_self(), ports[--port_count]);
-        state.wvr[0] = address & ~(uintptr_t)7;
-        state.wcr[0] = watch_control(address, sizeof(watched_value));
+        state.wvr[slot] = address & ~(uintptr_t)7;
+        state.wcr[slot] = watch_control(address, sizeof(watched_value));
         if (thread_set_exception_ports(threads[i], EXC_MASK_BREAKPOINT,
                                        exception_port, EXCEPTION_DEFAULT,
                                        THREAD_STATE_NONE) == KERN_SUCCESS &&
@@ -273,6 +359,7 @@ static kern_return_t set_task_watchpoint(task_t task, mach_port_t exception_port
 
 static int broker_main(const char *service_name, const char *address_text)
 {
+    const char *slot_text = getenv("SECUNDA_PROBE_WATCHPOINT_SLOT");
     mach_port_t service_port, receive_right, exception_port, target_task;
     uint32_t kind;
     uintptr_t address = (uintptr_t)strtoull(address_text, NULL, 16);
@@ -303,16 +390,11 @@ static int broker_main(const char *service_name, const char *address_text)
     if (result != KERN_SUCCESS) return 25;
     watch_result = set_task_watchpoint(target_task, exception_port,
                                        address, &success_count);
-    printf("BROKER receive=0 watch=%d threads=%u\n", watch_result, success_count);
+    printf("BROKER receive=0 watch=%d threads=%u slot=%s\n", watch_result,
+           success_count, slot_text ? slot_text : "0");
     fflush(stdout);
     if (watch_result == KERN_SUCCESS && success_count)
         result = mach_msg_server_once(exc_server, 8192, exception_port, 0);
-    if (result == KERN_SUCCESS && exception_seen)
-    {
-        pid_t target_pid;
-        if (pid_for_task(target_task, &target_pid) == KERN_SUCCESS)
-            kill(target_pid, SIGTRAP);
-    }
     if (exception_thread != MACH_PORT_NULL)
         mach_port_deallocate(mach_task_self(), exception_thread);
     mach_port_deallocate(mach_task_self(), exception_port);

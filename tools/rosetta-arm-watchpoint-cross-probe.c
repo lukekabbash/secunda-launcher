@@ -11,6 +11,7 @@
 #include <servers/bootstrap.h>
 
 #define ARM_DEBUG_STATE64_COMPAT 15
+#define X86_DEBUG_STATE64_COMPAT 11
 
 typedef struct
 {
@@ -21,6 +22,17 @@ typedef struct
     uint64_t mdscr_el1;
 } arm_debug_state64_compat_t;
 
+typedef struct
+{
+    uint64_t dr[8];
+} x86_debug_state64_compat_t;
+
+enum debug_state_kind
+{
+    DEBUG_STATE_ARM,
+    DEBUG_STATE_X86
+};
+
 static volatile uint32_t watched_value;
 
 typedef struct
@@ -29,6 +41,12 @@ typedef struct
     mach_msg_body_t body;
     mach_msg_port_descriptor_t task_port;
 } task_port_message_t;
+
+typedef union
+{
+    task_port_message_t message;
+    uint8_t bytes[4096];
+} task_port_receive_t;
 
 extern kern_return_t bootstrap_register2(mach_port_t bootstrap_port,
                                          name_t service_name,
@@ -100,7 +118,9 @@ static int child_main(const char *service_name)
     return 2;
 }
 
-static int set_task_watchpoint(task_t task, uintptr_t address, unsigned int *success_count)
+static int set_task_watchpoint(task_t task, uintptr_t address,
+                               enum debug_state_kind state_kind,
+                               unsigned int *success_count)
 {
     thread_act_array_t threads = NULL;
     mach_msg_type_number_t thread_count = 0;
@@ -113,13 +133,32 @@ static int set_task_watchpoint(task_t task, uintptr_t address, unsigned int *suc
 
     for (i = 0; i < thread_count; i++)
     {
-        arm_debug_state64_compat_t state;
-        memset(&state, 0, sizeof(state));
-        state.wvr[0] = address & ~(uintptr_t)7;
-        state.wcr[0] = watch_control(address, sizeof(watched_value));
-        if (thread_set_state(threads[i], ARM_DEBUG_STATE64_COMPAT,
-                             (thread_state_t)&state,
-                             sizeof(state) / sizeof(uint32_t)) == KERN_SUCCESS)
+        kern_return_t set_result;
+
+        if (state_kind == DEBUG_STATE_X86)
+        {
+            x86_debug_state64_compat_t state;
+
+            memset(&state, 0, sizeof(state));
+            state.dr[0] = address;
+            state.dr[6] = 0;
+            state.dr[7] = 1 | (UINT64_C(3) << 16) | (UINT64_C(3) << 18);
+            set_result = thread_set_state(threads[i], X86_DEBUG_STATE64_COMPAT,
+                                          (thread_state_t)&state,
+                                          sizeof(state) / sizeof(uint32_t));
+        }
+        else
+        {
+            arm_debug_state64_compat_t state;
+
+            memset(&state, 0, sizeof(state));
+            state.wvr[0] = address & ~(uintptr_t)7;
+            state.wcr[0] = watch_control(address, sizeof(watched_value));
+            set_result = thread_set_state(threads[i], ARM_DEBUG_STATE64_COMPAT,
+                                          (thread_state_t)&state,
+                                          sizeof(state) / sizeof(uint32_t));
+        }
+        if (set_result == KERN_SUCCESS)
             (*success_count)++;
         mach_port_deallocate(mach_task_self(), threads[i]);
     }
@@ -128,7 +167,7 @@ static int set_task_watchpoint(task_t task, uintptr_t address, unsigned int *suc
     return KERN_SUCCESS;
 }
 
-static int parent_main(const char *child_path)
+static int parent_main(const char *child_path, enum debug_state_kind state_kind)
 {
     int commands[2], reports[2], status;
     char line[128], result_line[128] = "";
@@ -137,7 +176,7 @@ static int parent_main(const char *child_path)
     unsigned int success_count;
     FILE *reports_file;
     mach_port_t bootstrap_port, receive_port;
-    task_port_message_t message;
+    task_port_receive_t receive;
     task_t task;
     pid_t child;
     kern_return_t register_result, receive_result, watch_result;
@@ -181,13 +220,14 @@ static int parent_main(const char *child_path)
         sscanf(line, "READY %*d %lx", &address) != 1)
         return 12;
 
-    memset(&message, 0, sizeof(message));
-    receive_result = mach_msg(&message.header, MACH_RCV_MSG, 0, sizeof(message),
+    memset(&receive, 0, sizeof(receive));
+    receive_result = mach_msg(&receive.message.header, MACH_RCV_MSG, 0, sizeof(receive),
                               receive_port, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
     mach_port_deallocate(mach_task_self(), receive_port);
-    task = receive_result == KERN_SUCCESS ? message.task_port.name : MACH_PORT_NULL;
+    task = receive_result == KERN_SUCCESS
+        ? receive.message.task_port.name : MACH_PORT_NULL;
     watch_result = receive_result == KERN_SUCCESS
-        ? set_task_watchpoint(task, address, &success_count)
+        ? set_task_watchpoint(task, address, state_kind, &success_count)
         : receive_result;
     if (task != MACH_PORT_NULL) mach_port_deallocate(mach_task_self(), task);
 
@@ -199,7 +239,8 @@ static int parent_main(const char *child_path)
     waitpid(child, &status, 0);
     rmdir(service_name);
 
-    printf("register=%d receive=%d watch=%d threads=%u child_status=%d report=%s",
+    printf("state=%s register=%d receive=%d watch=%d threads=%u child_status=%d report=%s",
+           state_kind == DEBUG_STATE_X86 ? "x86" : "arm",
            register_result, receive_result, watch_result,
            receive_result == KERN_SUCCESS ? success_count : 0,
            WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status),
@@ -211,10 +252,11 @@ static int parent_main(const char *child_path)
 int main(int argc, char **argv)
 {
     if (argc == 3 && !strcmp(argv[1], "--child")) return child_main(argv[2]);
-    if (argc != 2)
+    if (argc != 3 || (strcmp(argv[2], "arm") && strcmp(argv[2], "x86")))
     {
-        fprintf(stderr, "usage: %s <translated-child>\n", argv[0]);
+        fprintf(stderr, "usage: %s <translated-child> <arm|x86>\n", argv[0]);
         return 64;
     }
-    return parent_main(argv[1]);
+    return parent_main(argv[1], !strcmp(argv[2], "x86")
+                       ? DEBUG_STATE_X86 : DEBUG_STATE_ARM);
 }

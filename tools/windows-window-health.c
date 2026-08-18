@@ -4,12 +4,14 @@
 enum {
     health_ok = 0,
     health_fatal_window = 42,
-    health_bad_arguments = 64
+    health_bad_arguments = 64,
+    health_window_not_found = 65
 };
 
 struct probe_context {
     DWORD target_pid;
     DWORD watch_ms;
+    DWORD show_window_id;
     int quiet;
     int found_fatal;
 };
@@ -75,10 +77,28 @@ static int describes_fatal_launch(const char *text)
 static void utf8_text(HWND window, char *buffer, int buffer_size)
 {
     WCHAR wide[1024];
-    int length = GetWindowTextW(window, wide, (int)(sizeof(wide) / sizeof(wide[0])));
+    DWORD_PTR message_result = 0;
+    int wide_capacity = (int)(sizeof(wide) / sizeof(wide[0]));
+    int length;
     int converted;
 
     buffer[0] = '\0';
+    wide[0] = L'\0';
+    if (SendMessageTimeoutW(
+            window,
+            WM_GETTEXT,
+            (WPARAM)wide_capacity,
+            (LPARAM)wide,
+            SMTO_ABORTIFHUNG | SMTO_BLOCK,
+            500,
+            &message_result))
+    {
+        length = (int)message_result;
+    }
+    else
+    {
+        length = GetWindowTextW(window, wide, wide_capacity);
+    }
     if (length <= 0) return;
     converted = WideCharToMultiByte(
         CP_UTF8, 0, wide, length, buffer, buffer_size - 1, NULL, NULL);
@@ -105,15 +125,28 @@ static BOOL CALLBACK inspect_child(HWND window, LPARAM parameter)
     struct probe_context *context = (struct probe_context *)parameter;
     char text[4096];
     char class_name[1024];
+    RECT bounds;
 
     utf8_text(window, text, sizeof(text));
     utf8_class(window, class_name, sizeof(class_name));
+    SetRectEmpty(&bounds);
+    GetWindowRect(window, &bounds);
     if (describes_fatal_launch(text)) context->found_fatal = 1;
     if (!context->quiet && (text[0] || class_name[0]))
     {
         char line[6144];
         DWORD written;
-        int length = wsprintfA(line, "child\tclass=%s\ttext=%s\r\n", class_name, text);
+        int length = wsprintfA(
+            line,
+            "child\thwnd=%p\tvisible=%d\trect=%ld,%ld,%ld,%ld\tclass=%s\ttext=%s\r\n",
+            window,
+            IsWindowVisible(window) ? 1 : 0,
+            bounds.left,
+            bounds.top,
+            bounds.right,
+            bounds.bottom,
+            class_name,
+            text);
         WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), line, (DWORD)length, &written, NULL);
     }
     return TRUE;
@@ -125,12 +158,15 @@ static BOOL CALLBACK inspect_window(HWND window, LPARAM parameter)
     DWORD process_id = 0;
     char text[4096];
     char class_name[1024];
+    RECT bounds;
 
     GetWindowThreadProcessId(window, &process_id);
     if (context->target_pid && process_id != context->target_pid) return TRUE;
 
     utf8_text(window, text, sizeof(text));
     utf8_class(window, class_name, sizeof(class_name));
+    SetRectEmpty(&bounds);
+    GetWindowRect(window, &bounds);
     if (describes_fatal_launch(text)) context->found_fatal = 1;
     if (!context->quiet)
     {
@@ -138,9 +174,14 @@ static BOOL CALLBACK inspect_window(HWND window, LPARAM parameter)
         DWORD written;
         int length = wsprintfA(
             line,
-            "window\tpid=%lu\tvisible=%d\tclass=%s\ttext=%s\r\n",
+            "window\thwnd=%p\tpid=%lu\tvisible=%d\trect=%ld,%ld,%ld,%ld\tclass=%s\ttext=%s\r\n",
+            window,
             (unsigned long)process_id,
             IsWindowVisible(window) ? 1 : 0,
+            bounds.left,
+            bounds.top,
+            bounds.right,
+            bounds.bottom,
             class_name,
             text);
         WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), line, (DWORD)length, &written, NULL);
@@ -169,6 +210,11 @@ static int parse_arguments(int argc, char **argv, struct probe_context *context)
         {
             if (!parse_dword(argv[++index], &context->watch_ms)) return 0;
         }
+        else if (!lstrcmpA(argv[index], "--show-hwnd") && index + 1 < argc)
+        {
+            if (!parse_dword(argv[++index], &context->show_window_id)
+                || !context->show_window_id) return 0;
+        }
         else
         {
             return 0;
@@ -184,7 +230,8 @@ int main(int argc, char **argv)
     if (!parse_arguments(argc, argv, &context))
     {
         static const char usage[] =
-            "usage: windows-window-health.exe [--pid PID] [--watch-ms MS] [--quiet-health]\r\n";
+            "usage: windows-window-health.exe [--pid PID] [--watch-ms MS] "
+            "[--show-hwnd HWND] [--quiet-health]\r\n";
         DWORD written;
         WriteFile(
             GetStdHandle(STD_ERROR_HANDLE),
@@ -193,6 +240,21 @@ int main(int argc, char **argv)
             &written,
             NULL);
         return health_bad_arguments;
+    }
+
+    if (context.show_window_id)
+    {
+        HWND window = (HWND)(ULONG_PTR)context.show_window_id;
+        if (!IsWindow(window)) return health_window_not_found;
+        ShowWindow(window, SW_SHOW);
+        SetWindowPos(
+            window,
+            HWND_TOP,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 
     {

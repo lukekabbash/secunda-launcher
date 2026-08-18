@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <stdio.h>
 
 enum debug_stage
 {
@@ -16,10 +17,33 @@ static volatile LONG executed_value;
 static volatile LONG gap_value;
 static volatile LONG debug_stage;
 static volatile LONG failure_code;
+static volatile LONG handler_count;
 static volatile DWORD_PTR expected_write_ip[2];
 static volatile DWORD_PTR expected_read_ip;
 static volatile DWORD_PTR expected_read_sp;
 static volatile LONG read_value;
+
+static void report_state(const char *event, LONG exit_code)
+{
+    char line[192];
+    DWORD written;
+    int length = snprintf(
+        line,
+        sizeof(line),
+        "SECUNDA_DEBUG_SMOKE event=%s stage=%ld failure=%ld handlers=%ld exit=%ld\r\n",
+        event, debug_stage, failure_code, handler_count, exit_code
+    );
+
+    if (length <= 0) return;
+    if (length >= (int)sizeof(line)) length = sizeof(line) - 1;
+    WriteFile(GetStdHandle(STD_ERROR_HANDLE), line, length, &written, NULL);
+}
+
+static int fail_startup(const char *event, int exit_code)
+{
+    report_state(event, exit_code);
+    return exit_code;
+}
 
 /* Two 8 KB alignments keep the target beyond a 16 KB host-page boundary. The
  * translated CEG-shaped path changes debug state on one code page, then enters
@@ -83,6 +107,9 @@ static LONG WINAPI debug_handler(EXCEPTION_POINTERS *exception)
 {
     CONTEXT *context = exception->ContextRecord;
     LONG stage = debug_stage;
+    LONG count = InterlockedIncrement(&handler_count);
+
+    if (count <= 16) report_state("handler-enter", 0);
 
     /* Never consume an unrelated fault. Swallowing it would turn one bad
      * resume into an infinite exception loop and hide the first failure. */
@@ -194,6 +221,7 @@ static __attribute__((noinline)) void read_watched_value(void)
 static DWORD WINAPI watched_thread(void *unused)
 {
     (void)unused;
+    report_state("worker-start", 0);
     expected_write_ip[0] = (DWORD_PTR)&&after_first_write;
     expected_write_ip[1] = (DWORD_PTR)&&after_second_write;
 
@@ -216,24 +244,36 @@ int main(void)
     DWORD thread_id;
     DWORD wait_status;
 
-    if (!AddVectoredExceptionHandler(1, debug_handler)) return 10;
+    report_state("start", 0);
+    if (!AddVectoredExceptionHandler(1, debug_handler))
+        return fail_startup("add-handler-failed", 10);
+    report_state("handler-installed", 0);
     thread = CreateThread(NULL, 0, watched_thread, NULL, CREATE_SUSPENDED, &thread_id);
-    if (!thread) return 11;
+    if (!thread) return fail_startup("create-thread-failed", 11);
+    report_state("thread-created", 0);
 
     context.ContextFlags = CONTEXT_DEBUG_REGISTERS;
     context.Dr0 = (DWORD_PTR)&watched_value;
     context.Dr6 = 0;
     context.Dr7 = 1 | (1 << 16) | (3 << 18);
-    if (!SetThreadContext(thread, &context)) return 12;
-    if (ResumeThread(thread) == (DWORD)-1) return 13;
+    report_state("set-context-begin", 0);
+    if (!SetThreadContext(thread, &context))
+        return fail_startup("set-context-failed", 12);
+    report_state("set-context-complete", 0);
+    if (ResumeThread(thread) == (DWORD)-1)
+        return fail_startup("resume-thread-failed", 13);
+    report_state("thread-resumed", 0);
 
     wait_status = WaitForSingleObject(thread, 5000);
     CloseHandle(thread);
-    if (wait_status != WAIT_OBJECT_0) return 14;
-    if (failure_code) return failure_code;
+    if (wait_status != WAIT_OBJECT_0)
+        return fail_startup("thread-timeout", 14);
+    if (failure_code)
+        return fail_startup("handler-validation-failed", failure_code);
     if (watched_value != 11 || read_value != 11 || executed_value != 2 ||
         gap_value != 1056 ||
         debug_stage != STAGE_COMPLETE)
-        return 33;
+        return fail_startup("final-state-failed", 33);
+    report_state("complete", 0);
     return 0;
 }

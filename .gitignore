@@ -2,11 +2,10 @@
 .build/
 build/
 .swiftpm/
-# Keep the runnable macOS test bundle in Git LFS while excluding generated
-# DMGs, checksums, staging directories, and any future distribution output.
-dist/*
-!dist/Secunda Launcher.app/
-!dist/Secunda Launcher.app/**
+# Generated packaging output: the Finder app, DMGs, checksums, and staging
+# directories. Build these locally with the packaging scripts; do not vendor
+# rebuilt Wine runtimes or ad-hoc app bundles in Git.
+dist/
 /Runtime/
 *.xcuserstate
 

@@ -8,16 +8,19 @@ Secunda is a focused, unofficial Apple-silicon launcher for separately owned Win
 
 The practical goal is to make Wine-bottle management less opaque: keep a game’s runtime, prefix, Steam handoff, launch settings, display profile, and clean stop behavior in one understandable place. Secunda is still early software. It is useful for exploring and improving these paths, not a promise that every catalog entry will work or that a launch attempt is gameplay proof.
 
-## Start here: the runnable Mac app
+## Start here
 
-The current self-contained build is checked in at [Secunda Launcher.app](<dist/Secunda Launcher.app>) through Git LFS. It contains the native arm64 launcher and its source-built runtime, but no Steam or game payloads.
-
-To fetch the real app bundle rather than LFS pointers, clone this branch with Git LFS installed:
+Clone the source branch, then run from source or package a local Finder app. The packaged `.app`, DMGs, and rebuilt Wine runtime stay in `dist/` and `Runtime/` on your machine; they are not committed.
 
 ```sh
-git lfs install
 git clone --branch source-only-secunda https://github.com/lukekabbash/secunda-launcher.git
 cd secunda-launcher
+```
+
+A Finder-launchable app is produced after the source runtime exists at `Runtime/wine`:
+
+```sh
+./scripts/package-app.sh
 open "dist/Secunda Launcher.app"
 ```
 
@@ -39,9 +42,9 @@ This catalog is a work in progress. The current status is deliberately conservat
 
 A compact compatibility label for every catalog entry is the next repository-facing documentation step. Until then, `docs/source-only/GATES.md` is the authoritative evidence record, and “listed” never means “guaranteed.”
 
-### Why the app uses Git LFS
+### Why generated artifacts stay out of Git
 
-The runnable app is currently about 569 MB, which is unsuitable for ordinary Git history. Git LFS keeps the source checkout manageable while letting a clone hydrate the exact test app. Generated DMGs, build caches, source archives, managed bottles, Steam data, games, saves, logs, and credentials remain out of the repository. A future signed and notarized DMG belongs in GitHub Releases, not in commit history.
+The packaged app and Wine runtime are hundreds of megabytes and rebuild often. They remain local under `dist/` and `Runtime/`. Generated DMGs, build caches, source archives, managed bottles, Steam data, games, saves, logs, and credentials also stay out of the repository. A future signed and notarized DMG belongs in GitHub Releases, not in commit history.
 
 Secunda does not discover or depend on CrossOver.app. Its player path is:
 
@@ -74,7 +77,7 @@ The Secunda interface is native arm64. Its Intel runtime workers run through Ros
 
 ## Build and run from source
 
-If you want to build instead of using the checked-in app, the supplied compliance archive must already be extracted beneath `sources/`, and a source runtime must exist at `Runtime/wine`.
+If you want to run the launcher without packaging a Finder app, the supplied compliance archive must already be extracted beneath `sources/`, and a source runtime must exist at `Runtime/wine`.
 
 ```sh
 ./scripts/run-source.sh
