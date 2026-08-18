@@ -1,0 +1,304 @@
+# Builds the official share DMG with the existing packaging scripts and attaches
+# it to the GitHub Release for a tag. After merge to source-only-secunda, run
+# workflow_dispatch for v0.1.0 (or publish a new tagged release).
+#
+# No Apple secrets are required. Without them the job writes the labeled
+# TEST-ONLY DMG. Recipient-ready signing and notarization stay off unless every
+# APPLE_* secret below is present.
+
+name: Package share DMG
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub release tag to check out and attach the DMG to
+        required: true
+        default: v0.1.0
+        type: string
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: package-share-dmg-${{ github.event.inputs.release_tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.inputs.release_tag || github.event.release.tag_name }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  SOURCE_ARCHIVE_NAME: crossover-sources-26.3.0.tar.gz
+  SOURCE_ARCHIVE_URL: https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+
+jobs:
+  package-share-dmg:
+    name: Build and attach share DMG
+    runs-on: macos-15
+    timeout-minutes: 360
+    env:
+      APPLE_DEVELOPER_ID_P12: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
+      APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+      APPLE_DEVELOPER_ID_IDENTITY: ${{ secrets.APPLE_DEVELOPER_ID_IDENTITY }}
+      APPLE_NOTARY_APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+      APPLE_NOTARY_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
+      APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+
+    steps:
+      - name: Validate release tag
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
+
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Runner details
+        run: |
+          set -euo pipefail
+          uname -a
+          sw_vers
+          echo "arch=$(uname -m)"
+          df -h
+
+      - name: Restore source archives
+        id: archive-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build/source-cache
+          key: secunda-source-archives-${{ hashFiles('packaging/runtime-provenance.json') }}
+
+      - name: Restore source runtime
+        id: runtime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: Runtime/wine-macos15
+          key: secunda-wine-macos15-${{ hashFiles('packaging/runtime-provenance.json', 'packaging/runtime-sbom.spdx.json', 'packaging/THIRD_PARTY_NOTICES.txt', 'patches/**', 'scripts/build-runtime.sh', 'scripts/build-runtime-from-archive.sh', 'scripts/build-runtime-dependencies.sh', 'scripts/fetch-dxmt.sh', 'scripts/fetch-vulkan-stack.sh', 'scripts/relocate-runtime.sh', 'scripts/stage-runtime-notices.sh', 'scripts/create-runtime-integrity.sh', 'scripts/publish-runtime-directory.sh', 'scripts/verify-runtime-distribution.sh', 'scripts/verify-runtime-integrity.sh', 'scripts/verify-runtime-dependencies.sh', 'scripts/verify-runtime-payload.sh', 'tools/secunda-rosetta-debug-broker.c', 'licenses/**') }}
+
+      - name: Download and verify CrossOver sources
+        run: |
+          set -euo pipefail
+          mkdir -p build/source-cache
+          archive="build/source-cache/$SOURCE_ARCHIVE_NAME"
+          expected="$(/usr/bin/plutil -extract sourceArchive.sha256 raw -o - packaging/runtime-provenance.json)"
+          if [[ -f "$archive" ]]; then
+            actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "Cached source archive checksum mismatch; re-downloading."
+              rm -f "$archive"
+            fi
+          fi
+          if [[ ! -f "$archive" ]]; then
+            curl --fail --location --retry 5 --retry-delay 2 \
+              --output "$archive" \
+              "$SOURCE_ARCHIVE_URL"
+          fi
+          actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Source archive checksum mismatch." >&2
+            echo "Expected: $expected" >&2
+            echo "Actual:   $actual" >&2
+            exit 1
+          fi
+          ./scripts/verify-build-provenance.sh "$archive"
+          echo "SOURCE_ARCHIVE=$PWD/$archive" >> "$GITHUB_ENV"
+
+      - name: Verify cached runtime
+        id: runtime
+        run: |
+          set -euo pipefail
+          runtime="$PWD/Runtime/wine-macos15"
+          if [[ -x "$runtime/bin/wine" ]] && \
+            ./scripts/verify-runtime-integrity.sh "$runtime" && \
+            SECUNDA_DEPLOYMENT_TARGET=15.0 ./scripts/verify-runtime-distribution.sh "$runtime"; then
+            echo "Cached source runtime verified."
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No verified cached runtime; a from-source Wine build will run."
+            rm -rf "$runtime"
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "RUNTIME_SOURCE=$runtime" >> "$GITHUB_ENV"
+
+      - name: Install Homebrew build dependencies
+        if: steps.runtime.outputs.hit != 'true'
+        run: |
+          set -euo pipefail
+          brew install llvm lld bison cmake ninja
+          brew cleanup -s || true
+
+      - name: Build source runtime
+        if: steps.runtime.outputs.hit != 'true'
+        run: |
+          set -euo pipefail
+          df -h
+          ./scripts/build-runtime-from-archive.sh "$SOURCE_ARCHIVE" "$RUNTIME_SOURCE"
+          ./scripts/verify-runtime-integrity.sh "$RUNTIME_SOURCE"
+          SECUNDA_DEPLOYMENT_TARGET=15.0 ./scripts/verify-runtime-distribution.sh "$RUNTIME_SOURCE"
+          df -h
+
+      - name: Save source runtime
+        if: steps.runtime.outputs.hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: Runtime/wine-macos15
+          key: secunda-wine-macos15-${{ hashFiles('packaging/runtime-provenance.json', 'packaging/runtime-sbom.spdx.json', 'packaging/THIRD_PARTY_NOTICES.txt', 'patches/**', 'scripts/build-runtime.sh', 'scripts/build-runtime-from-archive.sh', 'scripts/build-runtime-dependencies.sh', 'scripts/fetch-dxmt.sh', 'scripts/fetch-vulkan-stack.sh', 'scripts/relocate-runtime.sh', 'scripts/stage-runtime-notices.sh', 'scripts/create-runtime-integrity.sh', 'scripts/publish-runtime-directory.sh', 'scripts/verify-runtime-distribution.sh', 'scripts/verify-runtime-integrity.sh', 'scripts/verify-runtime-dependencies.sh', 'scripts/verify-runtime-payload.sh', 'tools/secunda-rosetta-debug-broker.c', 'licenses/**') }}
+
+      - name: Ensure Nettle source archive
+        run: |
+          set -euo pipefail
+          mkdir -p build/source-cache
+          archive="build/source-cache/nettle-3.10.tar.gz"
+          expected="$(python3 -c 'import json; print(next(c["archiveSha256"] for c in json.load(open("packaging/runtime-provenance.json"))["components"] if c["name"]=="Nettle"))')"
+          if [[ ! -f "$archive" ]]; then
+            curl --fail --location --retry 5 --retry-delay 2 \
+              --output "$archive" \
+              "https://ftp.gnu.org/gnu/nettle/nettle-3.10.tar.gz"
+          fi
+          actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Nettle source archive checksum mismatch." >&2
+            echo "Expected: $expected" >&2
+            echo "Actual:   $actual" >&2
+            exit 1
+          fi
+
+      - name: Save source archives
+        if: steps.archive-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/source-cache
+          key: secunda-source-archives-${{ hashFiles('packaging/runtime-provenance.json') }}
+
+      - name: Choose signing mode
+        id: signing
+        run: |
+          set -euo pipefail
+          if [[ -n "${APPLE_DEVELOPER_ID_P12:-}" && \
+                -n "${APPLE_DEVELOPER_ID_P12_PASSWORD:-}" && \
+                -n "${APPLE_DEVELOPER_ID_IDENTITY:-}" && \
+                -n "${APPLE_NOTARY_APPLE_ID:-}" && \
+                -n "${APPLE_NOTARY_TEAM_ID:-}" && \
+                -n "${APPLE_NOTARY_PASSWORD:-}" ]]; then
+            keychain="$RUNNER_TEMP/secunda-signing.keychain-db"
+            password="$(openssl rand -base64 32)"
+            p12="$RUNNER_TEMP/developer-id.p12"
+            security create-keychain -p "$password" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$password" "$keychain"
+            printf '%s' "$APPLE_DEVELOPER_ID_P12" | base64 --decode > "$p12"
+            security import "$p12" -k "$keychain" -P "$APPLE_DEVELOPER_ID_P12_PASSWORD" \
+              -T /usr/bin/codesign -T /usr/bin/security
+            security list-keychain -d user -s "$keychain" login.keychain
+            security set-key-partition-list -S apple-tool:,apple:,codesign: \
+              -s -k "$password" "$keychain"
+            rm -f "$p12"
+            xcrun notarytool store-credentials secunda-ci-notary \
+              --apple-id "$APPLE_NOTARY_APPLE_ID" \
+              --team-id "$APPLE_NOTARY_TEAM_ID" \
+              --password "$APPLE_NOTARY_PASSWORD"
+            echo "SECUNDA_SIGNING_IDENTITY=$APPLE_DEVELOPER_ID_IDENTITY" >> "$GITHUB_ENV"
+            echo "SECUNDA_NOTARY_PROFILE=secunda-ci-notary" >> "$GITHUB_ENV"
+            echo "SECUNDA_TEST_ONLY_UNNOTARIZED_DMG=0" >> "$GITHUB_ENV"
+            echo "test_only=0" >> "$GITHUB_OUTPUT"
+            echo "Using Developer ID signing and notarization."
+          else
+            echo "SECUNDA_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "SECUNDA_TEST_ONLY_UNNOTARIZED_DMG=1" >> "$GITHUB_ENV"
+            echo "test_only=1" >> "$GITHUB_OUTPUT"
+            echo "No Apple signing secrets present; packaging a TEST-ONLY DMG."
+          fi
+
+      - name: Package share DMG
+        run: |
+          set -euo pipefail
+          SECUNDA_SOURCE_ARCHIVE="$SOURCE_ARCHIVE" \
+          SECUNDA_RUNTIME_SOURCE="$RUNTIME_SOURCE" \
+            ./scripts/package-share-dmg.sh
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' packaging/Info.plist)"
+          if [[ "${{ steps.signing.outputs.test_only }}" == "1" ]]; then
+            dmg="Secunda Launcher-${version}-TEST-ONLY.dmg"
+          else
+            dmg="Secunda Launcher-${version}.dmg"
+          fi
+          if [[ ! -f "dist/$dmg" || ! -f "dist/${dmg}.sha256" ]]; then
+            echo "Expected DMG pair missing: dist/$dmg" >&2
+            ls -la dist || true
+            exit 1
+          fi
+          echo "DMG_BASENAME=$dmg" >> "$GITHUB_ENV"
+
+      - name: Attach DMG to GitHub Release
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" \
+            "dist/$DMG_BASENAME" \
+            "dist/${DMG_BASENAME}.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+
+      - name: Update release Package notes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+          import subprocess
+
+          tag = os.environ["RELEASE_TAG"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          dmg = os.environ["DMG_BASENAME"]
+          test_only = os.environ.get("SECUNDA_TEST_ONLY_UNNOTARIZED_DMG") == "1"
+
+          if test_only:
+              package = (
+                  "## Package\n"
+                  "\n"
+                  f"I attached `{dmg}`. It contains Secunda Launcher.app.\n"
+                  "\n"
+                  "The build is ad-hoc signed and labeled TEST-ONLY. "
+                  "Gatekeeper may warn on first open. "
+                  "A Developer ID–signed, notarized DMG is the later warning-free path. "
+                  "Keep macOS security settings as they are.\n"
+                  "\n"
+                  f"The SHA-256 is in `{dmg}.sha256`.\n"
+              )
+          else:
+              package = (
+                  "## Package\n"
+                  "\n"
+                  f"I attached `{dmg}`. It contains Secunda Launcher.app.\n"
+                  "\n"
+                  "This build is Developer ID–signed and notarized.\n"
+                  "\n"
+                  f"The SHA-256 is in `{dmg}.sha256`.\n"
+              )
+
+          body = subprocess.check_output(
+              ["gh", "release", "view", tag, "--repo", repo, "--json", "body", "-q", ".body"],
+              text=True,
+          )
+          pattern = re.compile(r"^## Package\b.*?(?=^## |\Z)", re.M | re.S)
+          if pattern.search(body):
+              new_body = pattern.sub(package.rstrip() + "\n", body, count=1)
+          else:
+              new_body = body.rstrip() + "\n\n" + package
+          new_body = new_body.rstrip() + "\n"
+
+          notes = pathlib.Path(os.environ["RUNNER_TEMP"]) / "release-notes.md"
+          notes.write_text(new_body, encoding="utf-8")
+          subprocess.run(
+              ["gh", "release", "edit", tag, "--repo", repo, "--notes-file", str(notes)],
+              check=True,
+          )
+          PY

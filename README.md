@@ -26,11 +26,13 @@ open "dist/Secunda Launcher.app"
 
 This local build is ad-hoc signed and labeled TEST-ONLY. macOS may warn on first open. Keep macOS security settings as they are until a Developer ID–signed, notarized build is available.
 
+A ready-to-open app for tagged releases is on the [Releases](https://github.com/lukekabbash/secunda-launcher/releases) page.
+
 The app creates its own private Windows prefix. Steam handles sign-in, ownership, and installation. Title status is below and in `docs/source-only/GATES.md`.
 
 ## Compatibility
 
-Proven means played on a 2026 MacBook Air M5 with 24 GB of memory.
+I have run these on my 2026 MacBook Air M5 with 24 GB of memory.
 
 | Title or group | Current status |
 | --- | --- |
@@ -138,7 +140,7 @@ SECUNDA_SOURCE_ARCHIVE=/path/to/crossover-sources-26.3.0.tar.gz \
 ./scripts/package-share-dmg.sh
 ```
 
-Without those credentials the release command fails closed. For local packaging tests only, explicitly set `SECUNDA_TEST_ONLY_UNNOTARIZED_DMG=1`; the output is labeled `TEST-ONLY`, is not recipient-ready, and may show an additional first-open warning. Recipients should never be asked to disable macOS security. When the app is ready for broader sharing, publish that notarized DMG as a GitHub Release asset rather than committing it.
+Without those credentials the release command fails closed. For local packaging tests only, explicitly set `SECUNDA_TEST_ONLY_UNNOTARIZED_DMG=1`; the output is labeled `TEST-ONLY`, is not recipient-ready, and may show an additional first-open warning. Recipients should never be asked to disable macOS security. GitHub Actions attaches the share DMG to the matching [GitHub Release](https://github.com/lukekabbash/secunda-launcher/releases). Until Developer ID and notary credentials are present, that file is the labeled TEST-ONLY build.
 
 ## Managed data and removal
 
