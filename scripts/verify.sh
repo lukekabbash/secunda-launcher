@@ -14,3 +14,4 @@ swift run \
     --self-test
 
 "$REPOSITORY_ROOT/scripts/test-source-only-provenance.sh"
+"$REPOSITORY_ROOT/scripts/test-relocate-runtime.sh"

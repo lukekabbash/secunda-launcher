@@ -5,12 +5,17 @@ SCRIPT_DIR=${0:A:h}
 REPOSITORY_ROOT=${SCRIPT_DIR:h}
 SOURCE_ARCHIVE=${1:-${SECUNDA_SOURCE_ARCHIVE:-"$REPOSITORY_ROOT/crossover-sources-26.3.0.tar.gz"}}
 RUNTIME_OUTPUT=${2:-${SECUNDA_RUNTIME_OUTPUT:-"$REPOSITORY_ROOT/Runtime/wine-macos15"}}
-BUILD_CONTAINER=$(mktemp -d "${TMPDIR:-/private/tmp}/secunda-clean-runtime.XXXXXX")
+# GitHub-hosted macOS runners set TMPDIR with a trailing slash (`.../T/`).
+# Joining that with a relative name produces `T//secunda-clean-runtime.*`.
+# The linker stores the collapsed `T/` form, so an exact install_name_tool
+# -change against the uncollapsed alias is a silent no-op.
+BUILD_TMPDIR=${TMPDIR:-/private/tmp}
+BUILD_TMPDIR=${BUILD_TMPDIR%/}
+BUILD_CONTAINER=$(mktemp -d "$BUILD_TMPDIR/secunda-clean-runtime.XXXXXX")
 SOURCE_EXTRACT_ROOT="$BUILD_CONTAINER/source"
 ALIAS_ROOT="$BUILD_CONTAINER/aliases"
 BUILD_USER=$(id -un)
 BUILD_USER_HOME=${HOME:?}
-BUILD_TMPDIR=${TMPDIR:-/private/tmp}
 
 cleanup() {
     rm -rf "$BUILD_CONTAINER"
