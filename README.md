@@ -1,12 +1,12 @@
 # Secunda Launcher
 
-Secunda is an unofficial Apple-silicon launcher for Windows Steam games you already own. It is early software: a listed title is not a guarantee it works. Steam still handles sign-in and ownership. Secunda never asks for a Steam password and never bundles a game, account session, save, or Steam client.
+Secunda is an unofficial Apple-silicon launcher for Windows Steam games you already own. Steam handles sign-in and ownership. Secunda never asks for a Steam password and never ships a game, account session, save, or Steam client.
 
-It is intentionally bounded: one compatibility runtime, one private game space (a managed Windows environment for Steam and your games), and explicit per-game profiles — not a generic “run any Windows app” button.
+It keeps one compatibility runtime, one private game space (a managed Windows environment for Steam and your games), and a profile for each title.
 
-## What this work in progress is for
+## Purpose
 
-The practical goal is to keep a game’s runtime, game space, Steam handoff, launch settings, display profile, and clean stop behavior in one place. Secunda is still early. It is useful for trying these paths, not a promise that every catalog entry will work or that a launch attempt is gameplay proof.
+Secunda holds a game’s runtime, game space, Steam handoff, launch settings, display profile, and clean stop in one place. The software is early. Each title has its own status.
 
 ## Start here
 
@@ -26,22 +26,20 @@ open "dist/Secunda Launcher.app"
 
 This is an **ad-hoc-signed, TEST-ONLY work-in-progress build**, not a notarized public release. macOS may show a first-open warning. Please do not weaken macOS security settings to run it; wait for a Developer ID–signed, notarized release if the normal macOS checks do not allow it to open.
 
-The app creates its own private Windows prefix, then Steam handles normal sign-in, ownership, and game installation. It does not make a game compatible merely by listing it. The current state of each title is described below and in `docs/source-only/GATES.md`.
+The app creates its own private Windows prefix. Steam handles sign-in, ownership, and installation. Title status is below and in `docs/source-only/GATES.md`.
 
-## Compatibility, honestly
+## Compatibility
 
-This catalog is a work in progress. Proven here means played on a 2026 MacBook Air M5 with 24 GB of memory. A listing is still not a guarantee on every Mac.
+Proven means played on a 2026 MacBook Air M5 with 24 GB of memory.
 
 | Title or group | Current status |
 | --- | --- |
-| Skyrim Special Edition | Proven working on a 2026 MacBook Air M5 (24 GB). |
-| Fallout 4 | Proven working on a 2026 MacBook Air M5 (24 GB). |
-| Supreme Commander 2 | Proven working on a 2026 MacBook Air M5 (24 GB). |
-| Insurgency | Proven working on a 2026 MacBook Air M5 (24 GB). |
-| Black Ops II | Has unresolved compatibility issues; campaign is not currently playable in this source-runtime path, and the other modes still need full visual, audio, input, and gameplay acceptance. |
-| Battlefront II Classic, Supreme Commander, Supreme Commander: Forged Alliance, and Angels Fall First | Catalog profiles. Untested or unproven. Do not treat them as supported. |
-
-A compact compatibility label for every catalog entry is the next repository-facing documentation step. Gate evidence remains in `docs/source-only/GATES.md`. “Listed” never means “guaranteed.”
+| Skyrim Special Edition | Runs on a 2026 MacBook Air M5 (24 GB). |
+| Fallout 4 | Runs on a 2026 MacBook Air M5 (24 GB). |
+| Supreme Commander 2 | Runs on a 2026 MacBook Air M5 (24 GB). |
+| Insurgency | Runs on a 2026 MacBook Air M5 (24 GB). |
+| Black Ops II | Campaign exits early. Multiplayer and Zombies still need gameplay acceptance. |
+| Battlefront II Classic, Supreme Commander, Supreme Commander: Forged Alliance, and Angels Fall First | Catalogued. Untested. |
 
 ### Why generated artifacts stay out of Git
 
@@ -66,7 +64,7 @@ The current catalog contains:
 - Angels Fall First
 - Call of Duty: Black Ops II — Campaign, Multiplayer, and Zombies
 
-Skyrim Special Edition, Fallout 4, Supreme Commander 2, and Insurgency are proven on a 2026 MacBook Air M5 with 24 GB of memory. Supreme Commander, Forged Alliance, Battlefront II Classic, and Angels Fall First remain catalog profiles, not gameplay-acceptance claims. A listing means Secunda knows a title’s Steam identity, installation layout, and launch profile.
+Skyrim Special Edition, Fallout 4, Supreme Commander 2, and Insurgency run on a 2026 MacBook Air M5 with 24 GB of memory. Supreme Commander, Forged Alliance, Battlefront II Classic, and Angels Fall First are catalogued and untested.
 
 ## Platform
 

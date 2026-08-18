@@ -161,9 +161,9 @@ struct SettingsView: View {
 
                 FlatSection(title: "About", detail: AppVersion.label) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Unofficial early software", systemImage: "checkmark.shield")
+                        Label("Unofficial launcher", systemImage: "checkmark.shield")
                             .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
-                        Text("Secunda is an unofficial community project, unaffiliated with Valve, Bethesda, or any game publisher. Each game requires your own separately purchased Steam copy. A listed title is not a guarantee it works. Secunda never bundles Steam, game files, or account data, and never asks for your Steam password.")
+                        Text("Secunda is an unofficial community project, unaffiliated with Valve, Bethesda, or any game publisher. You need your own Steam copy of each game. Secunda never asks for a Steam password and never ships Steam, game files, or account data.")
                             .font(.caption)
                             .foregroundStyle(SecundaTheme.secondaryText)
                             .lineSpacing(3)

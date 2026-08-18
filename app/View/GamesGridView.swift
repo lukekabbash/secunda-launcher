@@ -17,7 +17,7 @@ struct GamesGridView: View {
                 PageHeader(
                     eyebrow: "LIBRARY",
                     title: "Your games.",
-                    detail: "Play Windows Steam games you already own. A game space is the private Windows environment Secunda uses for Steam and your library. Skyrim, Fallout 4, Supreme Commander 2, and Insurgency are proven on Apple silicon; other listed titles may not work."
+                    detail: "Play Windows Steam games you already own. A game space is the private Windows environment Secunda uses for Steam and your library. Skyrim, Fallout 4, Supreme Commander 2, and Insurgency run on Apple silicon. The rest of the catalog is unfinished."
                 )
 
                 gameSection(title: "INSTALLED", groups: installedGroups, indexOffset: 0)
