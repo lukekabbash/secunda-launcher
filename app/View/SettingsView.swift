@@ -12,11 +12,11 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 40) {
                 PageHeader(
                     eyebrow: "LAUNCHER",
-                    title: "A quiet, tested default.",
-                    detail: "These options affect Secunda itself. Game-specific display and audio settings live on each game’s page."
+                    title: "Settings",
+                    detail: "These options apply to Secunda itself. Display and audio for each game live on that game’s page."
                 )
 
-                FlatSection(title: "Performance", detail: "Live Mac check") {
+                FlatSection(title: "Performance", detail: "This Mac") {
                     VStack(alignment: .leading, spacing: 10) {
                         if model.snapshot.lowPowerModeEnabled {
                             Label("Low Power Mode is limiting game performance", systemImage: "exclamationmark.triangle.fill")
@@ -25,7 +25,7 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(SecundaTheme.secondaryText)
                         } else {
-                            Label("Full-power mode is available", systemImage: "checkmark.circle.fill")
+                            Label("Full performance is available", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(SecundaTheme.aurora)
                             Text("Games get macOS’s highest scheduling priority in fullscreen when Game Mode is available.")
                                 .font(.caption)
@@ -40,7 +40,7 @@ struct SettingsView: View {
                 FlatSection(title: "Secunda Runtime", detail: model.snapshot.runtime.detail ?? "Unavailable") {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(model.snapshot.runtime.isReady
-                            ? "Bundled with this copy of Secunda, verified before use, and built only from open source. There is no player-facing runtime picker."
+                            ? "Bundled with this copy of Secunda and verified before use. There is no runtime picker."
                             : "The compatibility runtime is missing from this copy. Reinstall the complete Secunda package or rebuild it from source.")
                             .font(.caption)
                             .foregroundStyle(SecundaTheme.secondaryText)
@@ -81,7 +81,7 @@ struct SettingsView: View {
                     }
                 }
 
-                FlatSection(title: "Compatibility", detail: "Game space wide") {
+                FlatSection(title: "Compatibility", detail: "Applies to every game") {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Fast synchronization", isOn: fastSyncBinding)
                             .toggleStyle(.switch)
@@ -95,7 +95,7 @@ struct SettingsView: View {
 
                 FlatSection(title: "Diagnostics", detail: "Off by default") {
                     VStack(alignment: .leading, spacing: 10) {
-                        Toggle("Write detailed Wine logs", isOn: diagnosticsBinding)
+                        Toggle("Write detailed logs", isOn: diagnosticsBinding)
                             .toggleStyle(.switch)
                         Text("Detailed logs can be large. Secunda never records Steam passwords or reads unrelated documents.")
                             .font(.caption)
@@ -103,7 +103,7 @@ struct SettingsView: View {
                     }
                 }
 
-                FlatSection(title: "Support", detail: "No mystery failures") {
+                FlatSection(title: "Support", detail: "Logs and recovery") {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 10) {
                             Button {
@@ -159,11 +159,11 @@ struct SettingsView: View {
                     }
                 }
 
-                FlatSection(title: "About", detail: "v0.1") {
+                FlatSection(title: "About", detail: AppVersion.label) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Unofficial launcher", systemImage: "checkmark.shield")
+                        Label("Unofficial early software", systemImage: "checkmark.shield")
                             .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
-                        Text("Secunda is an unofficial community project, unaffiliated with Valve, Bethesda, or any game publisher. Each game requires your own separately purchased Steam copy. Secunda never bundles Steam, game files, or account data, and never asks for your Steam password.")
+                        Text("Secunda is an unofficial community project, unaffiliated with Valve, Bethesda, or any game publisher. Each game requires your own separately purchased Steam copy. A listed title is not a guarantee it works. Secunda never bundles Steam, game files, or account data, and never asks for your Steam password.")
                             .font(.caption)
                             .foregroundStyle(SecundaTheme.secondaryText)
                             .lineSpacing(3)
@@ -216,7 +216,7 @@ struct SettingsView: View {
                                 .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                                 .lineLimit(1)
                             if process.isOrphaned {
-                                Text("ORPHANED")
+                                Text("STUCK")
                                     .font(.system(size: SecundaTheme.FontSize.micro, weight: .bold))
                                     .tracking(0.8)
                                     .foregroundStyle(SecundaTheme.ember)
@@ -235,7 +235,7 @@ struct SettingsView: View {
                         .padding(.vertical, 4)
                     }
                 }
-                Text("Force-stopping skips the game's own save-and-quit path. Orphaned entries lost their Wine session and can only be removed this way.")
+                Text("Force-stopping skips the game’s save-and-quit path. Stuck entries lost their session and can only be removed this way.")
                     .font(.caption2)
                     .foregroundStyle(SecundaTheme.secondaryText)
             }
@@ -251,7 +251,7 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Immediately kills every Windows process in Secunda's game space — games, Steam, and Wine workers. Unsaved progress is lost.")
+            Text("This immediately stops every process in Secunda’s game space — games, Steam, and background compatibility work. Unsaved progress is lost.")
         }
     }
 
@@ -277,10 +277,10 @@ struct SettingsView: View {
         if model.hasPendingFastSyncChange {
             let requested = model.settings.useFastSync ? "on" : "off"
             let active = model.settings.activeFastSync ? "on" : "off"
-            return "Queued: \(requested). This game space remains \(active) until Steam and every game are closed; Secunda applies the request before the next process starts."
+            return "Queued: \(requested). This game space stays \(active) until Steam and every game are closed. Secunda applies the change before the next process starts."
         }
         return model.settings.activeFastSync
-            ? "Wine's fast macOS synchronization is on. It helps frame pacing, but a few titles fault while starting under it. If a game closes immediately with an initialization error, turn this off and close the game space."
+            ? "Fast synchronization is on. It can improve frame pacing, but some titles fail while starting. If a game closes immediately, turn this off and close the game space."
             : "Fast synchronization is off — slower, but more compatible."
     }
 

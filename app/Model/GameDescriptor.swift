@@ -296,7 +296,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "skyrim-se",
         title: "The Elder Scrolls V: Skyrim Special Edition",
         shortTitle: "Skyrim",
-        tagline: "Dragons, shouts, and a province that never lets go.",
+        tagline: "The documented working title on this early build.",
         symbol: "mountain.2.fill",
         steamAppID: "489830",
         gameImageName: "SkyrimSE.exe",
@@ -376,7 +376,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "fallout-4",
         title: "Fallout 4",
         shortTitle: "Fallout 4",
-        tagline: "War never changes. The Commonwealth is waiting.",
+        tagline: "Listed in the catalog. Compatibility is still unproven.",
         symbol: "atom",
         steamAppID: "377160",
         gameImageName: "Fallout4.exe",
@@ -417,7 +417,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             QualityOption(
                 id: "ssr",
                 title: "Screen-space reflections",
-                caption: "Wet-surface reflections. Off saves GPU time in the Commonwealth's many puddles.",
+                caption: "Wet-surface reflections. Off saves GPU time.",
                 choices: [
                     .init(label: QualityOption.gameDefaultLabel, values: [:]),
                     .init(label: "Off", values: ["bScreenSpaceReflections": "0"]),
@@ -503,7 +503,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "supcom2",
         title: "Supreme Commander 2",
         shortTitle: "Supreme Commander 2",
-        tagline: "Thousand-unit armies, one supreme commander.",
+        tagline: "Listed in the catalog. Compatibility is still unproven.",
         symbol: "flag.2.crossed.fill",
         steamAppID: "40100",
         gameImageName: "SupremeCommander2.exe",
@@ -594,7 +594,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "bo2-campaign",
         title: "Call of Duty: Black Ops II",
         shortTitle: "Black Ops II",
-        tagline: "The future is black. Campaign.",
+        tagline: "Campaign is not currently playable.",
         symbol: "scope",
         steamAppID: "202970",
         executable: "t6sp.exe"
@@ -604,7 +604,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "bo2-multiplayer",
         title: "Call of Duty: Black Ops II - Multiplayer",
         shortTitle: "BO2 Multiplayer",
-        tagline: "Pick ten. Prestige forever.",
+        tagline: "Not yet confirmed working.",
         symbol: "person.3.fill",
         steamAppID: "202990",
         executable: "t6mp.exe"
@@ -614,7 +614,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "bo2-zombies",
         title: "Call of Duty: Black Ops II - Zombies",
         shortTitle: "BO2 Zombies",
-        tagline: "They keep coming. Tranzit awaits.",
+        tagline: "Not yet confirmed working.",
         symbol: "figure.walk.motion",
         steamAppID: "212910",
         executable: "t6zm.exe"

@@ -938,7 +938,7 @@ enum SelfCheck {
             failures: &failures
         )
         expect(
-            PrimaryAction.locateRuntime.title(for: .skyrimSE) == "Open Setup Help",
+            PrimaryAction.locateRuntime.title(for: .skyrimSE) == "Open Settings",
             "truthful source runtime recovery action",
             passes: &passes,
             failures: &failures

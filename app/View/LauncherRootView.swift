@@ -114,7 +114,7 @@ struct LauncherRootView: View {
                     .fill(SecundaTheme.hairline)
                     .frame(height: 1)
                 HStack {
-                    Text("v0.1 · Unofficial")
+                    Text("\(AppVersion.label) · Unofficial")
                         .font(.system(size: SecundaTheme.FontSize.micro, weight: .medium))
                         .tracking(0.6)
                         .foregroundStyle(SecundaTheme.secondaryText.opacity(0.8))
@@ -125,7 +125,7 @@ struct LauncherRootView: View {
                         Image(systemName: "gearshape.fill")
                     }
                     .buttonStyle(SecundaIconButtonStyle())
-                    .help("Launcher settings, support, and recovery")
+                    .help("Settings, support, and recovery")
                     .background {
                         if model.selection == .settings {
                             Circle().fill(Color.white.opacity(0.09))
@@ -262,7 +262,7 @@ private struct SidebarRow<Icon: View>: View {
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .help("Stop the active game and close Secunda’s shared Windows space")
+                    .help("Stop the active game and close the shared game space")
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
@@ -288,7 +288,7 @@ private struct SidebarRow<Icon: View>: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Save first when possible. This closes the active game and every Windows app in Secunda’s shared game space.")
+            Text("Save first when possible. This closes the active game and every Windows app in the shared game space.")
         }
     }
 }

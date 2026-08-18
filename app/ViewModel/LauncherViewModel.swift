@@ -152,8 +152,8 @@ final class LauncherViewModel: ObservableObject {
             paths.bottleOverrideError == nil
                 ? "Secunda’s compatibility runtime is missing."
                 : "Secunda refused an unsafe test game space."
-        case .createBottle: "Prepare a clean realm."
-        case .installSteam: "Bring Steam into Secunda."
+        case .createBottle: "Create your game space."
+        case .installSteam: "Install Steam."
         case .installGame: "Install \(descriptor.shortTitle) through Steam."
         case .play: "\(descriptor.shortTitle) is installed and ready to launch."
         case .unavailable: progressLabel ?? "Preparing Secunda…"
@@ -162,20 +162,20 @@ final class LauncherViewModel: ObservableObject {
 
     func supportingText(for descriptor: GameDescriptor) -> String {
         if isGameRunning(descriptor) {
-            return "Playing through Secunda’s source-built Windows compatibility runtime. Save and quit in the game; Stop is the emergency exit."
+            return "Save and quit in the game when you can. Stop closes the shared game space."
         }
         return switch primaryAction(for: descriptor) {
         case .locateRuntime:
             paths.bottleOverrideError
-                ?? "This build should include Secunda’s source-built Windows compatibility runtime. Reinstall the complete package or use the source build instructions."
+                ?? "This build should include Secunda’s compatibility runtime. Reinstall the complete package or follow the source build instructions."
         case .createBottle:
-            "Secunda creates a separate managed Windows space for Steam, your games, settings, and saves."
+            "A game space is the private Windows environment Secunda uses for Steam, your games, settings, and saves."
         case .installSteam:
             "Steam is downloaded directly from Valve. Secunda never sees or stores your credentials."
         case .installGame:
             "Secunda asks Steam to install your own copy of \(descriptor.shortTitle). Steam confirms the download and shows its progress."
         case .play:
-            "Secunda applies its tested settings, asks Steam to authorize your copy, then opens \(descriptor.shortTitle) through its source-built Windows compatibility runtime."
+            "Secunda applies this title’s launch settings, asks Steam to authorize your copy, then opens \(descriptor.shortTitle)."
         case .unavailable:
             "This can take a few minutes. You can leave this window open."
         }
@@ -310,7 +310,7 @@ final class LauncherViewModel: ObservableObject {
                 needsInstallSpace: true,
                 lowPowerModeEnabled: lowPowerModeEnabled
             )
-            rejected.runtime = .failed("Unsafe test game-space name rejected")
+            rejected.runtime = .failed("Test game space was rejected")
             rejected.bottle = .failed("No fallback game space was opened")
             for descriptor in GameDescriptor.supported {
                 var gameSnapshot = GameSnapshot()
@@ -326,7 +326,7 @@ final class LauncherViewModel: ObservableObject {
         var updated = LauncherSnapshot.empty(paths: paths)
         let freeDiskBytes = availableDiskSpace()
         if let locatedRuntime {
-            updated.runtime = .ready("Verified source-built runtime · \(locatedRuntime.version)")
+            updated.runtime = .ready("Verified runtime · \(locatedRuntime.version)")
             updated.runtimePath = locatedRuntime.wineExecutable.path
             updated.bottlePath = locatedRuntime.bottleRoot.path
         }
@@ -385,7 +385,7 @@ final class LauncherViewModel: ObservableObject {
         switch primaryAction(for: descriptor) {
         case .locateRuntime:
             selection = .settings
-            addActivity("The source-built compatibility runtime is missing. Opened recovery details.", kind: .warning)
+            addActivity("The compatibility runtime is missing. Opened Settings.", kind: .warning)
         case .createBottle:
             runTask(
                 label: "Preparing a separate game space",
@@ -402,8 +402,8 @@ final class LauncherViewModel: ObservableObject {
                 initialProgress: SetupProgress(
                     step: 1,
                     totalSteps: 4,
-                    title: "Checking the bottle",
-                    detail: "Confirming Secunda’s selected game space is ready."
+                    title: "Checking the game space",
+                    detail: "Confirming the game space is ready."
                 )
             ) { try await self.installSteam() }
         case .installGame:
@@ -417,7 +417,7 @@ final class LauncherViewModel: ObservableObject {
 
     func openSteam() {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         runTask(
@@ -425,8 +425,8 @@ final class LauncherViewModel: ObservableObject {
             initialProgress: SetupProgress(
                 step: 1,
                 totalSteps: 3,
-                title: "Checking Private Space",
-                detail: "Confirming Steam is using Secunda’s selected game space."
+                title: "Checking the game space",
+                detail: "Confirming Steam is using this game space."
             )
         ) {
             try await self.launchSteam(runtime)
@@ -435,7 +435,7 @@ final class LauncherViewModel: ObservableObject {
 
     func play(_ descriptor: GameDescriptor) {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         guard !isBusy else { return }
@@ -445,7 +445,7 @@ final class LauncherViewModel: ObservableObject {
             initialProgress: SetupProgress(
                 step: 1,
                 totalSteps: 6,
-                title: "Checking Game Space",
+                title: "Checking the game space",
                 detail: "Confirming \(descriptor.shortTitle) is not already running before Secunda changes anything."
             )
         ) {
@@ -456,7 +456,7 @@ final class LauncherViewModel: ObservableObject {
 
     func requestGameInstall(_ descriptor: GameDescriptor) {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         if expectedInstallStates[descriptor.id]?.isInstalled == true {
@@ -493,7 +493,7 @@ final class LauncherViewModel: ObservableObject {
 
     func requestGameUninstall(_ descriptor: GameDescriptor) {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         Task {
@@ -517,7 +517,7 @@ final class LauncherViewModel: ObservableObject {
 
     func requestDLCInstall(_ dlc: DLCDescriptor, for descriptor: GameDescriptor) {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         Task {
@@ -537,7 +537,7 @@ final class LauncherViewModel: ObservableObject {
 
     func stop() {
         guard let runtime, snapshot.steam.isReady else {
-            presentedError = "Steam is not installed in Secunda’s selected game space."
+            presentedError = "Steam is not installed in this game space."
             return
         }
         runTask(
@@ -545,7 +545,7 @@ final class LauncherViewModel: ObservableObject {
             initialProgress: SetupProgress(
                 step: 1,
                 totalSteps: 1,
-                title: "Closing the Game Space",
+                title: "Closing the game space",
                 detail: "Closing every Windows app here, then confirming Secunda’s runtime has stopped."
             )
         ) {
@@ -557,7 +557,7 @@ final class LauncherViewModel: ObservableObject {
     /// graceful shutdown entirely, so it works when wineserver is dead.
     func forceStopGame(_ descriptor: GameDescriptor) {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         runTask(label: "Force-stopping \(descriptor.shortTitle)") {
@@ -575,7 +575,7 @@ final class LauncherViewModel: ObservableObject {
 
     func forceStopGroup(_ group: GameGroup) {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         runTask(label: "Force-stopping \(group.shortTitle)") {
@@ -692,7 +692,7 @@ final class LauncherViewModel: ObservableObject {
     /// orphaned-processes-block-macOS-restart scenario.
     func forceStopEverything() {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         runTask(label: "Force-stopping all game-space processes") {
@@ -708,7 +708,7 @@ final class LauncherViewModel: ObservableObject {
             )
             self.addActivity(
                 processes.isEmpty
-                    ? "Nothing to stop — the game space is already quiet."
+                    ? "Nothing to stop. No processes are running."
                     : "Force-stopped \(processes.count) game-space process\(processes.count == 1 ? "" : "es").",
                 kind: processes.isEmpty ? .info : .success
             )
@@ -735,7 +735,7 @@ final class LauncherViewModel: ObservableObject {
 
     func createSaveBackup(_ descriptor: GameDescriptor) {
         guard let runtime else {
-            presentedError = "A compatible runtime is not available."
+            presentedError = "The compatibility runtime is not available."
             return
         }
         do {
@@ -795,8 +795,8 @@ final class LauncherViewModel: ObservableObject {
         try await activatePendingRuntimeSettingsIfQuiet(runtime)
         updateSetupProgress(
             step: 1,
-            title: "Checking the bottle",
-            detail: "Confirming Secunda’s selected game space is ready."
+            title: "Checking the game space",
+            detail: "Confirming the game space is ready."
         )
         if !bottleManager.isInitialized(runtime: runtime) {
             progressLabel = "Preparing the separate game space"
@@ -817,7 +817,7 @@ final class LauncherViewModel: ObservableObject {
         updateSetupProgress(
             step: 3,
             title: "Installing Steam",
-            detail: "Copying the Steam client into Secunda’s separate game space."
+            detail: "Copying the Steam client into the game space."
         )
         try await steamService.install(runtime: runtime, diagnostics: settings.enableDiagnostics)
         progressLabel = "Opening Steam login"
@@ -850,7 +850,7 @@ final class LauncherViewModel: ObservableObject {
         case .started:
             activeSessionDescriptorID = descriptor.id
             addActivity(
-                "\(descriptor.shortTitle) is running through Secunda’s source-built Windows compatibility runtime.",
+                "\(descriptor.shortTitle) is running.",
                 kind: .success
             )
         case .alreadyRunning:
@@ -862,8 +862,8 @@ final class LauncherViewModel: ObservableObject {
         try await activatePendingRuntimeSettingsIfQuiet(runtime)
         updateSetupProgress(
             step: 1,
-            title: "Checking Private Space",
-            detail: "Confirming Steam is using Secunda’s selected game space."
+            title: "Checking the game space",
+            detail: "Confirming Steam is using this game space."
         )
         if !bottleManager.isInitialized(runtime: runtime) {
             try await bottleManager.initialize(runtime: runtime, diagnostics: settings.enableDiagnostics)
@@ -883,7 +883,7 @@ final class LauncherViewModel: ObservableObject {
             detail: "Starting Steam with Secunda’s visible-window compatibility settings."
         )
         try steamService.launch(runtime: runtime, diagnostics: settings.enableDiagnostics)
-        addActivity("Steam launch requested inside Secunda’s selected game space.", kind: .info)
+        addActivity("Steam launch requested in this game space.", kind: .info)
         scheduleRefresh()
     }
 
@@ -975,7 +975,7 @@ final class LauncherViewModel: ObservableObject {
         case .checking:
             updateSetupProgress(
                 step: 1,
-                title: "Checking Game Space",
+                title: "Checking the game space",
                 detail: "Confirming \(descriptor.shortTitle) is not already running before Secunda changes anything."
             )
         case .compatibility:
@@ -988,13 +988,13 @@ final class LauncherViewModel: ObservableObject {
             updateSetupProgress(
                 step: 3,
                 title: "Checking Voice Audio",
-                detail: "Confirming Microsoft’s XAudio components so dialogue is audible. First time downloads ~96 MB."
+                detail: "Confirming Microsoft audio components so dialogue is audible. The first time downloads about 96 MB."
             )
         case .profile:
             updateSetupProgress(
                 step: 4,
                 title: "Writing Game Settings",
-                detail: "Applying your display choices inside Secunda’s selected game space."
+                detail: "Applying your display choices in the game space."
             )
         case .steam:
             updateSetupProgress(
@@ -1006,7 +1006,7 @@ final class LauncherViewModel: ObservableObject {
             updateSetupProgress(
                 step: 6,
                 title: "Starting \(descriptor.shortTitle)",
-                detail: "Opening the game through Secunda’s verified source-built Windows compatibility runtime."
+                detail: "Opening the game through Secunda’s compatibility runtime."
             )
         }
     }
