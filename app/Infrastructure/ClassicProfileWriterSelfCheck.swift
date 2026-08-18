@@ -76,6 +76,30 @@ enum ClassicProfileWriterSelfCheck {
                 return ["Insurgency video profile was not updated safely"]
             }
 
+            let portalInstall = root.appendingPathComponent("portal-2-game", isDirectory: true)
+            let portalVideoURL = portalInstall.appendingPathComponent("portal2/cfg/video.txt")
+            try manager.createDirectory(
+                at: portalVideoURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try videoFixture.write(to: portalVideoURL, atomically: true, encoding: .utf8)
+            var portalSettings = LauncherSettings().game(.portal2)
+            portalSettings.width = 1710
+            portalSettings.height = 1107
+            portalSettings.verticalSync = false
+            try GameProfileWriter(paths: paths, descriptor: .portal2).apply(
+                portalSettings,
+                bottleRoot: paths.bottleRoot,
+                installRoot: portalInstall
+            )
+            let updatedPortalVideo = try String(contentsOf: portalVideoURL, encoding: .utf8)
+            guard updatedPortalVideo.contains("\"setting.defaultres\"    \"1710\"")
+                    && updatedPortalVideo.contains("\"setting.mat_vsync\"    \"0\"")
+                    && updatedPortalVideo.contains("\"preserve\"    \"yes\"")
+            else {
+                return ["Portal 2 video profile was not updated safely"]
+            }
+
             try GameProfileWriter(paths: paths, descriptor: .angelsFallFirst).apply(
                 settings,
                 bottleRoot: paths.bottleRoot,

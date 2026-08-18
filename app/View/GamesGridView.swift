@@ -17,14 +17,14 @@ struct GamesGridView: View {
                 PageHeader(
                     eyebrow: "LIBRARY",
                     title: "Library",
-                    detail: "Play Windows Steam games you already own. A game space is the private Windows environment Secunda uses for Steam and your library. Skyrim, Fallout 4, Supreme Commander 2, and Insurgency run on Apple silicon. The rest of the catalog is unfinished."
+                    detail: "I launch Windows Steam games I already own. A game space is the private Windows environment Secunda uses for Steam and this library. I have played Skyrim, Fallout 4, Supreme Commander 2, and Insurgency on my 2026 MacBook Air M5 with 24 GB of memory. Insurgency is a bit laggy."
                 )
 
-                gameSection(title: "INSTALLED", groups: installedGroups, indexOffset: 0)
+                gameSection(title: LibraryExperience.played.sectionTitle, groups: playedGroups, indexOffset: 0)
                 gameSection(
-                    title: "UNINSTALLED",
-                    groups: uninstalledGroups,
-                    indexOffset: installedGroups.count
+                    title: LibraryExperience.experimental.sectionTitle,
+                    groups: experimentalGroups,
+                    indexOffset: playedGroups.count
                 )
             }
             .padding(42)
@@ -61,12 +61,12 @@ struct GamesGridView: View {
         }
     }
 
-    private var installedGroups: [GameGroup] {
-        GameGroup.all.filter { model.anyComponentInstalled(in: $0) }
+    private var playedGroups: [GameGroup] {
+        GameGroup.played
     }
 
-    private var uninstalledGroups: [GameGroup] {
-        GameGroup.all.filter { !model.anyComponentInstalled(in: $0) }
+    private var experimentalGroups: [GameGroup] {
+        GameGroup.experimental
     }
 
     @ViewBuilder

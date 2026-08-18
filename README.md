@@ -32,16 +32,18 @@ The app creates its own private Windows prefix. Steam handles sign-in, ownership
 
 ## Compatibility
 
-I have run these on my 2026 MacBook Air M5 with 24 GB of memory.
+I have played these on my 2026 MacBook Air M5 with 24 GB of memory.
 
 | Title or group | Current status |
 | --- | --- |
-| Skyrim Special Edition | Runs on a 2026 MacBook Air M5 (24 GB). |
-| Fallout 4 | Runs on a 2026 MacBook Air M5 (24 GB). |
-| Supreme Commander 2 | Runs on a 2026 MacBook Air M5 (24 GB). |
-| Insurgency | Runs on a 2026 MacBook Air M5 (24 GB). |
+| Skyrim Special Edition | Played. |
+| Fallout 4 | Played. |
+| Supreme Commander 2 | Played. |
+| Insurgency | Played. A bit laggy. |
 | Black Ops II | Campaign exits early. Multiplayer and Zombies still need gameplay acceptance. |
-| Battlefront II Classic, Supreme Commander, Supreme Commander: Forged Alliance, and Angels Fall First | Catalogued. Untested. |
+| Battlefront II Classic, Supreme Commander, Supreme Commander: Forged Alliance, Angels Fall First, Fallout New Vegas, Portal 2, Half-Life 2, and Enderal Forgotten Stories SE | Experimental. |
+
+Enderal Forgotten Stories SE needs Skyrim Special Edition owned on the same Steam account.
 
 ### Why generated artifacts stay out of Git
 
@@ -58,15 +60,19 @@ Secunda.app -> source-built Wine 11.0 + packaged graphics translation -> private
 The current catalog contains:
 
 - The Elder Scrolls V: Skyrim Special Edition
+- Enderal: Forgotten Stories (Special Edition)
 - Fallout 4
+- Fallout: New Vegas
 - Supreme Commander and Supreme Commander: Forged Alliance
 - Supreme Commander 2
 - STAR WARS Battlefront II (Classic, 2005)
 - Insurgency
+- Portal 2
+- Half-Life 2
 - Angels Fall First
-- Call of Duty: Black Ops II — Campaign, Multiplayer, and Zombies
+- Call of Duty: Black Ops II. Campaign, Multiplayer, and Zombies
 
-Skyrim Special Edition, Fallout 4, Supreme Commander 2, and Insurgency run on a 2026 MacBook Air M5 with 24 GB of memory. Supreme Commander, Forged Alliance, Battlefront II Classic, and Angels Fall First are catalogued and untested.
+I have played Skyrim Special Edition, Fallout 4, Supreme Commander 2, and Insurgency on a 2026 MacBook Air M5 with 24 GB of memory. Insurgency is a bit laggy. The other titles are experimental. Enderal Forgotten Stories SE needs Skyrim Special Edition owned on the same Steam account.
 
 ## Platform
 

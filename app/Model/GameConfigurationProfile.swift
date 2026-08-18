@@ -238,11 +238,11 @@ extension GameDescriptor {
 
     var launchProfile: GameLaunchProfile {
         switch id {
-        case "skyrim-se":
+        case "skyrim-se", "enderal-se":
             return GameLaunchProfile(
                 exclusiveFullscreenPolicy: .capturedHostMode
             )
-        case "insurgency":
+        case "insurgency", "portal-2", "half-life-2":
             // Preserve real mode semantics. Borderless follows the desktop;
             // exclusive uses a physical mode; windowed keeps exact pixels.
             // The session boundary owns host pixel-to-point conversion.
@@ -337,23 +337,30 @@ extension GameDescriptor {
     }
 
     var managedINIProfiles: [ManagedINIProfile] {
-        if id == "insurgency" {
-            return [
-                ManagedINIProfile(
-                    relativePath: "insurgency/cfg/video.txt",
-                    section: "config",
-                    fields: [
-                        .init(key: "setting.fullscreen", source: .fullscreen(on: "1", off: "0")),
-                        .init(key: "setting.nowindowborder", source: .borderless(on: "1", off: "0")),
-                        .init(key: "setting.defaultres", source: .width),
-                        .init(key: "setting.defaultresheight", source: .height),
-                        .init(key: "setting.mat_vsync", source: .verticalSync(on: "1", off: "0"))
-                    ],
-                    format: .quotedKeyValues
-                )
-            ]
+        guard let folder = sourceVideoConfigFolder else { return [] }
+        return [
+            ManagedINIProfile(
+                relativePath: "\(folder)/cfg/video.txt",
+                section: "config",
+                fields: [
+                    .init(key: "setting.fullscreen", source: .fullscreen(on: "1", off: "0")),
+                    .init(key: "setting.nowindowborder", source: .borderless(on: "1", off: "0")),
+                    .init(key: "setting.defaultres", source: .width),
+                    .init(key: "setting.defaultresheight", source: .height),
+                    .init(key: "setting.mat_vsync", source: .verticalSync(on: "1", off: "0"))
+                ],
+                format: .quotedKeyValues
+            )
+        ]
+    }
+
+    private var sourceVideoConfigFolder: String? {
+        switch id {
+        case "insurgency": "insurgency"
+        case "portal-2": "portal2"
+        case "half-life-2": "hl2"
+        default: nil
         }
-        return []
     }
 
     var steamRunningDirectLaunch: SteamRunningDirectLaunch? {

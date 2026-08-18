@@ -10,7 +10,11 @@ enum ClassicGameCatalogSelfCheck {
         .supremeCommander,
         .forgedAlliance,
         .angelsFallFirst,
-        .battlefront2Classic
+        .battlefront2Classic,
+        .falloutNewVegas,
+        .portal2,
+        .halfLife2,
+        .enderalSE
     ]
 
     private static func validateInstallDetection(_ descriptor: GameDescriptor) -> String? {
