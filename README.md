@@ -30,17 +30,18 @@ The app creates its own private Windows prefix, then Steam handles normal sign-i
 
 ## Compatibility, honestly
 
-This catalog is a work in progress. The current status is deliberately conservative:
+This catalog is a work in progress. Proven here means played on a 2026 MacBook Air M5 with 24 GB of memory. A listing is still not a guarantee on every Mac.
 
 | Title or group | Current status |
 | --- | --- |
-| Skyrim Special Edition | Documented end-to-end vertical slice. |
+| Skyrim Special Edition | Proven working on a 2026 MacBook Air M5 (24 GB). |
+| Fallout 4 | Proven working on a 2026 MacBook Air M5 (24 GB). |
+| Supreme Commander 2 | Proven working on a 2026 MacBook Air M5 (24 GB). |
+| Insurgency | Proven working on a 2026 MacBook Air M5 (24 GB). |
 | Black Ops II | Has unresolved compatibility issues; campaign is not currently playable in this source-runtime path, and the other modes still need full visual, audio, input, and gameplay acceptance. |
-| Insurgency | Has unresolved display and gameplay-acceptance issues. It is not yet a confirmed working game. |
-| Battlefront II Classic and Supreme Commander: Forged Alliance | Present as catalog profiles but untested. Do not treat them as supported. |
-| Remaining catalog entries | Profile coverage varies; each needs its own rendered-menu, audio, input, gameplay, and clean-stop acceptance before being called working. |
+| Battlefront II Classic, Supreme Commander, Supreme Commander: Forged Alliance, and Angels Fall First | Catalog profiles. Untested or unproven. Do not treat them as supported. |
 
-A compact compatibility label for every catalog entry is the next repository-facing documentation step. Until then, `docs/source-only/GATES.md` is the authoritative evidence record, and “listed” never means “guaranteed.”
+A compact compatibility label for every catalog entry is the next repository-facing documentation step. Gate evidence remains in `docs/source-only/GATES.md`. “Listed” never means “guaranteed.”
 
 ### Why generated artifacts stay out of Git
 
@@ -65,7 +66,7 @@ The current catalog contains:
 - Angels Fall First
 - Call of Duty: Black Ops II — Campaign, Multiplayer, and Zombies
 
-Skyrim Special Edition remains the documented end-to-end proven vertical slice. The newer Supreme Commander, Forged Alliance, Battlefront II Classic, Insurgency, and Angels Fall First entries are catalog profiles, not gameplay-acceptance claims. A listing means Secunda knows its Steam identity, installation layout, and launch profile; current proof remains recorded in `docs/source-only/GATES.md`.
+Skyrim Special Edition, Fallout 4, Supreme Commander 2, and Insurgency are proven on a 2026 MacBook Air M5 with 24 GB of memory. Supreme Commander, Forged Alliance, Battlefront II Classic, and Angels Fall First remain catalog profiles, not gameplay-acceptance claims. A listing means Secunda knows a title’s Steam identity, installation layout, and launch profile.
 
 ## Platform
 

@@ -35,7 +35,7 @@ extension GameDescriptor {
         id: "insurgency",
         title: "Insurgency",
         shortTitle: "Insurgency",
-        tagline: "Display and gameplay are not yet confirmed.",
+        tagline: "Proven working on Apple silicon.",
         symbol: "scope",
         steamAppID: "222880",
         gameImageName: "insurgency.exe",
