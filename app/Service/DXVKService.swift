@@ -7,9 +7,9 @@ enum DXVKError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .runtimePayloadMissing:
-            "This Secunda build is missing its DXVK graphics components. Reinstall the complete Secunda package."
+            "This Secunda build is missing required graphics components. Reinstall the complete Secunda package."
         case .installIncomplete:
-            "The DXVK graphics components did not install completely."
+            "The required graphics components did not install completely."
         }
     }
 }

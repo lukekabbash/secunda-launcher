@@ -17,7 +17,7 @@ struct GamesGridView: View {
                 PageHeader(
                     eyebrow: "LIBRARY",
                     title: "Your games.",
-                    detail: "Windows games from your own Steam library, played through Secunda’s free source-built Windows compatibility runtime."
+                    detail: "Play Windows Steam games you already own. A game space is the private Windows environment Secunda uses for Steam and your library. A listed title is not a guarantee it works."
                 )
 
                 gameSection(title: "INSTALLED", groups: installedGroups, indexOffset: 0)
@@ -57,7 +57,7 @@ struct GamesGridView: View {
             }
             Button("Cancel", role: .cancel) { stopConfirmationGroup = nil }
         } message: {
-            Text("Save first when possible. This closes the active game and every Windows app in Secunda’s shared game space.")
+            Text("Save first when possible. This closes the active game and every Windows app in the shared game space.")
         }
     }
 

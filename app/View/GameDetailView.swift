@@ -35,7 +35,7 @@ struct GameDetailView: View {
                             StatusStrip(items: [
                                 .init(title: "This Mac", state: model.snapshot.host),
                                 .init(title: "Compatibility Runtime", state: model.snapshot.runtime),
-                                .init(title: "Windows Space", state: model.snapshot.bottle),
+                                .init(title: "Game Space", state: model.snapshot.bottle),
                                 .init(title: "Steam Client", state: model.snapshot.steam),
                                 .init(title: descriptor.shortTitle, state: model.snapshot.game(descriptor).state)
                             ])
@@ -303,7 +303,7 @@ struct GameDetailView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Save your game first. This closes every Windows app in this Secunda game space.")
+            Text("Save your game first. This closes every Windows app in this game space.")
         }
         .confirmationDialog(
             "Uninstall \(descriptor.shortTitle)?",
@@ -334,10 +334,10 @@ struct GameDetailView: View {
 
     private var heroSupportingText: String {
         if model.isGroupRunning(group), model.runningComponent(in: group) == nil {
-            return "Secunda can see the group process but cannot distinguish its component after a launcher restart. Save and quit in the game; Stop closes the shared game space."
+            return "Secunda can see this session but cannot tell which mode is running after a restart. Save and quit in the game; Stop closes the shared game space."
         }
         if launchBlockedByOtherGroup {
-            return "Another game is using Secunda’s shared Windows space. Close it before starting \(descriptor.shortTitle)."
+            return "Another game is using the shared game space. Close it before starting \(descriptor.shortTitle)."
         }
         return model.supportingText(for: descriptor)
     }
@@ -348,7 +348,7 @@ struct GameDetailView: View {
     @ViewBuilder
     private var activityList: some View {
         if model.activities.isEmpty {
-            Text("Quiet for now — setup and launch events will appear here.")
+            Text("Setup and launch events will appear here.")
                 .font(.caption)
                 .foregroundStyle(SecundaTheme.secondaryText)
         } else {
@@ -428,7 +428,7 @@ struct GameDetailView: View {
             if descriptor.managedDisplayCapabilities.fieldOfView {
                 settingRow(
                     label: "Field of view",
-                    caption: "The game default is \(descriptor.defaultFieldOfView)°. Takes effect on the next game start."
+                    caption: "The game default is \(descriptor.defaultFieldOfView)°. Takes effect the next time the game starts."
                 ) {
                     Stepper(
                         "\(model.gameSettings(for: descriptor).fieldOfView)°",
@@ -444,7 +444,7 @@ struct GameDetailView: View {
                let frameRate = descriptor.preferredMaxFrameRate {
                 settingRow(
                     label: "Frame pacing",
-                    caption: "Locked to \(frameRate) fps through Metal so camera look stays stable. The game's own vsync stays off so the two waits don't stack into sticky aim."
+                    caption: "Locked to \(frameRate) fps so camera look stays stable. The game’s own vsync stays off so the two waits do not stack."
                 ) {
                     Text("\(frameRate) fps")
                         .font(.body.weight(.medium))
@@ -479,7 +479,7 @@ struct GameDetailView: View {
                 settingRow(
                     label: "Voice audio fix",
                     caption: model.gameSettings(for: descriptor).nativeVoiceAudio
-                        ? "Uses Microsoft’s freely redistributable XAudio so spoken dialogue is audible. Installed into the game space on first launch."
+                        ? "Uses Microsoft’s freely redistributable audio components so spoken dialogue is audible. Installed into the game space on first launch."
                         : "Without the fix, spoken dialogue is silent because voice files use Windows Media compression."
                 ) {
                     Toggle("Voice audio fix", isOn: gameSetting(\.nativeVoiceAudio))
@@ -492,7 +492,7 @@ struct GameDetailView: View {
 
     private var qualitySettings: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("\"Game default\" leaves the game's own choice untouched. Every other choice updates an existing live engine setting at launch.")
+            Text("“Game default” leaves the game’s own choice untouched. Every other choice updates an existing live setting at launch.")
                 .font(.caption)
                 .foregroundStyle(SecundaTheme.secondaryText)
                 .frame(maxWidth: 560, alignment: .leading)
@@ -536,7 +536,7 @@ struct GameDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            Text("Secunda only rewrites values the game has already saved itself — it never invents settings, so a mistuned entry can't corrupt the file.")
+            Text("Secunda only rewrites values the game has already saved. It never invents settings, so a mistuned entry cannot corrupt the file.")
                 .font(.caption2)
                 .foregroundStyle(SecundaTheme.secondaryText)
         }
@@ -710,7 +710,7 @@ struct GameDetailView: View {
             }
             Text(model.snapshot.game(descriptor).saveCount > 0
                  ? "Backups are dated copies of every detected \(descriptor.shortTitle) save, kept outside the game space."
-                 : "Saves will appear here after your first in-game save.")
+                 : "Saves appear here after your first in-game save.")
                 .font(.caption)
                 .foregroundStyle(SecundaTheme.secondaryText)
         }
@@ -787,12 +787,12 @@ struct GameDetailView: View {
         switch model.gameSettings(for: descriptor).displayMode {
         case .borderlessFullscreen:
             if resolutionFollowsDesktop {
-                return "Fills the screen at the desktop's native backing resolution. Switching apps with Cmd-Tab remains reliable."
+                return "Fills the screen at the desktop resolution. Switching apps with Cmd-Tab remains reliable."
             }
             return "Fills the screen as a borderless window, so switching apps with Cmd-Tab works reliably. Recommended."
         case .exclusiveFullscreen:
             if descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode {
-                return "Captures this display using a mode macOS and Wine can genuinely switch. Choose the render resolution below."
+                return "Uses a display mode this Mac can switch to. Choose the render resolution below."
             }
             if descriptor.launchProfile.exclusiveModeUsesGameDefault {
                 return "Uses the game's default display behavior while still applying the selected resolution."
@@ -869,9 +869,9 @@ struct GameDetailView: View {
         }
         if settings.displayMode == .exclusiveFullscreen,
            descriptor.launchProfile.exclusiveFullscreenPolicy == .capturedHostMode {
-            return "Exclusive fullscreen lists the display modes macOS exposes to Wine. The current display mode is marked; lower switchable modes remain selectable. Retina backing sizes that are not display modes are omitted."
+            return "Exclusive fullscreen lists the display modes this Mac can switch to. The current mode is marked. Lower switchable modes stay available."
         }
-        let nativePixelNote = "Native Pixels reflects the panel's physical backing size. 4K UHD stays available for 3840 × 2160 displays."
+        let nativePixelNote = "Native Pixels is the panel’s physical resolution. 4K UHD stays available for 3840 × 2160 displays."
         if descriptor.launchProfile.usesTransitionSafeBorderlessSurface {
             return nativePixelNote + " Borderless uses one safe aspect for fullscreen and windowed transitions; windowed sizes fit the visible desktop without stretching."
         }

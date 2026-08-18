@@ -6,9 +6,12 @@ import SwiftUI
 /// migrate to the current terminology.
 func secundaRuntimeTerminology(_ text: String) -> String {
     [
-        ("source-built game engine", "source-built Windows compatibility runtime"),
-        ("source-built engine", "source-built Windows compatibility runtime"),
-        ("Secunda’s free game engine", "Secunda’s free source-built Windows compatibility runtime"),
+        ("Secunda’s free source-built Windows compatibility runtime", "Secunda’s compatibility runtime"),
+        ("Secunda’s free game engine", "Secunda’s compatibility runtime"),
+        ("verified source-built Windows compatibility runtime", "compatibility runtime"),
+        ("source-built Windows compatibility runtime", "compatibility runtime"),
+        ("source-built game engine", "compatibility runtime"),
+        ("source-built engine", "compatibility runtime"),
         ("Secunda Engine", "Secunda Runtime")
     ].reduce(text) { result, replacement in
         result.replacingOccurrences(of: replacement.0, with: replacement.1)

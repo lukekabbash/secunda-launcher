@@ -1,5 +1,15 @@
 import Foundation
 
+enum AppVersion {
+    static var marketing: String {
+        let bundled = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        guard let bundled, !bundled.isEmpty else { return "0.1.1" }
+        return bundled
+    }
+
+    static var label: String { "v\(marketing)" }
+}
+
 /// Sidebar navigation. The library card grid is the home surface; each
 /// supported game gets its own entry; launcher settings (which include
 /// support and recovery) live behind the gear at the sidebar's foot.
@@ -50,7 +60,7 @@ struct GameSnapshot: Equatable, Sendable {
 struct LauncherSnapshot: Equatable, Sendable {
     var host: ComponentState = .working("Checking this Mac")
     var runtime: ComponentState = .missing("Runtime not found")
-    var bottle: ComponentState = .missing("Not created")
+    var bottle: ComponentState = .missing("Not prepared")
     var steam: ComponentState = .missing("Not installed")
     var games: [String: GameSnapshot] = [:]
     var freeDiskBytes: Int64 = 0
@@ -77,7 +87,7 @@ enum PrimaryAction: Equatable {
 
     func title(for descriptor: GameDescriptor) -> String {
         switch self {
-        case .locateRuntime: "Open Setup Help"
+        case .locateRuntime: "Open Settings"
         case .createBottle: "Prepare Secunda"
         case .installSteam: "Install Steam"
         case .installGame: "Install \(descriptor.shortTitle)"
@@ -147,11 +157,11 @@ struct SetupJourney: Equatable, Sendable {
 
         switch completedSteps {
         case 0:
-            title = "Secunda Runtime"
-            detail = "Checking the free, source-built Windows compatibility runtime included with Secunda."
+            title = "Compatibility Runtime"
+            detail = "Checking the compatibility runtime included with this copy of Secunda."
         case 1:
-            title = "Separate Windows Space"
-            detail = "Next, create a separate managed place for Steam, your games, and their settings."
+            title = "Game Space"
+            detail = "Next, create the private Windows environment Secunda uses for Steam, your games, and their settings."
         case 2:
             title = "Steam Client"
             detail = "Next, install Steam directly from Valve."
@@ -160,7 +170,7 @@ struct SetupJourney: Equatable, Sendable {
             detail = "Sign in if asked, then install \(descriptor.shortTitle). Steam shows the download progress."
         default:
             title = "Ready to Launch"
-            detail = "The required files are installed. Secunda applies its compatibility profile each time you press Play."
+            detail = "The required files are installed. Secunda applies this title’s launch settings each time you press Play."
         }
     }
 

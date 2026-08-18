@@ -1,12 +1,12 @@
 # Secunda Launcher
 
-> **Hi, stranger.** Secunda is my work-in-progress launcher for the Windows-only Steam games I love playing on my 2026 M5 MacBook Air: Skyrim, Fallout, Supreme Commander 2, and a small, deliberate catalog beyond them. If you own any of these games too, I hope it gives you a clear, honest way to try them on Apple silicon.
+Secunda is an unofficial Apple-silicon launcher for Windows Steam games you already own. It is early software: a listed title is not a guarantee it works. Steam still handles sign-in and ownership. Secunda never asks for a Steam password and never bundles a game, account session, save, or Steam client.
 
-Secunda is a focused, unofficial Apple-silicon launcher for separately owned Windows Steam games. It is intentionally bounded: one source-built compatibility runtime, one isolated Windows prefix, Steam, and explicit per-game profiles—not a magic “run any Windows app” button. Steam still handles sign-in and ownership; Secunda never asks for a Steam password or bundles a game, account session, save, or Steam client.
+It is intentionally bounded: one compatibility runtime, one private game space (a managed Windows environment for Steam and your games), and explicit per-game profiles — not a generic “run any Windows app” button.
 
 ## What this work in progress is for
 
-The practical goal is to make Wine-bottle management less opaque: keep a game’s runtime, prefix, Steam handoff, launch settings, display profile, and clean stop behavior in one understandable place. Secunda is still early software. It is useful for exploring and improving these paths, not a promise that every catalog entry will work or that a launch attempt is gameplay proof.
+The practical goal is to keep a game’s runtime, game space, Steam handoff, launch settings, display profile, and clean stop behavior in one place. Secunda is still early. It is useful for trying these paths, not a promise that every catalog entry will work or that a launch attempt is gameplay proof.
 
 ## Start here
 

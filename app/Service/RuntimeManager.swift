@@ -54,7 +54,7 @@ final class RuntimeManager {
                 .map(String.init)
             return RuntimeDescriptor(
                 wineExecutable: candidate.url,
-                version: version?.isEmpty == false ? version! : "Wine runtime",
+                version: version?.isEmpty == false ? version! : "bundled runtime",
                 origin: candidate.origin,
                 bottleRoot: paths.bottleRoot
             )
