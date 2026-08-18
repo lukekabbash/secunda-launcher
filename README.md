@@ -140,7 +140,7 @@ SECUNDA_SOURCE_ARCHIVE=/path/to/crossover-sources-26.3.0.tar.gz \
 ./scripts/package-share-dmg.sh
 ```
 
-Without those credentials the release command fails closed. For local packaging tests only, explicitly set `SECUNDA_TEST_ONLY_UNNOTARIZED_DMG=1`; the output is labeled `TEST-ONLY`, is not recipient-ready, and may show an additional first-open warning. Recipients should never be asked to disable macOS security. GitHub Actions attaches the share DMG to the matching [GitHub Release](https://github.com/lukekabbash/secunda-launcher/releases). Until Developer ID and notary credentials are present, that file is the labeled TEST-ONLY build.
+Without those credentials the release command fails closed. For local packaging tests only, explicitly set `SECUNDA_TEST_ONLY_UNNOTARIZED_DMG=1`; the output is labeled `TEST-ONLY`, is not recipient-ready, and may show an additional first-open warning. Recipients should never be asked to disable macOS security. GitHub Actions attaches the share DMG to the matching [GitHub Release](https://github.com/lukekabbash/secunda-launcher/releases) when that release is published. Until Developer ID and notary credentials are present, that file is the labeled TEST-ONLY build.
 
 ## Managed data and removal
 

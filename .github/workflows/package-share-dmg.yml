@@ -1,6 +1,10 @@
 # Builds the official share DMG with the existing packaging scripts and attaches
-# it to the GitHub Release for a tag. After merge to source-only-secunda, run
-# workflow_dispatch for v0.1.0 (or publish a new tagged release).
+# it to the GitHub Release that triggered the run.
+#
+# Ordinary path: publishing a GitHub Release (including a new tag created with
+# that release) starts this job. No dispatch, extra click, or secret flag.
+# workflow_dispatch is only a backfill for a release that already exists
+# (v0.1.0).
 #
 # No Apple secrets are required. Without them the job writes the labeled
 # TEST-ONLY DMG. Recipient-ready signing and notarization stay off unless every
@@ -9,15 +13,15 @@
 name: Package share DMG
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing GitHub release tag to check out and attach the DMG to
+        description: Backfill only. Existing release tag to attach a DMG to (v0.1.0).
         required: true
         default: v0.1.0
         type: string
-  release:
-    types: [published]
 
 permissions:
   contents: write
