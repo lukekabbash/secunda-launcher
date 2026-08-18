@@ -272,7 +272,7 @@ jobs:
                   "\n"
                   "The build is ad-hoc signed and labeled TEST-ONLY. "
                   "Gatekeeper may warn on first open. "
-                  "A Developer ID–signed, notarized DMG is the later warning-free path. "
+                  "A Developer ID signed, notarized DMG is the later warning-free path. "
                   "Keep macOS security settings as they are.\n"
                   "\n"
                   f"The SHA-256 is in `{dmg}.sha256`.\n"
@@ -283,7 +283,7 @@ jobs:
                   "\n"
                   f"I attached `{dmg}`. It contains Secunda Launcher.app.\n"
                   "\n"
-                  "This build is Developer ID–signed and notarized.\n"
+                  "This build is Developer ID signed and notarized.\n"
                   "\n"
                   f"The SHA-256 is in `{dmg}.sha256`.\n"
               )
