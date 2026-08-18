@@ -35,7 +35,7 @@ extension GameDescriptor {
         id: "insurgency",
         title: "Insurgency",
         shortTitle: "Insurgency",
-        tagline: "Runs on Apple silicon.",
+        tagline: "A bit laggy. I have played it.",
         symbol: "scope",
         steamAppID: "222880",
         gameImageName: "insurgency.exe",
@@ -63,14 +63,66 @@ extension GameDescriptor {
         prefersNativeSessionDPI: true,
         usesScreenCoveringBorderlessSurface: false,
         appliesAspectCorrectMouseLook: false,
-        usesNativeVoiceAudioFix: false
+        usesNativeVoiceAudioFix: false,
+        libraryExperience: .played
+    )
+
+    static let falloutNewVegas = GameDescriptor(
+        id: "fallout-new-vegas",
+        title: "Fallout: New Vegas",
+        shortTitle: "New Vegas",
+        tagline: "Experimental.",
+        symbol: "sun.max.fill",
+        steamAppID: "22380",
+        gameImageName: "FalloutNV.exe",
+        launcherImageName: "FalloutNVLauncher.exe",
+        executableRelativePath: "FalloutNV.exe",
+        documentsRelativePath: "My Games/FalloutNV",
+        luaPrefsRelativePath: nil,
+        luaTuningOptions: [],
+        d3d9Backend: .wined3d,
+        prefsFileName: nil,
+        customIniFileName: nil,
+        vsyncKey: "iPresentInterval",
+        saveFileExtensions: ["fos"],
+        defaultFieldOfView: 75,
+        baselineDataFile: "Data/FalloutNV.esm",
+        qualityOptions: [],
+        dlc: [],
+        preferredMaxFrameRate: nil,
+        customIniValues: [:],
+        prefersNativeSessionDPI: false,
+        usesScreenCoveringBorderlessSurface: false,
+        appliesAspectCorrectMouseLook: false,
+        usesNativeVoiceAudioFix: false,
+        libraryExperience: .experimental
+    )
+
+    static let portal2 = sourceEngineProfile(
+        id: "portal-2",
+        title: "Portal 2",
+        shortTitle: "Portal 2",
+        symbol: "circle.grid.cross.fill",
+        steamAppID: "620",
+        executable: "portal2.exe",
+        baselineDataFile: "portal2/pak01_dir.vpk"
+    )
+
+    static let halfLife2 = sourceEngineProfile(
+        id: "half-life-2",
+        title: "Half-Life 2",
+        shortTitle: "Half-Life 2",
+        symbol: "shield.fill",
+        steamAppID: "220",
+        executable: "hl2.exe",
+        baselineDataFile: "hl2/hl2_textures_dir.vpk"
     )
 
     static let supremeCommander = supremeCommanderProfile(
         id: "supreme-commander",
         title: "Supreme Commander",
         shortTitle: "Supreme Commander",
-        tagline: "Untested.",
+        tagline: "Experimental.",
         steamAppID: "9350",
         executable: "SupremeCommander.exe",
         installExecutable: "bin/SupremeCommander.exe",
@@ -82,7 +134,7 @@ extension GameDescriptor {
         id: "forged-alliance",
         title: "Supreme Commander: Forged Alliance",
         shortTitle: "Forged Alliance",
-        tagline: "Untested.",
+        tagline: "Experimental.",
         steamAppID: "9420",
         executable: "SupremeCommander.exe",
         installExecutable: "bin/SupremeCommander.exe",
@@ -94,7 +146,7 @@ extension GameDescriptor {
         id: "angels-fall-first",
         title: "Angels Fall First",
         shortTitle: "Angels Fall First",
-        tagline: "Untested.",
+        tagline: "Experimental.",
         symbol: "airplane",
         steamAppID: "367270",
         gameImageName: "AFFGame.exe",
@@ -117,14 +169,15 @@ extension GameDescriptor {
         prefersNativeSessionDPI: false,
         usesScreenCoveringBorderlessSurface: false,
         appliesAspectCorrectMouseLook: false,
-        usesNativeVoiceAudioFix: false
+        usesNativeVoiceAudioFix: false,
+        libraryExperience: .experimental
     )
 
     static let battlefront2Classic = GameDescriptor(
         id: "battlefront-2-classic",
         title: "STAR WARS Battlefront II (Classic, 2005)",
         shortTitle: "Battlefront II Classic",
-        tagline: "Untested.",
+        tagline: "Experimental.",
         symbol: "star.fill",
         steamAppID: "6060",
         gameImageName: "BattlefrontII.exe",
@@ -147,8 +200,50 @@ extension GameDescriptor {
         prefersNativeSessionDPI: false,
         usesScreenCoveringBorderlessSurface: false,
         appliesAspectCorrectMouseLook: false,
-        usesNativeVoiceAudioFix: false
+        usesNativeVoiceAudioFix: false,
+        libraryExperience: .experimental
     )
+
+    private static func sourceEngineProfile(
+        id: String,
+        title: String,
+        shortTitle: String,
+        symbol: String,
+        steamAppID: String,
+        executable: String,
+        baselineDataFile: String
+    ) -> GameDescriptor {
+        GameDescriptor(
+            id: id,
+            title: title,
+            shortTitle: shortTitle,
+            tagline: "Experimental.",
+            symbol: symbol,
+            steamAppID: steamAppID,
+            gameImageName: executable,
+            launcherImageName: executable,
+            executableRelativePath: executable,
+            documentsRelativePath: "",
+            luaPrefsRelativePath: nil,
+            luaTuningOptions: [],
+            d3d9Backend: .wined3d,
+            prefsFileName: nil,
+            customIniFileName: nil,
+            vsyncKey: "mat_vsync",
+            saveFileExtensions: [],
+            defaultFieldOfView: 90,
+            baselineDataFile: baselineDataFile,
+            qualityOptions: [],
+            dlc: [],
+            preferredMaxFrameRate: nil,
+            customIniValues: [:],
+            prefersNativeSessionDPI: true,
+            usesScreenCoveringBorderlessSurface: false,
+            appliesAspectCorrectMouseLook: false,
+            usesNativeVoiceAudioFix: false,
+            libraryExperience: .experimental
+        )
+    }
 
     private static func supremeCommanderProfile(
         id: String,
@@ -192,7 +287,8 @@ extension GameDescriptor {
             prefersNativeSessionDPI: true,
             usesScreenCoveringBorderlessSurface: false,
             appliesAspectCorrectMouseLook: false,
-            usesNativeVoiceAudioFix: false
+            usesNativeVoiceAudioFix: false,
+            libraryExperience: .experimental
         )
     }
 

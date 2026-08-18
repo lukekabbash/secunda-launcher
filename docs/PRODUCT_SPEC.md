@@ -18,9 +18,9 @@ Secunda.app -> source-built Wine runtime -> Rosetta -> private Windows prefix ->
 
 ## Supported library and evidence
 
-The library currently profiles Skyrim Special Edition, Fallout 4, Supreme Commander, Supreme Commander: Forged Alliance, Supreme Commander 2, STAR WARS Battlefront II (Classic, 2005), Insurgency, Angels Fall First, and the Campaign, Multiplayer, and Zombies components of Call of Duty: Black Ops II.
+The library currently profiles Skyrim Special Edition, Enderal: Forgotten Stories (Special Edition), Fallout 4, Fallout: New Vegas, Supreme Commander, Supreme Commander: Forged Alliance, Supreme Commander 2, STAR WARS Battlefront II (Classic, 2005), Insurgency, Portal 2, Half-Life 2, Angels Fall First, and the Campaign, Multiplayer, and Zombies components of Call of Duty: Black Ops II.
 
-Skyrim Special Edition is the proven vertical slice. The newly added Supreme Commander, Forged Alliance, Battlefront II Classic, Insurgency, and Angels Fall First profiles establish catalog, detection, and launch intent only until their end-to-end acceptance evidence is recorded. Catalog support must never be presented as proof of rendered gameplay or working multiplayer.
+Skyrim Special Edition is the proven vertical slice. Fallout 4, Supreme Commander 2, and Insurgency are played on a 2026 MacBook Air M5. The remaining titles, including Enderal, New Vegas, Portal 2, Half-Life 2, and Black Ops II, are experimental catalog profiles. Catalog support must never be presented as proof of rendered gameplay or working multiplayer.
 
 ## Primary experience
 

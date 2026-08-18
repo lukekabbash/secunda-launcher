@@ -72,36 +72,14 @@ struct LauncherRootView: View {
                         select(.games)
                     }
 
-                    Text("LIBRARY")
-                        .font(.system(size: SecundaTheme.FontSize.micro, weight: .semibold))
-                        .tracking(1.8)
-                        .foregroundStyle(SecundaTheme.secondaryText)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 18)
-                        .padding(.bottom, 4)
-
-                    ForEach(GameGroup.all.filter { model.anyComponentInstalled(in: $0) }) { group in
-                        let isActive = model.isGroupActive(group)
-                        SidebarRow(
-                            title: group.shortTitle,
-                            subtitle: sidebarSubtitle(for: group),
-                            isSelected: model.selection == .game(group.id),
-                            isRunning: isActive,
-                            stopTitle: "Stop \(group.shortTitle)?",
-                            onStop: isActive ? { model.stopActiveGameSpace() } : nil,
-                            icon: {
-                                SidebarGameThumb(
-                                    descriptor: group.artworkComponent ?? model.defaultComponent(for: group),
-                                    candidates: model.artworkCandidates(
-                                        for: group.artworkComponent ?? model.defaultComponent(for: group),
-                                        hero: false
-                                    )
-                                )
-                            }
-                        ) {
-                            select(.game(group.id))
-                        }
-                    }
+                    sidebarLibrarySection(
+                        title: LibraryExperience.played.sectionTitle,
+                        groups: GameGroup.played.filter { model.anyComponentInstalled(in: $0) }
+                    )
+                    sidebarLibrarySection(
+                        title: LibraryExperience.experimental.sectionTitle,
+                        groups: GameGroup.experimental.filter { model.anyComponentInstalled(in: $0) }
+                    )
                 }
                 .padding(.horizontal, 10)
                 .padding(.bottom, 12)
@@ -139,6 +117,42 @@ struct LauncherRootView: View {
         .padding(.top, 34)
         .frame(width: 236)
         .background(Color.black.opacity(0.16))
+    }
+
+    @ViewBuilder
+    private func sidebarLibrarySection(title: String, groups: [GameGroup]) -> some View {
+        if !groups.isEmpty {
+            Text(title)
+                .font(.system(size: SecundaTheme.FontSize.micro, weight: .semibold))
+                .tracking(1.8)
+                .foregroundStyle(SecundaTheme.secondaryText)
+                .padding(.horizontal, 24)
+                .padding(.top, 18)
+                .padding(.bottom, 4)
+
+            ForEach(groups) { group in
+                let isActive = model.isGroupActive(group)
+                SidebarRow(
+                    title: group.shortTitle,
+                    subtitle: sidebarSubtitle(for: group),
+                    isSelected: model.selection == .game(group.id),
+                    isRunning: isActive,
+                    stopTitle: "Stop \(group.shortTitle)?",
+                    onStop: isActive ? { model.stopActiveGameSpace() } : nil,
+                    icon: {
+                        SidebarGameThumb(
+                            descriptor: group.artworkComponent ?? model.defaultComponent(for: group),
+                            candidates: model.artworkCandidates(
+                                for: group.artworkComponent ?? model.defaultComponent(for: group),
+                                hero: false
+                            )
+                        )
+                    }
+                ) {
+                    select(.game(group.id))
+                }
+            }
+        }
     }
 
     private func sidebarSubtitle(for group: GameGroup) -> String? {

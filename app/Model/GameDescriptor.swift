@@ -96,6 +96,28 @@ struct LuaTuningOption: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Whether I have played a catalog title on my 2026 MacBook Air M5.
+enum LibraryExperience: Equatable, Sendable {
+    /// I have played this title on this Mac.
+    case played
+    /// Catalogued. I have not finished a play session.
+    case experimental
+
+    var sectionTitle: String {
+        switch self {
+        case .played: "PLAYED"
+        case .experimental: "UNTESTED"
+        }
+    }
+
+    var playerLabel: String {
+        switch self {
+        case .played: "Played"
+        case .experimental: "Experimental"
+        }
+    }
+}
+
 /// Single source of truth for per-game constants. Supporting another game
 /// means adding a descriptor here and registering it in `supported`;
 /// services read these fields instead of hardcoding one title.
@@ -155,6 +177,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
     /// path. Keeping this explicit prevents a 64-bit fix from being applied
     /// silently to unrelated or 32-bit games.
     let usesNativeVoiceAudioFix: Bool
+    /// Played vs experimental is stored here. The library split reads this
+    /// field. It does not parse taglines.
+    let libraryExperience: LibraryExperience
 
     var supportsDisplayProfile: Bool { prefsFileName != nil }
 
@@ -296,7 +321,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "skyrim-se",
         title: "The Elder Scrolls V: Skyrim Special Edition",
         shortTitle: "Skyrim",
-        tagline: "Runs on Apple silicon.",
+        tagline: "I have played this on Apple silicon.",
         symbol: "mountain.2.fill",
         steamAppID: "489830",
         gameImageName: "SkyrimSE.exe",
@@ -369,14 +394,67 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         prefersNativeSessionDPI: true,
         usesScreenCoveringBorderlessSurface: true,
         appliesAspectCorrectMouseLook: false,
-        usesNativeVoiceAudioFix: true
+        usesNativeVoiceAudioFix: true,
+        libraryExperience: .played
+    )
+
+    static let enderalSE = GameDescriptor(
+        id: "enderal-se",
+        title: "Enderal: Forgotten Stories (Special Edition)",
+        shortTitle: "Enderal",
+        tagline: "Experimental. Needs Skyrim Special Edition.",
+        symbol: "book.fill",
+        steamAppID: "976620",
+        gameImageName: "SkyrimSE.exe",
+        launcherImageName: "Enderal Launcher.exe",
+        executableRelativePath: "SkyrimSE.exe",
+        documentsRelativePath: "My Games/Enderal Special Edition",
+        luaPrefsRelativePath: nil,
+        luaTuningOptions: [],
+        d3d9Backend: .wined3d,
+        prefsFileName: "EnderalPrefs.ini",
+        customIniFileName: "Enderal.ini",
+        vsyncKey: "iVSyncPresentInterval",
+        saveFileExtensions: ["ess"],
+        defaultFieldOfView: 80,
+        baselineDataFile: "Data/Enderal - Forgotten Stories.esm",
+        qualityOptions: creationEngineOptions(includesShadowOffCompatibility: true) + [
+            QualityOption(
+                id: "godrays",
+                title: "God rays",
+                caption: "Volumetric sunlight. A large frame-rate cost on this engine; Off is recommended.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bVolumetricLightingEnable": "0"]),
+                    .init(label: "On", values: ["bVolumetricLightingEnable": "1"])
+                ]
+            ),
+            QualityOption(
+                id: "taa",
+                title: "Anti-aliasing (TAA)",
+                caption: "Temporal anti-aliasing smooths edges with slight softening.",
+                choices: [
+                    .init(label: QualityOption.gameDefaultLabel, values: [:]),
+                    .init(label: "Off", values: ["bUseTAA": "0"]),
+                    .init(label: "On", values: ["bUseTAA": "1"])
+                ]
+            )
+        ],
+        dlc: [],
+        preferredMaxFrameRate: nil,
+        customIniValues: [:],
+        prefersNativeSessionDPI: true,
+        usesScreenCoveringBorderlessSurface: true,
+        appliesAspectCorrectMouseLook: false,
+        usesNativeVoiceAudioFix: true,
+        libraryExperience: .experimental
     )
 
     static let fallout4 = GameDescriptor(
         id: "fallout-4",
         title: "Fallout 4",
         shortTitle: "Fallout 4",
-        tagline: "Runs on Apple silicon.",
+        tagline: "I have played this on Apple silicon.",
         symbol: "atom",
         steamAppID: "377160",
         gameImageName: "Fallout4.exe",
@@ -496,14 +574,15 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         prefersNativeSessionDPI: true,
         usesScreenCoveringBorderlessSurface: true,
         appliesAspectCorrectMouseLook: true,
-        usesNativeVoiceAudioFix: true
+        usesNativeVoiceAudioFix: true,
+        libraryExperience: .played
     )
 
     static let supcom2 = GameDescriptor(
         id: "supcom2",
         title: "Supreme Commander 2",
         shortTitle: "Supreme Commander 2",
-        tagline: "Runs on Apple silicon.",
+        tagline: "I have played this on Apple silicon.",
         symbol: "flag.2.crossed.fill",
         steamAppID: "40100",
         gameImageName: "SupremeCommander2.exe",
@@ -543,7 +622,8 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         prefersNativeSessionDPI: true,
         usesScreenCoveringBorderlessSurface: true,
         appliesAspectCorrectMouseLook: false,
-        usesNativeVoiceAudioFix: false
+        usesNativeVoiceAudioFix: false,
+        libraryExperience: .played
     )
 
     private static func blackOps2(
@@ -586,7 +666,8 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             prefersNativeSessionDPI: false,
             usesScreenCoveringBorderlessSurface: false,
             appliesAspectCorrectMouseLook: false,
-            usesNativeVoiceAudioFix: false
+            usesNativeVoiceAudioFix: false,
+            libraryExperience: .experimental
         )
     }
 
@@ -622,12 +703,16 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
 
     static let supported: [GameDescriptor] = [
         .skyrimSE,
+        .enderalSE,
         .fallout4,
+        .falloutNewVegas,
         .supremeCommander,
         .forgedAlliance,
         .supcom2,
         .battlefront2Classic,
         .insurgency,
+        .portal2,
+        .halfLife2,
         .angelsFallFirst,
         .blackOps2SP,
         .blackOps2MP,
@@ -644,6 +729,7 @@ struct GameGroup: Identifiable, Equatable, Sendable {
     let shortTitle: String
     let symbol: String
     let componentIDs: [String]
+    let libraryExperience: LibraryExperience
 
     var isMultiComponent: Bool { componentIDs.count > 1 }
 
@@ -664,58 +750,106 @@ struct GameGroup: Identifiable, Equatable, Sendable {
             title: GameDescriptor.skyrimSE.title,
             shortTitle: GameDescriptor.skyrimSE.shortTitle,
             symbol: GameDescriptor.skyrimSE.symbol,
-            componentIDs: ["skyrim-se"]
+            componentIDs: ["skyrim-se"],
+            libraryExperience: .played
+        ),
+        GameGroup(
+            id: "enderal-se",
+            title: GameDescriptor.enderalSE.title,
+            shortTitle: GameDescriptor.enderalSE.shortTitle,
+            symbol: GameDescriptor.enderalSE.symbol,
+            componentIDs: ["enderal-se"],
+            libraryExperience: .experimental
         ),
         GameGroup(
             id: "fallout-4",
             title: GameDescriptor.fallout4.title,
             shortTitle: GameDescriptor.fallout4.shortTitle,
             symbol: GameDescriptor.fallout4.symbol,
-            componentIDs: ["fallout-4"]
+            componentIDs: ["fallout-4"],
+            libraryExperience: .played
+        ),
+        GameGroup(
+            id: "fallout-new-vegas",
+            title: GameDescriptor.falloutNewVegas.title,
+            shortTitle: GameDescriptor.falloutNewVegas.shortTitle,
+            symbol: GameDescriptor.falloutNewVegas.symbol,
+            componentIDs: ["fallout-new-vegas"],
+            libraryExperience: .experimental
         ),
         GameGroup(
             id: "supreme-commander",
             title: "Supreme Commander",
             shortTitle: "Supreme Commander",
             symbol: "flag.2.crossed.fill",
-            componentIDs: ["supreme-commander", "forged-alliance"]
+            componentIDs: ["supreme-commander", "forged-alliance"],
+            libraryExperience: .experimental
         ),
         GameGroup(
             id: "supcom2",
             title: GameDescriptor.supcom2.title,
             shortTitle: GameDescriptor.supcom2.shortTitle,
             symbol: GameDescriptor.supcom2.symbol,
-            componentIDs: ["supcom2"]
+            componentIDs: ["supcom2"],
+            libraryExperience: .played
         ),
         GameGroup(
             id: "battlefront-2-classic",
             title: GameDescriptor.battlefront2Classic.title,
             shortTitle: GameDescriptor.battlefront2Classic.shortTitle,
             symbol: GameDescriptor.battlefront2Classic.symbol,
-            componentIDs: ["battlefront-2-classic"]
+            componentIDs: ["battlefront-2-classic"],
+            libraryExperience: .experimental
         ),
         GameGroup(
             id: "insurgency",
             title: GameDescriptor.insurgency.title,
             shortTitle: GameDescriptor.insurgency.shortTitle,
             symbol: GameDescriptor.insurgency.symbol,
-            componentIDs: ["insurgency"]
+            componentIDs: ["insurgency"],
+            libraryExperience: .played
+        ),
+        GameGroup(
+            id: "portal-2",
+            title: GameDescriptor.portal2.title,
+            shortTitle: GameDescriptor.portal2.shortTitle,
+            symbol: GameDescriptor.portal2.symbol,
+            componentIDs: ["portal-2"],
+            libraryExperience: .experimental
+        ),
+        GameGroup(
+            id: "half-life-2",
+            title: GameDescriptor.halfLife2.title,
+            shortTitle: GameDescriptor.halfLife2.shortTitle,
+            symbol: GameDescriptor.halfLife2.symbol,
+            componentIDs: ["half-life-2"],
+            libraryExperience: .experimental
         ),
         GameGroup(
             id: "angels-fall-first",
             title: GameDescriptor.angelsFallFirst.title,
             shortTitle: GameDescriptor.angelsFallFirst.shortTitle,
             symbol: GameDescriptor.angelsFallFirst.symbol,
-            componentIDs: ["angels-fall-first"]
+            componentIDs: ["angels-fall-first"],
+            libraryExperience: .experimental
         ),
         GameGroup(
             id: "black-ops-2",
             title: "Call of Duty: Black Ops II",
             shortTitle: "Black Ops II",
             symbol: "scope",
-            componentIDs: ["bo2-campaign", "bo2-multiplayer", "bo2-zombies"]
+            componentIDs: ["bo2-campaign", "bo2-multiplayer", "bo2-zombies"],
+            libraryExperience: .experimental
         )
     ]
+
+    static var played: [GameGroup] {
+        all.filter { $0.libraryExperience == .played }
+    }
+
+    static var experimental: [GameGroup] {
+        all.filter { $0.libraryExperience == .experimental }
+    }
 
     static func group(for id: String) -> GameGroup? {
         all.first { $0.id == id }

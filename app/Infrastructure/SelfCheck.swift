@@ -47,12 +47,16 @@ enum SelfCheck {
         expect(
             GameDescriptor.supported == [
                 .skyrimSE,
+                .enderalSE,
                 .fallout4,
+                .falloutNewVegas,
                 .supremeCommander,
                 .forgedAlliance,
                 .supcom2,
                 .battlefront2Classic,
                 .insurgency,
+                .portal2,
+                .halfLife2,
                 .angelsFallFirst,
                 .blackOps2SP,
                 .blackOps2MP,
@@ -101,7 +105,18 @@ enum SelfCheck {
                     == "Binaries/Win64/AFFGame.exe"
                 && GameDescriptor.battlefront2Classic.steamAppID == "6060"
                 && GameDescriptor.battlefront2Classic.executableRelativePath
-                    == "GameData/BattlefrontII.exe",
+                    == "GameData/BattlefrontII.exe"
+                && GameDescriptor.falloutNewVegas.steamAppID == "22380"
+                && GameDescriptor.falloutNewVegas.executableRelativePath == "FalloutNV.exe"
+                && GameDescriptor.falloutNewVegas.gameImageName == "FalloutNV.exe"
+                && GameDescriptor.falloutNewVegas.launcherImageName == "FalloutNVLauncher.exe"
+                && GameDescriptor.portal2.steamAppID == "620"
+                && GameDescriptor.portal2.executableRelativePath == "portal2.exe"
+                && GameDescriptor.halfLife2.steamAppID == "220"
+                && GameDescriptor.halfLife2.executableRelativePath == "hl2.exe"
+                && GameDescriptor.enderalSE.steamAppID == "976620"
+                && GameDescriptor.enderalSE.executableRelativePath == "SkyrimSE.exe"
+                && GameDescriptor.enderalSE.launcherImageName == "Enderal Launcher.exe",
             "classic game descriptors",
             passes: &passes,
             failures: &failures
@@ -121,7 +136,19 @@ enum SelfCheck {
                 && GameDescriptor.forgedAlliance.documentsRelativePath
                     == "My Games/Gas Powered Games/Supreme Commander Forged Alliance"
                 && GameDescriptor.forgedAlliance.luaPrefsRelativePath
-                    == "AppData/Local/Gas Powered Games/Supreme Commander Forged Alliance/Game.prefs",
+                    == "AppData/Local/Gas Powered Games/Supreme Commander Forged Alliance/Game.prefs"
+                && GameDescriptor.falloutNewVegas.baselineDataFile == "Data/FalloutNV.esm"
+                && GameDescriptor.falloutNewVegas.documentsRelativePath == "My Games/FalloutNV"
+                && GameDescriptor.falloutNewVegas.saveFileExtensions == ["fos"]
+                && GameDescriptor.falloutNewVegas.prefsFileName == nil
+                && GameDescriptor.portal2.baselineDataFile == "portal2/pak01_dir.vpk"
+                && GameDescriptor.halfLife2.baselineDataFile == "hl2/hl2_textures_dir.vpk"
+                && GameDescriptor.enderalSE.baselineDataFile
+                    == "Data/Enderal - Forgotten Stories.esm"
+                && GameDescriptor.enderalSE.documentsRelativePath
+                    == "My Games/Enderal Special Edition"
+                && GameDescriptor.enderalSE.prefsFileName == "EnderalPrefs.ini"
+                && GameDescriptor.enderalSE.customIniFileName == "Enderal.ini",
             "classic game install and profile markers",
             passes: &passes,
             failures: &failures
@@ -165,7 +192,11 @@ enum SelfCheck {
                 && !GameDescriptor.supcom2.usesNativeVoiceAudioFix
                 && !GameDescriptor.blackOps2SP.usesNativeVoiceAudioFix
                 && !GameDescriptor.blackOps2MP.usesNativeVoiceAudioFix
-                && !GameDescriptor.blackOps2Zombies.usesNativeVoiceAudioFix,
+                && !GameDescriptor.blackOps2Zombies.usesNativeVoiceAudioFix
+                && GameDescriptor.enderalSE.usesNativeVoiceAudioFix
+                && !GameDescriptor.falloutNewVegas.usesNativeVoiceAudioFix
+                && !GameDescriptor.portal2.usesNativeVoiceAudioFix
+                && !GameDescriptor.halfLife2.usesNativeVoiceAudioFix,
             "native voice fix is title scoped",
             passes: &passes,
             failures: &failures
@@ -219,20 +250,29 @@ enum SelfCheck {
                 && GameDescriptor.forgedAlliance.d3d9Backend == .wined3d
                 && GameDescriptor.angelsFallFirst.d3d9Backend == .dxvk
                 && GameDescriptor.battlefront2Classic.d3d9Backend == .wined3d
-                && GameDescriptor.skyrimSE.d3d9Backend == .wined3d,
+                && GameDescriptor.skyrimSE.d3d9Backend == .wined3d
+                && GameDescriptor.falloutNewVegas.d3d9Backend == .wined3d
+                && GameDescriptor.portal2.d3d9Backend == .wined3d
+                && GameDescriptor.halfLife2.d3d9Backend == .wined3d
+                && GameDescriptor.enderalSE.d3d9Backend == .wined3d,
             "per-game Direct3D 9 backends",
             passes: &passes,
             failures: &failures
         )
         expect(
-            GameGroup.all.count == 8
+            GameGroup.all.count == 12
                 && GameGroup.group(for: "black-ops-2")?.componentIDs
                     == ["bo2-campaign", "bo2-multiplayer", "bo2-zombies"]
                 && GameGroup.group(for: "supreme-commander")?.componentIDs
                     == ["supreme-commander", "forged-alliance"]
                 && GameGroup.group(for: "black-ops-2")?.isMultiComponent == true
                 && GameGroup.group(for: "supreme-commander")?.isMultiComponent == true
-                && GameGroup.group(for: "skyrim-se")?.isMultiComponent == false,
+                && GameGroup.group(for: "skyrim-se")?.isMultiComponent == false
+                && GameGroup.group(for: "enderal-se")?.componentIDs == ["enderal-se"]
+                && GameGroup.group(for: "fallout-new-vegas")?.componentIDs
+                    == ["fallout-new-vegas"]
+                && GameGroup.group(for: "portal-2")?.componentIDs == ["portal-2"]
+                && GameGroup.group(for: "half-life-2")?.componentIDs == ["half-life-2"],
             "library groups unify multi-component titles",
             passes: &passes,
             failures: &failures
@@ -253,6 +293,54 @@ enum SelfCheck {
                 && Set(groupIDs).count == groupIDs.count
                 && Set(groupedComponentIDs).count == groupedComponentIDs.count,
             "game and group identifiers are unique",
+            passes: &passes,
+            failures: &failures
+        )
+        let playedIDs = GameDescriptor.supported
+            .filter { $0.libraryExperience == .played }
+            .map(\.id)
+        let experimentalIDs = GameDescriptor.supported
+            .filter { $0.libraryExperience == .experimental }
+            .map(\.id)
+        expect(
+            playedIDs == ["skyrim-se", "fallout-4", "supcom2", "insurgency"]
+                && experimentalIDs == [
+                    "enderal-se",
+                    "fallout-new-vegas",
+                    "supreme-commander",
+                    "forged-alliance",
+                    "battlefront-2-classic",
+                    "portal-2",
+                    "half-life-2",
+                    "angels-fall-first",
+                    "bo2-campaign",
+                    "bo2-multiplayer",
+                    "bo2-zombies"
+                ]
+                && GameGroup.played.map(\.id)
+                    == ["skyrim-se", "fallout-4", "supcom2", "insurgency"]
+                && GameGroup.experimental.map(\.id) == [
+                    "enderal-se",
+                    "fallout-new-vegas",
+                    "supreme-commander",
+                    "battlefront-2-classic",
+                    "portal-2",
+                    "half-life-2",
+                    "angels-fall-first",
+                    "black-ops-2"
+                ]
+                && GameGroup.all.allSatisfy { group in
+                    let fromComponents = group.components.allSatisfy({
+                        $0.libraryExperience == .played
+                    }) ? LibraryExperience.played : .experimental
+                    return group.libraryExperience == fromComponents
+                }
+                && GameDescriptor.insurgency.libraryExperience == .played
+                && GameDescriptor.falloutNewVegas.libraryExperience == .experimental
+                && GameDescriptor.portal2.libraryExperience == .experimental
+                && GameDescriptor.halfLife2.libraryExperience == .experimental
+                && GameDescriptor.enderalSE.libraryExperience == .experimental,
+            "played and experimental are stored catalog data",
             passes: &passes,
             failures: &failures
         )
@@ -306,8 +394,15 @@ enum SelfCheck {
                     == .backingPixels
                 && GameDescriptor.insurgency.launchProfile.requiresFullDisplayCoverage
                 && GameDescriptor.insurgency.supportedDisplayModes == DisplayMode.allCases
+                && GameDescriptor.portal2.launchProfile == GameDescriptor.insurgency.launchProfile
+                && GameDescriptor.halfLife2.launchProfile == GameDescriptor.insurgency.launchProfile
+                && GameDescriptor.portal2.supportedDisplayModes == DisplayMode.allCases
+                && GameDescriptor.halfLife2.supportedDisplayModes == DisplayMode.allCases
                 && GameDescriptor.supremeCommander.launchProfile.fitsResolutionToDesktop
-                && GameDescriptor.forgedAlliance.launchProfile.fitsResolutionToDesktop,
+                && GameDescriptor.forgedAlliance.launchProfile.fitsResolutionToDesktop
+                && GameDescriptor.enderalSE.launchProfile.exclusiveFullscreenPolicy
+                    == .capturedHostMode
+                && GameDescriptor.falloutNewVegas.launchProfile.display == nil,
             "classic display policies remain explicit and isolated",
             passes: &passes,
             failures: &failures
@@ -378,7 +473,11 @@ enum SelfCheck {
                 && GameService.executableDisplayPolicy(
                     descriptor: .fallout4,
                     displayMode: .exclusiveFullscreen
-                ) == nil,
+                ) == nil
+                && GameService.executableDisplayPolicy(
+                    descriptor: .enderalSE,
+                    displayMode: .exclusiveFullscreen
+                ) == skyrimExclusiveDisplayPolicy,
             "captured fullscreen policy stays scoped to SkyrimSE.exe",
             passes: &passes,
             failures: &failures
@@ -489,7 +588,26 @@ enum SelfCheck {
                     descriptor: .forgedAlliance,
                     settings: GameSettings()
                 ) == ["/windowed", "1920", "1080"]
-                && GameService.gameArguments(descriptor: .skyrimSE, settings: GameSettings()).isEmpty,
+                && GameService.gameArguments(
+                    descriptor: .portal2,
+                    settings: GameSettings()
+                ) == [
+                    "-novid", "-windowed", "-noborder",
+                    "-w", "1920", "-h", "1080"
+                ]
+                && GameService.gameArguments(
+                    descriptor: .halfLife2,
+                    settings: GameSettings()
+                ) == [
+                    "-novid", "-windowed", "-noborder",
+                    "-w", "1920", "-h", "1080"
+                ]
+                && GameService.gameArguments(descriptor: .skyrimSE, settings: GameSettings()).isEmpty
+                && GameService.gameArguments(descriptor: .enderalSE, settings: GameSettings()).isEmpty
+                && GameService.gameArguments(
+                    descriptor: .falloutNewVegas,
+                    settings: GameSettings()
+                ).isEmpty,
             "title-scoped resolution arguments",
             passes: &passes,
             failures: &failures
@@ -705,6 +823,24 @@ enum SelfCheck {
             failures: &failures
         )
         expect(
+            GameDescriptor.portal2.managedDisplayCapabilities
+                == GameDescriptor.insurgency.managedDisplayCapabilities
+                && GameDescriptor.halfLife2.managedDisplayCapabilities
+                    == GameDescriptor.insurgency.managedDisplayCapabilities
+                && GameDescriptor.enderalSE.managedDisplayCapabilities
+                    == GameDescriptor.skyrimSE.managedDisplayCapabilities
+                && GameDescriptor.falloutNewVegas.managedDisplayCapabilities
+                    == ManagedDisplayCapabilities(
+                        modes: [],
+                        resolution: false,
+                        verticalSync: false,
+                        fieldOfView: false
+                    ),
+            "new catalog titles keep nearby display contracts",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
             GameDescriptor.supremeCommander.managedDisplayCapabilities
                 == ManagedDisplayCapabilities(
                     modes: [.borderlessFullscreen, .windowed],
@@ -812,6 +948,9 @@ enum SelfCheck {
                     images: GameDescriptor.insurgency.gameProcessImageNames
                 )
                 && GameService.sharesProcessIdentity(.supremeCommander, .forgedAlliance)
+                && GameService.sharesProcessIdentity(.skyrimSE, .enderalSE)
+                && !GameService.sharesProcessIdentity(.insurgency, .portal2)
+                && !GameService.sharesProcessIdentity(.portal2, .halfLife2)
                 && !GameService.sharesProcessIdentity(.insurgency, .angelsFallFirst),
             "shared game-space launch guard identifies active titles",
             passes: &passes,
@@ -1515,6 +1654,19 @@ enum SelfCheck {
                     in: sourceVideoProfile
                 ),
             "quoted Source video profile rewrites only existing keys",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            GameDescriptor.portal2.managedINIProfiles.map(\.relativePath)
+                == ["portal2/cfg/video.txt"]
+                && GameDescriptor.halfLife2.managedINIProfiles.map(\.relativePath)
+                    == ["hl2/cfg/video.txt"]
+                && GameDescriptor.portal2.managedINIProfiles[0].fields
+                    == GameDescriptor.insurgency.managedINIProfiles[0].fields
+                && GameDescriptor.falloutNewVegas.managedINIProfiles.isEmpty
+                && GameDescriptor.falloutNewVegas.qualityOptions.isEmpty,
+            "Source and Gamebryo catalog profiles stay title scoped",
             passes: &passes,
             failures: &failures
         )
