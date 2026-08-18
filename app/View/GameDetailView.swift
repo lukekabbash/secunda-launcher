@@ -75,7 +75,7 @@ struct GameDetailView: View {
                     }
                 }
 
-                FlatSection(title: "Saves", detail: descriptor.saveFileExtensions.isEmpty ? "Not currently detected" : "Local and reversible") {
+                FlatSection(title: "Saves", detail: descriptor.saveFileExtensions.isEmpty ? "None detected" : "Local and reversible") {
                     if descriptor.saveFileExtensions.isEmpty {
                         emptyNote("Secunda does not currently detect or back up \(descriptor.shortTitle) saves.")
                     } else {

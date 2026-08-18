@@ -40,7 +40,7 @@ struct SettingsView: View {
                 FlatSection(title: "Secunda Runtime", detail: model.snapshot.runtime.detail ?? "Unavailable") {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(model.snapshot.runtime.isReady
-                            ? "Bundled with this copy of Secunda and verified before use. There is no runtime picker."
+                            ? "This copy uses the bundled runtime, verified before use."
                             : "The compatibility runtime is missing from this copy. Reinstall the complete Secunda package or rebuild it from source.")
                             .font(.caption)
                             .foregroundStyle(SecundaTheme.secondaryText)
@@ -280,8 +280,8 @@ struct SettingsView: View {
             return "Queued: \(requested). This game space stays \(active) until Steam and every game are closed. Secunda applies the change before the next process starts."
         }
         return model.settings.activeFastSync
-            ? "Fast synchronization is on. It can improve frame pacing, but some titles fail while starting. If a game closes immediately, turn this off and close the game space."
-            : "Fast synchronization is off — slower, but more compatible."
+            ? "Fast synchronization is on. If a game closes immediately on start, turn this off and close the game space."
+            : "Fast synchronization is off."
     }
 
     private var diagnosticsBinding: Binding<Bool> {

@@ -6,7 +6,7 @@ It keeps one compatibility runtime, one private game space (a managed Windows en
 
 ## Purpose
 
-Secunda holds a game’s runtime, game space, Steam handoff, launch settings, display profile, and clean stop in one place. The software is early. Each title has its own status.
+Secunda holds a game’s runtime, game space, Steam handoff, launch settings, display profile, and clean stop in one place. The software is early.
 
 ## Start here
 
@@ -24,7 +24,7 @@ A Finder-launchable app is produced after the source runtime exists at `Runtime/
 open "dist/Secunda Launcher.app"
 ```
 
-This is an **ad-hoc-signed, TEST-ONLY work-in-progress build**, not a notarized public release. macOS may show a first-open warning. Please do not weaken macOS security settings to run it; wait for a Developer ID–signed, notarized release if the normal macOS checks do not allow it to open.
+This local build is ad-hoc signed and labeled TEST-ONLY. macOS may warn on first open. Keep macOS security settings as they are until a Developer ID–signed, notarized build is available.
 
 The app creates its own private Windows prefix. Steam handles sign-in, ownership, and installation. Title status is below and in `docs/source-only/GATES.md`.
 

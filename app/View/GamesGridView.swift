@@ -16,7 +16,7 @@ struct GamesGridView: View {
             VStack(alignment: .leading, spacing: 34) {
                 PageHeader(
                     eyebrow: "LIBRARY",
-                    title: "Your games.",
+                    title: "Library",
                     detail: "Play Windows Steam games you already own. A game space is the private Windows environment Secunda uses for Steam and your library. Skyrim, Fallout 4, Supreme Commander 2, and Insurgency run on Apple silicon. The rest of the catalog is unfinished."
                 )
 
