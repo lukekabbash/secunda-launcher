@@ -16,8 +16,7 @@ struct GamesGridView: View {
             VStack(alignment: .leading, spacing: 34) {
                 PageHeader(
                     eyebrow: "LIBRARY",
-                    title: "Library",
-                    detail: "I launch Windows Steam games I already own. A game space is the private Windows environment Secunda uses for Steam and this library. I have played Skyrim, Fallout 4, Supreme Commander 2, and Insurgency on my 2026 MacBook Air M5 with 24 GB of memory. Insurgency is a bit laggy."
+                    title: "Library"
                 )
 
                 gameSection(title: LibraryExperience.played.sectionTitle, groups: playedGroups, indexOffset: 0)
