@@ -115,7 +115,7 @@ struct SecundaSegmentedPicker: View {
 struct PageHeader: View {
     let eyebrow: String
     let title: String
-    let detail: String
+    var detail: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
@@ -125,11 +125,13 @@ struct PageHeader: View {
                 .foregroundStyle(SecundaTheme.frost)
             Text(title)
                 .font(.system(size: SecundaTheme.FontSize.hero, weight: .medium, design: .serif))
-            Text(detail)
-                .font(.system(size: SecundaTheme.FontSize.lead))
-                .foregroundStyle(SecundaTheme.secondaryText)
-                .lineSpacing(4)
-                .frame(maxWidth: 620, alignment: .leading)
+            if let detail, !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: SecundaTheme.FontSize.lead))
+                    .foregroundStyle(SecundaTheme.secondaryText)
+                    .lineSpacing(4)
+                    .frame(maxWidth: 620, alignment: .leading)
+            }
         }
     }
 }
