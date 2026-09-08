@@ -14,11 +14,32 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Swift toolchain
-        run: swift --version
+        with:
+          persist-credentials: false
+      - name: Prepare reproducible test evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/secunda-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/secunda-evidence/source-commit.txt"
+          git archive --format=tar HEAD > "$RUNNER_TEMP/secunda-evidence/source.tar"
+          swift --version | tee "$RUNNER_TEMP/secunda-evidence/toolchain.txt"
+          sw_vers >> "$RUNNER_TEMP/secunda-evidence/toolchain.txt"
       - name: Readiness regressions without Wine or network
-        run: bash scripts/test-launch-readiness.sh
+        run: |
+          set -o pipefail
+          bash scripts/test-launch-readiness.sh 2>&1 | tee "$RUNNER_TEMP/secunda-evidence/readiness.txt"
       - name: Build the native launcher
-        run: swift build --disable-sandbox
+        run: |
+          set -o pipefail
+          swift build --disable-sandbox 2>&1 | tee "$RUNNER_TEMP/secunda-evidence/build.txt"
       - name: Existing launcher self-checks
-        run: swift run --disable-sandbox SecundaLauncher --self-test
+        run: |
+          set -o pipefail
+          swift run --disable-sandbox SecundaLauncher --self-test 2>&1 | tee "$RUNNER_TEMP/secunda-evidence/self-checks.txt"
+      - name: Preserve regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secunda-startup-evidence
+          path: ${{ runner.temp }}/secunda-evidence/
+          retention-days: 14
+          if-no-files-found: error
