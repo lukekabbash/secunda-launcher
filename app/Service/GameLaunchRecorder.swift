@@ -76,13 +76,15 @@ struct GameLaunchRenderObservation: Codable, Equatable, Sendable {
     let engineLogAfterWindow: GameLaunchRecord.EngineLog?
 }
 
-/// Records a bounded, credential-free diagnostic timeline. Image pixels,
-/// window titles, command environments, and full engine logs are never kept.
+/// Records a bounded, credential-free launch timeline. Image pixels, window
+/// titles, command environments, and full engine logs are never kept here.
+/// Verbose Wine/DXMT output remains separately controlled by Diagnostics.
 struct GameLaunchRecorder {
     static let fileName = "launch-records.jsonl"
     static let archiveFileName = "launch-records.previous.jsonl"
     static let maximumFileBytes = 1_048_576
     private static let frameOutcomeGameIDs: Set<String> = [
+        "skyrim-se",
         "insurgency",
         "bo2-campaign",
         "bo2-multiplayer",
@@ -95,12 +97,19 @@ struct GameLaunchRecorder {
         self.paths = paths
     }
 
-    static func makeAttemptID(diagnostics: Bool) -> String? {
-        diagnostics ? UUID().uuidString.lowercased() : nil
+    /// Attempt identity is lightweight, privacy-safe metadata and is useful
+    /// even when verbose diagnostics are disabled.
+    static func makeAttemptID(diagnostics _: Bool) -> String? {
+        UUID().uuidString.lowercased()
     }
 
-    static func recordsFrameOutcome(for descriptor: GameDescriptor, diagnostics: Bool) -> Bool {
-        diagnostics && frameOutcomeGameIDs.contains(descriptor.id)
+    /// Frame probes retain only bounded numeric observations, never pixels.
+    /// Opted-in games therefore keep a presentability result in normal use too.
+    static func recordsFrameOutcome(
+        for descriptor: GameDescriptor,
+        diagnostics _: Bool
+    ) -> Bool {
+        frameOutcomeGameIDs.contains(descriptor.id)
     }
 
     func recordRequest(
@@ -115,9 +124,9 @@ struct GameLaunchRecorder {
         displayGeometry: HostDisplayGeometry = .unknown,
         sessionFingerprint: String? = nil,
         attemptID: String? = nil,
-        diagnostics: Bool
+        diagnostics _: Bool
     ) {
-        guard diagnostics, let attemptID else { return }
+        guard let attemptID else { return }
         let record = Self.makeRecord(
             descriptor: descriptor,
             settings: settings,

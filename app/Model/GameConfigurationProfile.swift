@@ -238,7 +238,12 @@ extension GameDescriptor {
 
     var launchProfile: GameLaunchProfile {
         switch id {
-        case "skyrim-se", "enderal-se":
+        case "skyrim-se":
+            return GameLaunchProfile(
+                requiresVisibleWindow: true,
+                exclusiveFullscreenPolicy: .capturedHostMode
+            )
+        case "enderal-se":
             return GameLaunchProfile(
                 exclusiveFullscreenPolicy: .capturedHostMode
             )
