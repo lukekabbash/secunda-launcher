@@ -46,14 +46,12 @@ final class VoiceAudioService {
         self.runtimeManager = runtimeManager
     }
 
-    /// Wine pre-populates system32 with placeholder DLLs under these same
-    /// names, so presence alone is not proof: a real Microsoft DLL is one
-    /// that exists and is not a Wine placeholder.
+    /// Readiness requires a complete, structurally valid x64 DLL set, not just
+    /// the absence of Wine's placeholder marker. This is not publisher verification.
     func isInstalled(bottleRoot: URL) -> Bool {
         Self.requiredFiles.allSatisfy { entry in
             let url = system32Directory(in: bottleRoot).appendingPathComponent(entry.file)
-            guard let data = try? Data(contentsOf: url) else { return false }
-            return !Self.isWinePlaceholder(data)
+            return NativeAudioPayload.validatedContents(at: url) != nil
         }
     }
 
@@ -94,8 +92,11 @@ final class VoiceAudioService {
             throw VoiceAudioError.extractionFailed("installer unpack")
         }
 
-        // Step 2: expand the three needed 64-bit cabinets. Wine's expand is
-        // the two-argument `infile outfile` form; each of these cabinets
+        let payloadDirectory = stage.appendingPathComponent("payload", isDirectory: true)
+        try manager.createDirectory(at: payloadDirectory, withIntermediateDirectories: true)
+
+        // Step 2: expand into staging, never directly over the live DLL set.
+        // Wine's expand uses the two-argument `infile outfile` form; each cabinet
         // carries exactly the one DLL we need.
         for entry in Self.requiredFiles {
             let cabinet = stage.appendingPathComponent(entry.cabinet)
@@ -107,7 +108,7 @@ final class VoiceAudioService {
                 arguments: runtime.wineArguments(for: [
                     "expand",
                     "C:\\secunda-xaudio-stage\\\(entry.cabinet)",
-                    "C:\\windows\\system32\\\(entry.file)"
+                    "C:\\secunda-xaudio-stage\\payload\\\(entry.file)"
                 ]),
                 environment: environment,
                 currentDirectory: runtime.bottleRoot,
@@ -119,6 +120,21 @@ final class VoiceAudioService {
             }
         }
 
+        // Validate every payload before replacing any live file. Atomic writes
+        // prevent a single DLL being left truncated. A failed/partial commit throws;
+        // it never enables overrides, and the next attempt validates the set again.
+        let payloads = try Self.requiredFiles.map { entry -> (String, Data) in
+            guard let data = NativeAudioPayload.validatedContents(
+                at: payloadDirectory.appendingPathComponent(entry.file)
+            ) else { throw VoiceAudioError.installIncomplete }
+            return (entry.file, data)
+        }
+        for (name, data) in payloads {
+            try data.write(
+                to: system32Directory(in: runtime.bottleRoot).appendingPathComponent(name),
+                options: .atomic
+            )
+        }
         guard isInstalled(bottleRoot: runtime.bottleRoot) else {
             throw VoiceAudioError.installIncomplete
         }

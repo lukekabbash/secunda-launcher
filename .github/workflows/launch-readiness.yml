@@ -1,0 +1,24 @@
+name: Launch readiness regression
+
+on:
+  pull_request:
+    branches: [source-only-secunda]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift toolchain
+        run: swift --version
+      - name: Readiness regressions without Wine or network
+        run: bash scripts/test-launch-readiness.sh
+      - name: Build the native launcher
+        run: swift build --disable-sandbox
+      - name: Existing launcher self-checks
+        run: swift run --disable-sandbox SecundaLauncher --self-test
