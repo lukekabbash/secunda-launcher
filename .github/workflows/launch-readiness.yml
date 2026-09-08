@@ -11,11 +11,12 @@ permissions:
 jobs:
   readiness:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - name: Prepare reproducible test evidence
         run: |
           mkdir -p "$RUNNER_TEMP/secunda-evidence"
@@ -23,18 +24,89 @@ jobs:
           git archive --format=tar HEAD > "$RUNNER_TEMP/secunda-evidence/source.tar"
           swift --version | tee "$RUNNER_TEMP/secunda-evidence/toolchain.txt"
           sw_vers >> "$RUNNER_TEMP/secunda-evidence/toolchain.txt"
+
       - name: Readiness regressions without Wine or network
         run: |
           set -o pipefail
           bash scripts/test-launch-readiness.sh 2>&1 | tee "$RUNNER_TEMP/secunda-evidence/readiness.txt"
+
       - name: Build the native launcher
         run: |
           set -o pipefail
           swift build --disable-sandbox 2>&1 | tee "$RUNNER_TEMP/secunda-evidence/build.txt"
+
       - name: Existing launcher self-checks
         run: |
           set -o pipefail
           swift run --disable-sandbox SecundaLauncher --self-test 2>&1 | tee "$RUNNER_TEMP/secunda-evidence/self-checks.txt"
+
+      - name: Verify Skyrim startup contract in source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('app/Model/GameConfigurationProfile.swift').read_text()
+          start = text.index('case "skyrim-se":')
+          end = text.index('case "enderal-se":', start)
+          block = text[start:end]
+          assert 'requiresVisibleWindow: true' in block
+          print('PASS: Skyrim requires a visible game window')
+          PY
+
+      - name: Build instrumented Skyrim test app from v0.1.4 runtime
+        env:
+          BASE_DMG_URL: https://github.com/lukekabbash/secunda-launcher/releases/download/v0.1.4/Secunda.Launcher-0.1.4-TEST-ONLY.dmg
+          BASE_DMG_SHA256: 45590d8293767fa0e663c981e4c7149355066e5cf62322b3a5f4d5e647737e3b
+        run: |
+          set -euo pipefail
+          DMG="$RUNNER_TEMP/secunda-v0.1.4.dmg"
+          curl --fail --location --retry 3 --output "$DMG" "$BASE_DMG_URL"
+          printf '%s  %s\n' "$BASE_DMG_SHA256" "$DMG" | shasum -a 256 -c -
+
+          ATTACH_OUTPUT=$(hdiutil attach -readonly -nobrowse "$DMG")
+          MOUNT=$(printf '%s\n' "$ATTACH_OUTPUT" | awk -F '\t' '/\/Volumes\// {print $NF; exit}')
+          test -n "$MOUNT"
+          trap 'hdiutil detach "$MOUNT" >/dev/null 2>&1 || true' EXIT
+
+          BASE_APP=$(find "$MOUNT" -maxdepth 1 -type d -name '*.app' -print -quit)
+          test -n "$BASE_APP"
+          TEST_APP="$RUNNER_TEMP/Secunda Launcher Skyrim Diagnostic.app"
+          ditto "$BASE_APP" "$TEST_APP"
+
+          BIN_DIR=$(swift build --disable-sandbox --show-bin-path)
+          test -x "$BIN_DIR/SecundaLauncher"
+          cp "$BIN_DIR/SecundaLauncher" "$TEST_APP/Contents/MacOS/SecundaLauncher"
+          chmod 755 "$TEST_APP/Contents/MacOS/SecundaLauncher"
+
+          plutil -replace SecundaForceDiagnostics -bool YES "$TEST_APP/Contents/Info.plist"
+          plutil -replace SecundaDiagnosticSourceCommit -string "$GITHUB_SHA" "$TEST_APP/Contents/Info.plist"
+          plutil -replace CFBundleDisplayName -string 'Secunda Launcher (Skyrim Diagnostic)' "$TEST_APP/Contents/Info.plist"
+
+          cat > "$TEST_APP/Contents/Resources/skyrim-diagnostic-build.txt" <<EOF
+          source_commit=$GITHUB_SHA
+          base_release=v0.1.4-TEST-ONLY
+          base_dmg_sha256=$BASE_DMG_SHA256
+          diagnostics_forced=true
+          purpose=Skyrim startup regression verification
+          EOF
+
+          # The bundled compatibility runtime is copied byte-for-byte from the
+          # verified v0.1.4 TEST-ONLY DMG. Only the native launcher/resources above change.
+          codesign --force --sign - "$TEST_APP"
+          codesign --verify --deep --strict "$TEST_APP"
+
+          ZIP="$RUNNER_TEMP/Secunda-Launcher-Skyrim-Diagnostic.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$TEST_APP" "$ZIP"
+          shasum -a 256 "$ZIP" | tee "$RUNNER_TEMP/secunda-evidence/skyrim-diagnostic-zip.sha256"
+          cp "$TEST_APP/Contents/Resources/skyrim-diagnostic-build.txt" "$RUNNER_TEMP/secunda-evidence/"
+
+      - name: Upload Skyrim diagnostic app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Secunda-Launcher-Skyrim-Diagnostic
+          path: ${{ runner.temp }}/Secunda-Launcher-Skyrim-Diagnostic.zip
+          retention-days: 14
+          if-no-files-found: error
+
       - name: Preserve regression evidence
         if: always()
         uses: actions/upload-artifact@v4
