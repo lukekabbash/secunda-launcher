@@ -52,6 +52,7 @@ jobs:
           from pathlib import Path
           path = Path('app/Infrastructure/SelfCheck.swift')
           text = path.read_text()
+
           replacements = [
               (
                   '!GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow',
@@ -59,35 +60,26 @@ jobs:
                   '                && !GameDescriptor.enderalSE.launchProfile.requiresVisibleWindow'
               ),
               (
-                  '''&& !GameLaunchRecorder.recordsFrameOutcome(
-                    for: .skyrimSE,
-                    diagnostics: true
-                )''',
-                  '''&& GameLaunchRecorder.recordsFrameOutcome(
-                    for: .skyrimSE,
-                    diagnostics: true
-                )'''
+                  '&& !GameLaunchRecorder.recordsFrameOutcome(\n'
+                  '                    for: .skyrimSE,',
+                  '&& GameLaunchRecorder.recordsFrameOutcome(\n'
+                  '                    for: .skyrimSE,'
               ),
               (
-                  '''&& !GameLaunchRecorder.recordsFrameOutcome(
-                    for: .insurgency,
-                    diagnostics: false
-                )''',
-                  '''&& GameLaunchRecorder.recordsFrameOutcome(
-                    for: .insurgency,
-                    diagnostics: false
-                )'''
+                  '&& !GameLaunchRecorder.recordsFrameOutcome(\n'
+                  '                    for: .insurgency,\n'
+                  '                    diagnostics: false',
+                  '&& GameLaunchRecorder.recordsFrameOutcome(\n'
+                  '                    for: .insurgency,\n'
+                  '                    diagnostics: false'
               )
           ]
           for index, (old, new) in enumerate(replacements, 1):
               before = text.count(old)
               print(f'replacement {index}: matches={before}')
+              assert before == 1, f'unexpected match count for replacement {index}: {before}'
               text = text.replace(old, new)
           path.write_text(text)
-          # Postconditions are easier to diagnose than failing before the file is written.
-          updated = path.read_text()
-          assert 'GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow' in updated
-          assert '!GameDescriptor.enderalSE.launchProfile.requiresVisibleWindow' in updated
           print('self-check overlay written')
           PY
 
