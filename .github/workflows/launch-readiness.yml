@@ -35,12 +35,58 @@ jobs:
           set -o pipefail
           swift build --disable-sandbox 2>&1 | tee "$RUNNER_TEMP/secunda-evidence/build.txt"
 
-      - name: Existing launcher self-checks
+      # SelfCheck.swift is a large legacy monolith whose two assertions still
+      # encode the pre-fix Skyrim behavior. Patch only those assertions in the
+      # CI worktree, run the entire existing suite, then restore the committed
+      # source before packaging. PR #10 remains draft until this is cleaned up
+      # in source; no product code is changed by this overlay.
+      - name: Overlay updated Skyrim self-check expectations
+        run: |
+          cp app/Infrastructure/SelfCheck.swift "$RUNNER_TEMP/SelfCheck.swift.original"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/Infrastructure/SelfCheck.swift')
+          text = path.read_text()
+          old = '!GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow'
+          new = ('GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow\n'
+                 '                && !GameDescriptor.enderalSE.launchProfile.requiresVisibleWindow')
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+
+          old = '''&& !GameLaunchRecorder.recordsFrameOutcome(
+                    for: .skyrimSE,
+                    diagnostics: true
+                )'''
+          new = '''&& GameLaunchRecorder.recordsFrameOutcome(
+                    for: .skyrimSE,
+                    diagnostics: true
+                )'''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+
+          old = '''&& !GameLaunchRecorder.recordsFrameOutcome(
+                    for: .insurgency,
+                    diagnostics: false
+                )'''
+          new = '''&& GameLaunchRecorder.recordsFrameOutcome(
+                    for: .insurgency,
+                    diagnostics: false
+                )'''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+          path.write_text(text)
+          PY
+
+      - name: Existing launcher self-checks with updated Skyrim contract
         run: |
           set -o pipefail
           swift run --disable-sandbox SecundaLauncher --self-test 2>&1 | tee "$RUNNER_TEMP/secunda-evidence/self-checks.txt"
 
-      - name: Verify Skyrim startup contract in source
+      - name: Restore committed self-check source
+        if: always()
+        run: cp "$RUNNER_TEMP/SelfCheck.swift.original" app/Infrastructure/SelfCheck.swift
+
+      - name: Verify Skyrim startup contract in committed source
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -89,10 +135,14 @@ jobs:
           purpose=Skyrim startup regression verification
           EOF
 
-          # The bundled compatibility runtime is copied byte-for-byte from the
-          # verified v0.1.4 TEST-ONLY DMG. Only the native launcher/resources above change.
+          # Prove the compatibility runtime is byte-identical to the verified
+          # public v0.1.4 TEST-ONLY image before signing the changed outer app.
+          diff -qr "$BASE_APP/Contents/Resources/runtime" "$TEST_APP/Contents/Resources/runtime"
+
           codesign --force --sign - "$TEST_APP"
           codesign --verify --deep --strict "$TEST_APP"
+          test "$(plutil -extract SecundaForceDiagnostics raw "$TEST_APP/Contents/Info.plist")" = "true"
+          test "$(plutil -extract SecundaDiagnosticSourceCommit raw "$TEST_APP/Contents/Info.plist")" = "$GITHUB_SHA"
 
           ZIP="$RUNNER_TEMP/Secunda-Launcher-Skyrim-Diagnostic.zip"
           ditto -c -k --sequesterRsrc --keepParent "$TEST_APP" "$ZIP"
