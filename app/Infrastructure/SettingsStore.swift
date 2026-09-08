@@ -126,6 +126,15 @@ struct LauncherSettings: Codable, Equatable, Sendable {
     }
 }
 
+/// Normal releases remain opt-in. A deliberately prepared diagnostic build can
+/// set this Info.plist key so a recipient cannot accidentally run the one test
+/// we need with verbose Wine/DXMT logging still disabled from an older setting.
+enum DiagnosticBuildPolicy {
+    static var forcesDiagnostics: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "SecundaForceDiagnostics") as? Bool == true
+    }
+}
+
 final class SettingsStore {
     private let paths: SecundaPaths
     private let encoder = JSONEncoder()
@@ -137,17 +146,26 @@ final class SettingsStore {
     }
 
     func load() -> LauncherSettings {
-        guard let data = try? Data(contentsOf: paths.settingsFile),
-              let settings = try? decoder.decode(LauncherSettings.self, from: data)
-        else {
-            return LauncherSettings()
+        var settings: LauncherSettings
+        if let data = try? Data(contentsOf: paths.settingsFile),
+           let decoded = try? decoder.decode(LauncherSettings.self, from: data) {
+            settings = decoded
+        } else {
+            settings = LauncherSettings()
+        }
+        if DiagnosticBuildPolicy.forcesDiagnostics {
+            settings.enableDiagnostics = true
         }
         return settings
     }
 
     func save(_ settings: LauncherSettings) throws {
         try paths.prepareManagedDirectories()
-        let data = try encoder.encode(settings)
+        var persisted = settings
+        if DiagnosticBuildPolicy.forcesDiagnostics {
+            persisted.enableDiagnostics = true
+        }
+        let data = try encoder.encode(persisted)
         try data.write(to: paths.settingsFile, options: .atomic)
     }
 }
