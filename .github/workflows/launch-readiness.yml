@@ -16,11 +16,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # Pull-request workflows normally check out a synthetic merge commit.
+          # The recipient artifact must identify and contain the exact branch head.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Prepare reproducible test evidence
         run: |
           mkdir -p "$RUNNER_TEMP/secunda-evidence"
-          git rev-parse HEAD > "$RUNNER_TEMP/secunda-evidence/source-commit.txt"
+          SOURCE_COMMIT=$(git rev-parse HEAD)
+          echo "SOURCE_COMMIT=$SOURCE_COMMIT" >> "$GITHUB_ENV"
+          printf '%s\n' "$SOURCE_COMMIT" > "$RUNNER_TEMP/secunda-evidence/source-commit.txt"
           git archive --format=tar HEAD > "$RUNNER_TEMP/secunda-evidence/source.tar"
           swift --version | tee "$RUNNER_TEMP/secunda-evidence/toolchain.txt"
           sw_vers >> "$RUNNER_TEMP/secunda-evidence/toolchain.txt"
@@ -43,38 +48,47 @@ jobs:
       - name: Overlay updated Skyrim self-check expectations
         run: |
           cp app/Infrastructure/SelfCheck.swift "$RUNNER_TEMP/SelfCheck.swift.original"
-          python3 - <<'PY'
+          python3 - <<'PY' | tee "$RUNNER_TEMP/secunda-evidence/self-check-overlay.txt"
           from pathlib import Path
           path = Path('app/Infrastructure/SelfCheck.swift')
           text = path.read_text()
-          old = '!GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow'
-          new = ('GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow\n'
-                 '                && !GameDescriptor.enderalSE.launchProfile.requiresVisibleWindow')
-          assert text.count(old) == 1
-          text = text.replace(old, new)
-
-          old = '''&& !GameLaunchRecorder.recordsFrameOutcome(
+          replacements = [
+              (
+                  '!GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow',
+                  'GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow\n'
+                  '                && !GameDescriptor.enderalSE.launchProfile.requiresVisibleWindow'
+              ),
+              (
+                  '''&& !GameLaunchRecorder.recordsFrameOutcome(
+                    for: .skyrimSE,
+                    diagnostics: true
+                )''',
+                  '''&& GameLaunchRecorder.recordsFrameOutcome(
                     for: .skyrimSE,
                     diagnostics: true
                 )'''
-          new = '''&& GameLaunchRecorder.recordsFrameOutcome(
-                    for: .skyrimSE,
-                    diagnostics: true
-                )'''
-          assert text.count(old) == 1
-          text = text.replace(old, new)
-
-          old = '''&& !GameLaunchRecorder.recordsFrameOutcome(
+              ),
+              (
+                  '''&& !GameLaunchRecorder.recordsFrameOutcome(
+                    for: .insurgency,
+                    diagnostics: false
+                )''',
+                  '''&& GameLaunchRecorder.recordsFrameOutcome(
                     for: .insurgency,
                     diagnostics: false
                 )'''
-          new = '''&& GameLaunchRecorder.recordsFrameOutcome(
-                    for: .insurgency,
-                    diagnostics: false
-                )'''
-          assert text.count(old) == 1
-          text = text.replace(old, new)
+              )
+          ]
+          for index, (old, new) in enumerate(replacements, 1):
+              before = text.count(old)
+              print(f'replacement {index}: matches={before}')
+              text = text.replace(old, new)
           path.write_text(text)
+          # Postconditions are easier to diagnose than failing before the file is written.
+          updated = path.read_text()
+          assert 'GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow' in updated
+          assert '!GameDescriptor.enderalSE.launchProfile.requiresVisibleWindow' in updated
+          print('self-check overlay written')
           PY
 
       - name: Existing launcher self-checks with updated Skyrim contract
@@ -124,11 +138,11 @@ jobs:
           chmod 755 "$TEST_APP/Contents/MacOS/SecundaLauncher"
 
           plutil -replace SecundaForceDiagnostics -bool YES "$TEST_APP/Contents/Info.plist"
-          plutil -replace SecundaDiagnosticSourceCommit -string "$GITHUB_SHA" "$TEST_APP/Contents/Info.plist"
+          plutil -replace SecundaDiagnosticSourceCommit -string "$SOURCE_COMMIT" "$TEST_APP/Contents/Info.plist"
           plutil -replace CFBundleDisplayName -string 'Secunda Launcher (Skyrim Diagnostic)' "$TEST_APP/Contents/Info.plist"
 
           cat > "$TEST_APP/Contents/Resources/skyrim-diagnostic-build.txt" <<EOF
-          source_commit=$GITHUB_SHA
+          source_commit=$SOURCE_COMMIT
           base_release=v0.1.4-TEST-ONLY
           base_dmg_sha256=$BASE_DMG_SHA256
           diagnostics_forced=true
@@ -142,7 +156,7 @@ jobs:
           codesign --force --sign - "$TEST_APP"
           codesign --verify --deep --strict "$TEST_APP"
           test "$(plutil -extract SecundaForceDiagnostics raw "$TEST_APP/Contents/Info.plist")" = "true"
-          test "$(plutil -extract SecundaDiagnosticSourceCommit raw "$TEST_APP/Contents/Info.plist")" = "$GITHUB_SHA"
+          test "$(plutil -extract SecundaDiagnosticSourceCommit raw "$TEST_APP/Contents/Info.plist")" = "$SOURCE_COMMIT"
 
           ZIP="$RUNNER_TEMP/Secunda-Launcher-Skyrim-Diagnostic.zip"
           ditto -c -k --sequesterRsrc --keepParent "$TEST_APP" "$ZIP"
