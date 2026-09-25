@@ -6,6 +6,10 @@
 # workflow_dispatch is only a backfill for a release that already exists
 # (v0.1.0).
 #
+# Pushing a v* tag also works: the job creates the release from
+# packaging/release-notes/<tag>.md, then builds and attaches the DMG. A
+# release created with GITHUB_TOKEN does not start a second run.
+#
 # No Apple secrets are required. Without them the job writes the labeled
 # TEST-ONLY DMG. Recipient-ready signing and notarization stay off unless every
 # APPLE_* secret below is present.
@@ -13,6 +17,8 @@
 name: Package share DMG
 
 on:
+  push:
+    tags: ["v*"]
   release:
     types: [published]
   workflow_dispatch:
@@ -27,11 +33,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: package-share-dmg-${{ github.event.inputs.release_tag || github.event.release.tag_name }}
+  group: package-share-dmg-${{ github.event.inputs.release_tag || github.event.release.tag_name || github.ref_name }}
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: ${{ github.event.inputs.release_tag || github.event.release.tag_name }}
+  RELEASE_TAG: ${{ github.event.inputs.release_tag || github.event.release.tag_name || github.ref_name }}
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   SOURCE_ARCHIVE_NAME: crossover-sources-26.3.0.tar.gz
   SOURCE_ARCHIVE_URL: https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz
@@ -58,6 +64,22 @@ jobs:
           if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
             echo "Invalid release tag: $RELEASE_TAG" >&2
             exit 1
+          fi
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            if [[ "$GITHUB_EVENT_NAME" != "push" ]]; then
+              echo "Release $RELEASE_TAG does not exist." >&2
+              exit 1
+            fi
+            notes="$RUNNER_TEMP/release-notes.md"
+            if gh api -H "Accept: application/vnd.github.raw" \
+              "repos/$GITHUB_REPOSITORY/contents/packaging/release-notes/$RELEASE_TAG.md?ref=$RELEASE_TAG" \
+              > "$notes" 2>/dev/null && [[ -s "$notes" ]]; then
+              gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+                --verify-tag --title "Secunda Launcher ${RELEASE_TAG#v}" --notes-file "$notes"
+            else
+              gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+                --verify-tag --title "Secunda Launcher ${RELEASE_TAG#v}" --generate-notes
+            fi
           fi
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
 

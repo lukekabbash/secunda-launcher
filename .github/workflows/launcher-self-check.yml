@@ -6,9 +6,7 @@ name: Launcher self-check
 
 on:
   push:
-    branches: ["claude/**", "fix/**"]
-  pull_request:
-    branches: [source-only-secunda]
+    branches: ["claude/**", "fix/**", "source-only-secunda"]
   workflow_dispatch:
 
 permissions:
