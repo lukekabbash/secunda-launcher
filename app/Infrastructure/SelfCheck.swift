@@ -167,6 +167,13 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+        let iniSeedFailures = CreationEngineINISeederSelfCheck.failures()
+        expect(
+            iniSeedFailures.isEmpty,
+            "first-run Creation Engine INI seeding\(iniSeedFailures.isEmpty ? "" : ": \(iniSeedFailures.joined(separator: ", "))")",
+            passes: &passes,
+            failures: &failures
+        )
         let queuedInstallRequirement = InstallSpacePolicy.requiredFreeBytes(
             for: .insurgency,
             pending: [.angelsFallFirst, .supremeCommander]

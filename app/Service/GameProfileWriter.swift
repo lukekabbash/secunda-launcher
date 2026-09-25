@@ -95,9 +95,24 @@ struct GameProfileWriter {
                 withIntermediateDirectories: true
             )
 
+            // Bethesda's launcher fills My Games from the install's shipped
+            // templates only when the files are missing. Seed them first, or
+            // the display keys below become the engine's entire prefs file.
+            if let seed = descriptor.creationEngineINISeed,
+               let prefsFileName = descriptor.prefsFileName,
+               let installRoot {
+                try CreationEngineINISeeder.seed(
+                    seed,
+                    prefsFileName: prefsFileName,
+                    preferencesDirectory: preferencesDirectory,
+                    installRoot: installRoot
+                )
+            }
+
             if let prefsFileName = descriptor.prefsFileName {
                 let profileURL = preferencesDirectory.appendingPathComponent(prefsFileName)
-                let existingPrefs = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
+                let prefsFile = try Self.readProfile(at: profileURL)
+                let existingPrefs = prefsFile.text
                 var updatedPrefs = Self.updatingDisplaySection(
                     in: existingPrefs,
                     settings: settings,
@@ -109,7 +124,7 @@ struct GameProfileWriter {
                     updatedPrefs = Self.mergingDisplayValues(qualityValues, into: updatedPrefs)
                 }
                 if updatedPrefs != existingPrefs {
-                    try updatedPrefs.write(to: profileURL, atomically: true, encoding: .utf8)
+                    try INIText(text: updatedPrefs, encoding: prefsFile.encoding).write(to: profileURL)
                 }
             }
 
@@ -117,7 +132,8 @@ struct GameProfileWriter {
             // reads them as overrides and the vendor launcher never rewrites them.
             if let customIniFileName = descriptor.customIniFileName {
                 let customURL = preferencesDirectory.appendingPathComponent(customIniFileName)
-                let existingCustom = (try? String(contentsOf: customURL, encoding: .utf8)) ?? ""
+                let customFile = try Self.readProfile(at: customURL)
+                let existingCustom = customFile.text
                 var updatedCustom = existingCustom
                 if descriptor.supportsDisplayProfile {
                     updatedCustom = Self.updatingCustomDisplaySection(
@@ -130,7 +146,7 @@ struct GameProfileWriter {
                     into: updatedCustom
                 )
                 if updatedCustom != existingCustom {
-                    try updatedCustom.write(to: customURL, atomically: true, encoding: .utf8)
+                    try INIText(text: updatedCustom, encoding: customFile.encoding).write(to: customURL)
                 }
             }
         }
@@ -189,6 +205,18 @@ struct GameProfileWriter {
                 installRoot: installRoot
             )
         }
+    }
+
+    /// A missing profile starts empty. An existing one that cannot be read
+    /// fails the launch instead of being silently replaced by a stub.
+    static func readProfile(at url: URL) throws -> INIText {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return INIText(text: "", encoding: .utf8)
+        }
+        guard let file = INIText(contentsOf: url) else {
+            throw CocoaError(.fileReadCorruptFile, userInfo: [NSFilePathErrorKey: url.path])
+        }
+        return file
     }
 
     private func applyManagedINIProfiles(
