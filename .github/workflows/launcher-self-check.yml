@@ -1,0 +1,32 @@
+# Builds the native launcher and runs its self-check contracts. Needs no Wine
+# runtime, Steam, game data, or network; it proves the Swift sources compile and
+# the filesystem/profile contracts hold on macOS.
+
+name: Launcher self-check
+
+on:
+  push:
+    branches: ["claude/**", "fix/**"]
+  pull_request:
+    branches: [source-only-secunda]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: launcher-self-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  self-check:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift toolchain
+        run: swift --version
+      - name: Build the native launcher
+        run: swift build --disable-sandbox
+      - name: Launcher self-checks
+        run: swift run --disable-sandbox SecundaLauncher --self-test
