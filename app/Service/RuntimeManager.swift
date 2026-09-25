@@ -41,23 +41,56 @@ final class RuntimeManager {
             guard hasMetalGraphicsBridge(beside: candidate.url) else { continue }
             guard await verifyRuntimeIntegrity(candidate) else { continue }
             let logURL = paths.logsDirectory.appendingPathComponent("runtime-probe.log")
-            guard let result = try? await processRunner.run(
-                executable: candidate.url,
-                arguments: ["--version"],
-                environment: [:],
-                logURL: logURL
-            ), result.terminationStatus == 0 else { continue }
-
-            let version = (try? String(contentsOf: logURL, encoding: .utf8))?
-                .split(whereSeparator: \.isNewline)
-                .last
-                .map(String.init)
-            return RuntimeDescriptor(
-                wineExecutable: candidate.url,
-                version: version?.isEmpty == false ? version! : "bundled runtime",
-                origin: candidate.origin,
-                bottleRoot: paths.bottleRoot
-            )
+            // Correlate candidates without putting a personal filesystem path in support logs.
+            let candidateID = Self.sessionFingerprint(environment: [
+                "runtime": candidate.url.resolvingSymlinksInPath().path
+            ])
+            do {
+                let result = try await processRunner.capture(
+                    executable: candidate.url,
+                    arguments: ["--version"],
+                    environment: [:],
+                    maxOutputBytes: RuntimeVersionPolicy.maximumOutputBytes,
+                    timeoutSeconds: RuntimeVersionPolicy.timeoutSeconds
+                )
+                guard result.terminationStatus == 0 else {
+                    RuntimeProbeLog.record(
+                        at: logURL, origin: candidate.origin.rawValue,
+                        candidateID: candidateID, outcome: "nonzero-exit",
+                        exitStatus: result.terminationStatus
+                    )
+                    continue
+                }
+                guard let version = RuntimeVersionPolicy.parse(result.output) else {
+                    RuntimeProbeLog.record(
+                        at: logURL, origin: candidate.origin.rawValue,
+                        candidateID: candidateID, outcome: "invalid-output"
+                    )
+                    continue
+                }
+                RuntimeProbeLog.record(
+                    at: logURL, origin: candidate.origin.rawValue,
+                    candidateID: candidateID, outcome: "ready", version: version,
+                    exitStatus: result.terminationStatus
+                )
+                return RuntimeDescriptor(
+                    wineExecutable: candidate.url,
+                    version: version,
+                    origin: candidate.origin,
+                    bottleRoot: paths.bottleRoot
+                )
+            } catch {
+                let outcome: String
+                switch error {
+                case ProcessRunnerError.captureTimedOut: outcome = "probe-timeout"
+                case ProcessRunnerError.captureTooLarge: outcome = "output-too-large"
+                default: outcome = "probe-error"
+                }
+                RuntimeProbeLog.record(
+                    at: logURL, origin: candidate.origin.rawValue,
+                    candidateID: candidateID, outcome: outcome
+                )
+            }
         }
         return nil
     }
@@ -271,7 +304,8 @@ final class RuntimeManager {
                 arguments: ["--status", "-a", "256", "-c", manifest.path],
                 environment: ["PATH": "/usr/bin:/bin"],
                 currentDirectory: runtimeRoot,
-                logURL: paths.logsDirectory.appendingPathComponent("runtime-integrity.log")
+                logURL: paths.logsDirectory.appendingPathComponent("runtime-integrity.log"),
+                timeoutSeconds: 120
             ), result.terminationStatus == 0 else {
                 return false
             }
