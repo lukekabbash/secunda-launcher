@@ -4,9 +4,9 @@
 
 name: Launcher self-check
 
+# Manual only, so pushes never spend runner minutes. The same contracts run
+# locally with: swift run SecundaLauncher --self-test
 on:
-  push:
-    branches: ["claude/**", "fix/**", "source-only-secunda"]
   workflow_dispatch:
 
 permissions:

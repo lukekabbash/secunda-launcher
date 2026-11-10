@@ -1,14 +1,10 @@
 # Builds the official share DMG with the existing packaging scripts and attaches
-# it to the GitHub Release that triggered the run.
+# it to the GitHub Release named when the run is started.
 #
-# Ordinary path: publishing a GitHub Release (including a new tag created with
-# that release) starts this job. No dispatch, extra click, or secret flag.
-# workflow_dispatch is only a backfill for a release that already exists
-# (v0.1.0).
-#
-# Pushing a v* tag also works: the job creates the release from
-# packaging/release-notes/<tag>.md, then builds and attaches the DMG. A
-# release created with GITHUB_TOKEN does not start a second run.
+# Manual only. Releases are built, signed and notarized on the maintainer's
+# Mac with scripts/release-local.sh and uploaded from there, so nothing here
+# starts on its own: not a tag, not a published release. Run it by hand from
+# the Actions tab to attach a CI-built DMG to a release that already exists.
 #
 # No Apple secrets are required. Without them the job writes the labeled
 # TEST-ONLY DMG. Recipient-ready signing and notarization stay off unless every
@@ -17,10 +13,6 @@
 name: Package share DMG
 
 on:
-  push:
-    tags: ["v*"]
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:

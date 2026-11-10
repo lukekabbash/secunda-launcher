@@ -1,8 +1,7 @@
 name: Launch readiness regression
 
+# Manual only, so pull requests never spend runner minutes.
 on:
-  pull_request:
-    branches: [source-only-secunda]
   workflow_dispatch:
 
 permissions:
