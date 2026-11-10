@@ -120,6 +120,24 @@ sign_runtime_code() {
     done < <(find "$runtime_root" -type f -print0)
 }
 
+# Sparkle's nested helpers must be signed inside-out with the hardened
+# runtime, or notarization rejects the bundle. Downloader.xpc keeps its
+# shipped entitlements.
+sign_sparkle_framework() {
+    local framework=$1
+    local versioned="$framework/Versions/B"
+    local signing_args=(--force --sign "$SIGNING_IDENTITY" --options runtime)
+    if [[ "$SIGNING_IDENTITY" != "-" ]]; then
+        signing_args+=(--timestamp)
+    fi
+    codesign "${signing_args[@]}" "$versioned/XPCServices/Installer.xpc"
+    codesign "${signing_args[@]}" --preserve-metadata=entitlements \
+        "$versioned/XPCServices/Downloader.xpc"
+    codesign "${signing_args[@]}" "$versioned/Autoupdate"
+    codesign "${signing_args[@]}" "$versioned/Updater.app"
+    codesign "${signing_args[@]}" "$framework"
+}
+
 cd "$REPOSITORY_ROOT"
 export CLANG_MODULE_CACHE_PATH="${TMPDIR:-/tmp}/secunda-clang-cache"
 export SWIFTPM_MODULECACHE_OVERRIDE="${TMPDIR:-/tmp}/secunda-swiftpm-cache"
@@ -139,6 +157,19 @@ done < <(otool -l "$MACOS/SecundaLauncher" | awk '
     /cmd LC_RPATH/ { awaiting_path = 1; next }
     awaiting_path && /path / { print $2; awaiting_path = 0 }
 ')
+
+# The in-app updater. The launcher links @rpath/Sparkle.framework.
+FRAMEWORKS="$CONTENTS/Frameworks"
+mkdir -p "$FRAMEWORKS"
+if [[ ! -d "$BIN_PATH/Sparkle.framework" ]]; then
+    echo "Sparkle.framework is missing from the Swift build products." >&2
+    exit 1
+fi
+ditto "$BIN_PATH/Sparkle.framework" "$FRAMEWORKS/Sparkle.framework"
+install_name_tool -add_rpath @executable_path/../Frameworks "$MACOS/SecundaLauncher"
+mkdir -p "$RESOURCES/licenses"
+cp "$REPOSITORY_ROOT/licenses/Sparkle-2.10.1-LICENSE.txt" "$RESOURCES/licenses/"
+cp "$REPOSITORY_ROOT/LICENSE" "$RESOURCES/licenses/Secunda-LICENSE.txt"
 
 case "$RUNTIME_MODE" in
     0|1) ;;
@@ -173,6 +204,7 @@ if [[ "$RUNTIME_MODE" == "1" ]]; then
     sign_runtime_code "$RESOURCES/runtime"
     "$SCRIPT_DIR/create-runtime-integrity.sh" "$RESOURCES/runtime"
 fi
+sign_sparkle_framework "$FRAMEWORKS/Sparkle.framework"
 codesign "${OUTER_SIGNING_ARGS[@]}" "$APP_ROOT"
 if [[ "$RUNTIME_MODE" == "1" ]]; then
     "$SCRIPT_DIR/verify-packaged-app.sh" "$APP_ROOT"

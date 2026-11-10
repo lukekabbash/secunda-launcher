@@ -822,6 +822,13 @@ struct GameDetailView: View {
         if let fixed = borderlessDesktopResolution {
             return [fixed]
         }
+        if descriptor.id == "bo2-campaign"
+            || descriptor.id == "bo2-multiplayer"
+            || descriptor.id == "bo2-zombies" {
+            return TreyarchDisplayMode.accepted.map {
+                DisplayResolutionOption(width: $0.width, height: $0.height, note: nil)
+            }
+        }
         let screen = displayScreen
         let size = screen?.frame.size ?? .zero
         let current = model.gameSettings(for: descriptor)

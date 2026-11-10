@@ -71,8 +71,8 @@ private struct ConfiguredProcess {
         boundedLog?.childDidLaunch()
     }
 
-    func closeOutput() {
-        boundedLog?.finish()
+    func closeOutput(process: Process? = nil) {
+        boundedLog?.finish(process: process)
     }
 }
 
@@ -108,7 +108,7 @@ final class ProcessRunner {
                 )
                 let process = configured.process
                 process.terminationHandler = { process in
-                    configured.closeOutput()
+                    configured.closeOutput(process: process)
                     guard let timedOut = completion.resolve() else { return }
                     if timedOut {
                         continuation.resume(throwing: ProcessRunnerError.timedOut(
@@ -135,7 +135,7 @@ final class ProcessRunner {
                     process: process,
                     completion: completion
                 ) {
-                    configured.closeOutput()
+                    configured.closeOutput(process: process)
                     continuation.resume(throwing: ProcessRunnerError.timedOut(
                         timeoutSeconds ?? 0,
                         logURL
@@ -248,7 +248,7 @@ final class ProcessRunner {
         )
         let process = configured.process
         process.terminationHandler = { [weak self] process in
-            configured.closeOutput()
+            configured.closeOutput(process: process)
             self?.lock.lock()
             self?.activeProcesses.removeValue(forKey: process.processIdentifier)
             self?.lock.unlock()

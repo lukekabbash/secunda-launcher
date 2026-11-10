@@ -158,6 +158,8 @@ All mutable player data stays beneath:
 
 That directory contains the managed Windows prefix, Steam installation/session, installed games, saves, backups, caches, and logs. Removing Secunda.app does not silently delete it; archive wanted saves before removing the managed data directory.
 
-## Licensing status
+## License
 
-Runtime component licenses, notices, corresponding source, and checksums are staged by the packaging pipeline. Secunda's own launcher-code license still needs to be selected by the project owner before publishing the repository as a broadly reusable open-source project.
+Secunda's own code is released under the [MIT License](LICENSE). Copyright (c) 2026 LK Digital Solutions LLC.
+
+The Wine runtime and graphics components Secunda ships keep their own licenses (LGPL, MIT, zlib, Apache 2.0 and others). The packaging pipeline stages each license, the notices, the corresponding source and checksums alongside the binaries; `THIRD_PARTY_SOURCES.md` lists them.

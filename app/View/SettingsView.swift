@@ -161,6 +161,12 @@ struct SettingsView: View {
 
                 FlatSection(title: "About", detail: AppVersion.label) {
                     VStack(alignment: .leading, spacing: 8) {
+                        if let updater = model.updater, updater.isAvailable {
+                            Button("Check for Updates…") {
+                                updater.checkForUpdates()
+                            }
+                            .padding(.bottom, 6)
+                        }
                         Label("Unofficial launcher", systemImage: "checkmark.shield")
                             .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                         Text("Secunda is an unofficial community project, unaffiliated with Valve, Bethesda, or any game publisher. You need your own Steam copy of each game. Secunda never asks for a Steam password and never ships Steam, game files, or account data.")

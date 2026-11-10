@@ -303,7 +303,14 @@ final class GameService {
         var voiceAudioActive = false
         if descriptor.usesNativeVoiceAudioFix && settings.nativeVoiceAudio {
             await progress(.voiceAudio)
-            try await voiceAudioService.installIfNeeded(runtime: runtime, diagnostics: diagnostics)
+            // Spoken dialogue needs Microsoft's XAudio, fetched on first Play.
+            // A network hiccup or a bad download must not block the game: play
+            // with Wine's builtin audio this time and try again next Play.
+            do {
+                try await voiceAudioService.installIfNeeded(runtime: runtime, diagnostics: diagnostics)
+            } catch {
+                voiceAudioService.recordDeferredInstall(error)
+            }
             voiceAudioActive = voiceAudioService.isInstalled(bottleRoot: runtime.bottleRoot)
         }
         if descriptor.d3d9Backend == .dxvk {
@@ -853,6 +860,15 @@ final class GameService {
             environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] = "1"
             environment["SECUNDA_PREFER_IMAGE_BASE"] = "0x38000000"
             environment["SECUNDA_PREFER_IMAGE_NAME"] = "steamclient.dll"
+            // Steam injects its 32-bit overlay into every T6 executable even
+            // when the per-game overlay toggle is off. Its D3D11/DirectDraw/
+            // OpenGL hooks leave the main thread polling for a renderer
+            // handshake forever behind a black window. The 64-bit client
+            // loads gameoverlayrenderer64.dll, so Steam itself is unaffected.
+            environment["WINEDLLOVERRIDES"] = Self.appendingDLLOverride(
+                "gameoverlayrenderer=d",
+                to: environment["WINEDLLOVERRIDES"]
+            )
             if diagnostics {
                 environment["SECUNDA_TRACE_PROTECTED_TRANSFORM"] = "1"
                 if let address = descriptor.diagnosticExitImportAddress {
@@ -870,6 +886,13 @@ final class GameService {
         default:
             return base
         }
+    }
+
+    static func appendingDLLOverride(_ override: String, to existing: String?) -> String {
+        guard let existing, !existing.isEmpty else { return override }
+        let entries = existing.split(separator: ";").map(String.init)
+        guard !entries.contains(override) else { return existing }
+        return existing + ";" + override
     }
 
     /// DXMT config fragments that must land on the game process itself.

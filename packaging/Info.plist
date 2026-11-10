@@ -2,35 +2,51 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDisplayName</key>
-    <string>Secunda Launcher</string>
-    <key>CFBundleExecutable</key>
-    <string>SecundaLauncher</string>
-    <key>CFBundleIconFile</key>
-    <string>Secunda</string>
-    <key>CFBundleIdentifier</key>
-    <string>app.secunda.launcher</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>Secunda Launcher</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.5</string>
-    <key>CFBundleVersion</key>
-    <string>6</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>15.0</string>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.games</string>
-	<key>LSSupportsGameMode</key>
-	<true/>
+	<key>CFBundleDisplayName</key>
+	<string>Secunda Launcher</string>
+	<key>CFBundleExecutable</key>
+	<string>SecundaLauncher</string>
+	<key>CFBundleIconFile</key>
+	<string>Secunda</string>
+	<key>CFBundleIdentifier</key>
+	<string>app.secunda.launcher</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Secunda Launcher</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.6</string>
+	<key>CFBundleVersion</key>
+	<string>7</string>
 	<key>GCSupportsGameMode</key>
 	<true/>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSHumanReadableCopyright</key>
-    <string>Secunda Launcher is an unofficial community project.</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.games</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>LSSupportsGameMode</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Games that support voice chat open the microphone when they start. Secunda Launcher itself never records audio.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 LK Digital Solutions LLC. MIT License. Secunda Launcher is an unofficial community project.</string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/lukekabbash/secunda-launcher/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>zjqUJExbVoEu/au5XWDJjcD2xpm/RJSaXggqV/0Sas8=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

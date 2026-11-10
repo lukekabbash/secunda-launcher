@@ -82,7 +82,12 @@ enum SelfCheck {
                 && GameDescriptor.blackOps2SP.steamAuthorizationTimeoutSeconds == 180
                 && GameDescriptor.blackOps2MP.steamAuthorizationTimeoutSeconds == 180
                 && GameDescriptor.blackOps2Zombies.steamAuthorizationTimeoutSeconds == 180
-                && GameDescriptor.skyrimSE.steamAuthorizationTimeoutSeconds == 90,
+                && GameDescriptor.skyrimSE.steamAuthorizationTimeoutSeconds == 180
+                && GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow
+                && !GameDescriptor.enderalSE.launchProfile.requiresVisibleWindow
+                && BottleManager.registryWriteTimeoutSeconds > 0
+                && BottleManager.prefixCreationTimeoutSeconds > 0
+                && SteamService.installerTimeoutSeconds > 0,
             "Black Ops II keeps a measured Steam handoff window and requires a rendered surface",
             passes: &passes,
             failures: &failures
@@ -459,7 +464,7 @@ enum SelfCheck {
             failures: &failures
         )
         expect(
-            !GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow
+            GameDescriptor.skyrimSE.launchProfile.requiresVisibleWindow
                 && GameDescriptor.skyrimSE.launchProfile.exclusiveFullscreenPolicy
                     == .capturedHostMode
                 && skyrimExclusiveDisplayPolicy == ExecutableDisplayPolicy(
@@ -699,9 +704,9 @@ enum SelfCheck {
                     for: .insurgency,
                     diagnostics: true
                 )
-                && !GameLaunchRecorder.recordsFrameOutcome(
+                && GameLaunchRecorder.recordsFrameOutcome(
                     for: .skyrimSE,
-                    diagnostics: true
+                    diagnostics: false
                 )
                 && !GameLaunchRecorder.recordsFrameOutcome(
                     for: .fallout4,
@@ -719,11 +724,11 @@ enum SelfCheck {
                     for: .blackOps2Zombies,
                     diagnostics: true
                 )
-                && !GameLaunchRecorder.recordsFrameOutcome(
+                && GameLaunchRecorder.recordsFrameOutcome(
                     for: .insurgency,
                     diagnostics: false
                 ),
-            "diagnostic frame outcomes stay allowlisted to verified-surface titles",
+            "frame outcomes stay allowlisted to verified-surface titles in normal and diagnostic launches",
             passes: &passes,
             failures: &failures
         )
@@ -2190,6 +2195,67 @@ enum SelfCheck {
                 && tracedBO2Environment[RuntimeManager.sessionFingerprintKey]
                     != sessionOnlyEnvironment[RuntimeManager.sessionFingerprintKey],
             "BO2 diagnostics trace and fingerprint the protected startup session",
+            passes: &passes,
+            failures: &failures
+        )
+        var bo2Settings = LauncherSettings().game(.blackOps2Zombies)
+        bo2Settings.width = 2560
+        bo2Settings.height = 1600
+        var staleBorderlessBO2 = bo2Settings
+        staleBorderlessBO2.displayMode = .borderlessFullscreen
+        let bo2WindowedArguments = [
+            "+set", "r_fullscreen", "0", "+set", "r_mode", "2560x1600", "+vid_restart"
+        ]
+        var rejectedMode = bo2Settings
+        rejectedMode.width = 1920
+        rejectedMode.height = 1080
+        let snappedArguments = [
+            "+set", "r_fullscreen", "0", "+set", "r_mode", "1440x900", "+vid_restart"
+        ]
+        expect(
+            [GameDescriptor.blackOps2SP, .blackOps2MP, .blackOps2Zombies].allSatisfy {
+                $0.supportedDisplayModes == [.windowed]
+                    && $0.preferredInitialDisplayMode == .windowed
+                    && $0.managedDisplayCapabilities.resolution
+                    && GameService.gameArguments(descriptor: $0, settings: bo2Settings)
+                        == bo2WindowedArguments
+                    && GameService.gameArguments(descriptor: $0, settings: staleBorderlessBO2)
+                        == bo2WindowedArguments
+                    && GameService.gameArguments(descriptor: $0, settings: rejectedMode)
+                        == snappedArguments
+            }
+                && TreyarchDisplayMode.fitting(width: 1280, height: 800).argument == "1280x800"
+                && LauncherSettings().game(.blackOps2Zombies).displayMode == .windowed
+                && GameDescriptor.skyrimSE.preferredInitialDisplayMode == .borderlessFullscreen,
+            "BO2 always launches windowed at an accepted r_mode, even from stale fullscreen settings",
+            passes: &passes,
+            failures: &failures
+        )
+        let runtimeOverrides = "mscoree,mshtml=;winemenubuilder.exe=d;d3d10core,d3d11,dxgi=b"
+        let overrideBase = sessionOnlyEnvironment.merging(
+            ["WINEDLLOVERRIDES": runtimeOverrides]
+        ) { _, new in new }
+        let bo2OverrideEnvironments = [
+            GameDescriptor.blackOps2SP, .blackOps2MP, .blackOps2Zombies
+        ].map {
+            GameService.sessionEnvironment(base: overrideBase, descriptor: $0, diagnostics: false)
+        }
+        let nonBO2OverrideEnvironment = GameService.sessionEnvironment(
+            base: overrideBase,
+            descriptor: .skyrimSE,
+            diagnostics: false
+        )
+        expect(
+            bo2OverrideEnvironments.allSatisfy {
+                $0["WINEDLLOVERRIDES"] == runtimeOverrides + ";gameoverlayrenderer=d"
+            }
+                && quietBO2Environment["WINEDLLOVERRIDES"] == "gameoverlayrenderer=d"
+                && nonBO2OverrideEnvironment["WINEDLLOVERRIDES"] == runtimeOverrides
+                && GameService.appendingDLLOverride(
+                    "gameoverlayrenderer=d",
+                    to: runtimeOverrides + ";gameoverlayrenderer=d"
+                ) == runtimeOverrides + ";gameoverlayrenderer=d",
+            "BO2 sessions block Steam's 32-bit overlay without dropping runtime DLL overrides",
             passes: &passes,
             failures: &failures
         )

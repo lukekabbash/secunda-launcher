@@ -54,14 +54,19 @@ enum ProcessRunnerSelfCheck {
                 let archive = directory.appendingPathComponent("diagnostic.previous.log")
                 let secondData = try Data(contentsOf: log)
                 let archiveData = try Data(contentsOf: archive)
+                let secondText = String(data: secondData, encoding: .utf8) ?? ""
                 let passed =
                     first.terminationStatus == 0
                         && second.terminationStatus == 0
                         && firstData == Data(repeating: 120, count: 1_024)
-                        && secondData == Data("new".utf8)
+                        && secondText.hasPrefix("new")
+                        && secondText.contains("[secunda-process-termination]")
+                        && secondText.contains("reason=exit")
+                        && secondText.contains("status=0")
+                        && secondData.count <= 1_024
                         && archiveData.count == 1_024
                 if !passed {
-                    let detail = "bounded-log-self-check first=\(firstData.count) second=\(secondData.count) archive=\(archiveData.count)\n"
+                    let detail = "bounded-log-self-check first=\(firstData.count) second=\(secondData.count) archive=\(archiveData.count) text=\(secondText)\n"
                     try? FileHandle.standardError.write(contentsOf: Data(detail.utf8))
                 }
                 result.record(passed)

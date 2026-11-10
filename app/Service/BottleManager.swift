@@ -20,6 +20,13 @@ final class BottleManager {
     ]
     static let forcedShutdownArguments = ["wineboot", "--kill", "--shutdown"]
     static let initializationWaitArguments = ["-w"]
+    /// A cold Rosetta translation of Wine can make the first registry write
+    /// slow, but no single `reg add` should ever take minutes. Without a bound
+    /// a stuck Wine process would leave Play spinning forever.
+    static let registryWriteTimeoutSeconds: TimeInterval = 120
+    /// First-run `wineboot --init` builds the whole prefix under Rosetta and
+    /// is the slowest step on a fanless Air; it still must not hang forever.
+    static let prefixCreationTimeoutSeconds: TimeInterval = 600
 
     /// Build an app-scoped Mac-driver decoration override. Keeping this
     /// separate from the shared registry values prevents a fullscreen fix for
@@ -148,7 +155,8 @@ final class BottleManager {
                 ]),
                 environment: effectiveEnvironment,
                 currentDirectory: runtime.bottleRoot,
-                logURL: logURL
+                logURL: logURL,
+                timeoutSeconds: Self.registryWriteTimeoutSeconds
             )
             guard result.terminationStatus == 0 else {
                 throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)
@@ -201,7 +209,8 @@ final class BottleManager {
                 ]),
                 environment: effectiveEnvironment,
                 currentDirectory: runtime.bottleRoot,
-                logURL: logURL
+                logURL: logURL,
+                timeoutSeconds: Self.registryWriteTimeoutSeconds
             )
             guard result.terminationStatus == 0 else {
                 throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)
@@ -322,7 +331,8 @@ final class BottleManager {
             arguments: ["wineboot", "--init"],
             environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
             currentDirectory: runtime.bottleRoot,
-            logURL: paths.logsDirectory.appendingPathComponent("bottle-initialize.log")
+            logURL: paths.logsDirectory.appendingPathComponent("bottle-initialize.log"),
+            timeoutSeconds: Self.prefixCreationTimeoutSeconds
         )
         guard result.terminationStatus == 0 else {
             throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)
@@ -383,7 +393,8 @@ final class BottleManager {
                 ]),
                 environment: environment,
                 currentDirectory: runtime.bottleRoot,
-                logURL: logURL
+                logURL: logURL,
+                timeoutSeconds: Self.registryWriteTimeoutSeconds
             )
             guard result.terminationStatus == 0 else {
                 throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)

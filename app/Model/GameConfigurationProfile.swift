@@ -6,6 +6,11 @@ enum LaunchArgumentAtom: Equatable, Sendable {
     case literal(String)
     case width
     case height
+    /// Width and height as one "WxH" value (IW-engine r_mode syntax).
+    case resolution
+    /// T6 `r_mode` value. Arbitrary sizes are rejected and the game then
+    /// presents nothing, so this snaps to a mode the executable accepts.
+    case treyarchMode
     case fieldOfView
     case verticalSync(on: String, off: String)
 
@@ -14,9 +19,51 @@ enum LaunchArgumentAtom: Equatable, Sendable {
         case .literal(let value): value
         case .width: String(settings.width)
         case .height: String(settings.height)
+        case .resolution: "\(settings.width)x\(settings.height)"
+        case .treyarchMode: TreyarchDisplayMode.fitting(width: settings.width, height: settings.height).argument
         case .fieldOfView: String(settings.fieldOfView)
         case .verticalSync(let on, let off): settings.verticalSync ? on : off
         }
+    }
+}
+
+/// Resolutions Black Ops II accepts for `r_mode` through Wine's Mac driver.
+/// A 16:9 size such as 1920x1080 is outside the domain: the game logs the
+/// rejection and leaves a black window at its fallback size.
+struct TreyarchDisplayMode: Equatable, Sendable {
+    let width: Int
+    let height: Int
+
+    static let accepted: [TreyarchDisplayMode] = [
+        .init(width: 960, height: 600),
+        .init(width: 1024, height: 640),
+        .init(width: 1280, height: 800),
+        .init(width: 1440, height: 900),
+        .init(width: 1920, height: 1200),
+        .init(width: 2048, height: 1280),
+        .init(width: 2560, height: 1600),
+        .init(width: 2880, height: 1800)
+    ]
+
+    var argument: String { "\(width)x\(height)" }
+
+    /// Exact match, otherwise the largest accepted mode that fits inside the
+    /// request. A request smaller than every mode uses the nearest one.
+    static func fitting(width: Int, height: Int) -> TreyarchDisplayMode {
+        if let exact = accepted.first(where: { $0.width == width && $0.height == height }) {
+            return exact
+        }
+        let inside = accepted.filter { $0.width <= width && $0.height <= height }
+        if let best = inside.max(by: { $0.width * $0.height < $1.width * $1.height }) {
+            return best
+        }
+        return accepted.min { lhs, rhs in
+            let left = (lhs.width - width) * (lhs.width - width)
+                + (lhs.height - height) * (lhs.height - height)
+            let right = (rhs.width - width) * (rhs.width - width)
+                + (rhs.height - height) * (rhs.height - height)
+            return left < right
+        } ?? accepted[0]
     }
 }
 
@@ -141,7 +188,9 @@ struct GameLaunchProfile: Equatable, Sendable {
 
     var managesResolution: Bool {
         let atoms = fixed + (display?.supportedModes.flatMap { display?.template(for: $0) ?? [] } ?? [])
-        return atoms.contains(.width) && atoms.contains(.height)
+        return atoms.contains(.resolution)
+            || atoms.contains(.treyarchMode)
+            || (atoms.contains(.width) && atoms.contains(.height))
     }
 
     var managesFieldOfView: Bool {
@@ -238,7 +287,12 @@ extension GameDescriptor {
 
     var launchProfile: GameLaunchProfile {
         switch id {
-        case "skyrim-se", "enderal-se":
+        case "skyrim-se":
+            return GameLaunchProfile(
+                requiresVisibleWindow: true,
+                exclusiveFullscreenPolicy: .capturedHostMode
+            )
+        case "enderal-se":
             return GameLaunchProfile(
                 exclusiveFullscreenPolicy: .capturedHostMode
             )
@@ -328,7 +382,23 @@ extension GameDescriptor {
                 requiresVisibleWindow: true
             )
         case "bo2-campaign", "bo2-multiplayer", "bo2-zombies":
+            // T6's own fullscreen path never presents a frame here: the main
+            // thread polls its renderer handshake forever behind a black
+            // window. `+set r_fullscreen 0` is queued until a video restart,
+            // and an r_mode outside the game's list is ignored, so the window
+            // stays at the fallback size and never draws. Command-line +set
+            // beats the encrypted .cgp configs; +vid_restart applies both on
+            // this launch.
             return GameLaunchProfile(
+                display: DisplayArgumentTemplates(
+                    borderless: nil,
+                    exclusive: nil,
+                    windowed: [
+                        .literal("+set"), .literal("r_fullscreen"), .literal("0"),
+                        .literal("+set"), .literal("r_mode"), .treyarchMode,
+                        .literal("+vid_restart")
+                    ]
+                ),
                 requiresVisibleWindow: true
             )
         default:
@@ -368,10 +438,9 @@ extension GameDescriptor {
     }
 
     var steamAuthorizationTimeoutSeconds: TimeInterval {
-        switch id {
-        case "bo2-campaign", "bo2-multiplayer", "bo2-zombies": 180
-        default: 90
-        }
+        // A cold Steam start under Rosetta that also updates itself can take
+        // well over 90 seconds on a fanless Air before it hands off the game.
+        180
     }
 
     var diagnosticExitImportAddress: String? {
@@ -435,6 +504,7 @@ extension GameDescriptor {
 
     var preferredInitialDisplayMode: DisplayMode {
         if id == "battlefront-2-classic" { return .windowed }
+        if launchProfile.display?.supportedModes == [.windowed] { return .windowed }
         return .borderlessFullscreen
     }
 

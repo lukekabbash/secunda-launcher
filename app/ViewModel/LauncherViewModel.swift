@@ -26,6 +26,8 @@ final class LauncherViewModel: ObservableObject {
     private let diagnosticService: DiagnosticService
     private let hostPowerProbe: HostPowerProbe
     private let bottleProcessInspector: BottleProcessInspector
+    /// Set by the app. Unpackaged builds have an updater that is unavailable.
+    weak var updater: AppUpdater?
     private var runtime: RuntimeDescriptor?
     private var installObservationTask: Task<Void, Never>?
     private var expectedInstallStates: [String: InstallExpectation] = [:]
@@ -611,6 +613,32 @@ final class LauncherViewModel: ObservableObject {
         progressLabel = nil
         setupProgress = nil
         stop()
+    }
+
+    /// True when any Windows process is running from this game space.
+    func isGameSpaceRunning() async -> Bool {
+        guard let runtime else { return false }
+        let running = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
+        return !running.isEmpty
+    }
+
+    /// Close Steam and every game before an update replaces the app bundle
+    /// and the Wine runtime inside it. Saves and the Steam library stay put.
+    func closeGameSpaceForUpdate() async {
+        guard let runtime else { return }
+        operationTask?.cancel()
+        operationTask = nil
+        operationID = nil
+        launchingDescriptorID = nil
+        isBusy = false
+        progressLabel = nil
+        setupProgress = nil
+        do {
+            try await shutdown(runtime)
+        } catch {
+            let leftovers = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
+            await bottleProcessInspector.forceKill(leftovers)
+        }
     }
 
     /// Refresh the on-demand process list shown in Launcher Settings.

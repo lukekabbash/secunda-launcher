@@ -46,15 +46,32 @@ final class BoundedProcessLog: @unchecked Sendable {
         try? pipe.fileHandleForWriting.close()
     }
 
-    func finish() {
+    func finish(process: Process? = nil) {
         queue.sync {
             guard !finished else { return }
             finished = true
             source.cancel()
             drainAvailableBytes()
+            if let process {
+                appendTermination(process)
+            }
             try? reader.close()
             try? writer.close()
         }
+    }
+
+    private func appendTermination(_ process: Process) {
+        let reason: String
+        switch process.terminationReason {
+        case .exit: reason = "exit"
+        case .uncaughtSignal: reason = "uncaught-signal"
+        @unknown default: reason = "unknown"
+        }
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let line = "\n[secunda-process-termination] timestamp=\(timestamp)"
+            + " pid=\(process.processIdentifier) reason=\(reason)"
+            + " status=\(process.terminationStatus)\n"
+        append(Data(line.utf8))
     }
 
     private func drainAvailableBytes() {

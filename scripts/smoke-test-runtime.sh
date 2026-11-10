@@ -61,6 +61,21 @@ compile_d3d11_smoke() {
 compile_d3d11_smoke x86_64-windows "$BUILD_ROOT/d3d11-smoke.exe"
 compile_d3d11_smoke i386-windows "$BUILD_ROOT/d3d11-smoke-x86.exe"
 
+# Black Ops II's PE32 renderer once died right after DXMT's "Setting display
+# mode". Keep that windowed -> exclusive fullscreen -> ResizeBuffers boundary
+# covered without Steam or CEG.
+"$WINEGCC" \
+    "${WINEGCC_PREFIX[@]}" \
+    -b i386-windows \
+    "$REPOSITORY_ROOT/tools/d3d11-present-smoke.c" \
+    -o "$BUILD_ROOT/d3d11-present-smoke-x86.exe" \
+    -ld3d11 \
+    -ldxgi \
+    -ldxguid \
+    -luuid \
+    -lkernel32 \
+    -luser32
+
 "$WINEGCC" \
     "${WINEGCC_PREFIX[@]}" \
     -b i386-windows \
@@ -245,6 +260,7 @@ run_execute_entry_observer() {
 run_bounded "Wine command" env "${COMMON_ENV[@]}" "$WINE" cmd.exe /d /c ver
 run_bounded "64-bit Direct3D 11" env "${COMMON_ENV[@]}" "$WINE" "$BUILD_ROOT/d3d11-smoke.exe"
 run_bounded "32-bit Direct3D 11" env "${COMMON_ENV[@]}" "$WINE" "$BUILD_ROOT/d3d11-smoke-x86.exe"
+run_bounded "32-bit Direct3D 11 fullscreen present" env "${COMMON_ENV[@]}" "$WINE" "$BUILD_ROOT/d3d11-present-smoke-x86.exe"
 run_bounded "32-bit debug-register relay" env \
     "${COMMON_ENV[@]}" \
     SECUNDA_DEBUG_RELAY_TRACE=1 \

@@ -10,6 +10,9 @@ final class SteamService {
         "-cef-allow-browser-underlays"
     ]
     static let interactiveOutput: ProcessOutput = .discard
+    /// The silent Steam installer finishes in well under a minute on a warm
+    /// Mac; ten minutes covers a cold Rosetta start without hanging forever.
+    static let installerTimeoutSeconds: TimeInterval = 600
 
     static func launchOutput(diagnostics: Bool, logURL: URL) -> ProcessOutput {
         diagnostics ? .append(logURL) : interactiveOutput
@@ -58,7 +61,8 @@ final class SteamService {
             arguments: runtime.wineArguments(for: [installer.path, "/S"]),
             environment: runtimeManager.environment(for: runtime, diagnostics: diagnostics),
             currentDirectory: paths.downloadsDirectory,
-            logURL: paths.logsDirectory.appendingPathComponent("steam-install.log")
+            logURL: paths.logsDirectory.appendingPathComponent("steam-install.log"),
+            timeoutSeconds: Self.installerTimeoutSeconds
         )
         guard result.terminationStatus == 0 else {
             throw ProcessRunnerError.nonZeroExit(result.terminationStatus, result.logURL)

@@ -140,7 +140,37 @@ final class VoiceAudioService {
         }
     }
 
+    /// Appends one bounded line explaining why native voice audio was skipped
+    /// for this launch. The message is Secunda's own error text, never output
+    /// from Steam or the game.
+    func recordDeferredInstall(_ error: Error) {
+        let url = paths.logsDirectory.appendingPathComponent("voice-audio-install.log")
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let line = "\n[secunda-voice-audio-deferred] timestamp=\(timestamp) "
+            + String(error.localizedDescription.prefix(240)) + "\n"
+        guard let data = line.data(using: .utf8) else { return }
+        try? paths.prepareManagedDirectories()
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+        } else {
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
     private func downloadRedistributable() async throws -> URL {
+        // One retry covers a dropped connection on Wi-Fi; a second failure
+        // is reported and the next Play tries again.
+        do {
+            return try await downloadRedistributableOnce()
+        } catch {
+            try await Task.sleep(for: .seconds(2))
+            return try await downloadRedistributableOnce()
+        }
+    }
+
+    private func downloadRedistributableOnce() async throws -> URL {
         try paths.prepareManagedDirectories()
         let destination = paths.downloadsDirectory.appendingPathComponent("directx_Jun2010_redist.exe")
         // The redistributable is ~96 MB; treat a short file as a failed fetch.
