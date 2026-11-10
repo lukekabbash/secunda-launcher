@@ -31,6 +31,37 @@ struct BottleProcess: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Decides what Secunda may remove without being asked. Both rules are
+/// deliberately narrow: an automatic sweep must never close a game or Steam
+/// session the player could still be using.
+enum OrphanSweepPolicy {
+    /// Windows processes cannot do anything once their wineserver is gone:
+    /// they have lost every handle, window and file they held. When the
+    /// bottle has processes and no server, all of them are dead weight.
+    /// `anyWineserverRunning` covers every Secunda runtime, not just this
+    /// bottle: a server whose environment the kernel will not show cannot be
+    /// tied to a bottle, and must still count as a live session.
+    static func serverlessOrphans(
+        _ processes: [BottleProcess],
+        anyWineserverRunning: Bool
+    ) -> [BottleProcess] {
+        anyWineserverRunning ? [] : processes
+    }
+
+    /// After a setup step times out, the bottle may be left with only Wine's
+    /// own housekeeping (wineboot, services, explorer) running, sometimes
+    /// spinning. That is safe to close only when neither Steam nor any game
+    /// is among the processes.
+    static func isOnlyHousekeeping(
+        _ processes: [BottleProcess],
+        playerImages: [String]
+    ) -> Bool {
+        !processes.isEmpty && !processes.contains {
+            BottleProcessInspector.matchesImages($0.command, images: playerImages)
+        }
+    }
+}
+
 /// Finds and force-kills game-space processes using host-OS facilities
 /// only (`/bin/ps`, `proc_pidpath`, `kill`). Deliberately independent of
 /// Wine's own IPC: this must keep working when wineserver is already dead

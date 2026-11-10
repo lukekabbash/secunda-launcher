@@ -54,7 +54,10 @@ struct SecundaLauncherApp: App {
                 }
                 .disabled(!updater.isAvailable || !updater.canCheckForUpdates)
                 Button("Refresh Status") {
-                    Task { await model.refresh() }
+                    Task {
+                        await model.refresh()
+                        await model.sweepOrphanedProcesses()
+                    }
                 }
                 .keyboardShortcut("r", modifiers: [.command])
             }

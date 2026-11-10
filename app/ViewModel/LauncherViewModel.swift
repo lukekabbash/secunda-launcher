@@ -124,6 +124,7 @@ final class LauncherViewModel: ObservableObject {
         applyRuntimeSettings()
         Task {
             await refresh()
+            await sweepOrphanedProcesses()
             startProcessObservation()
             isBusy = false
             progressLabel = nil
@@ -452,6 +453,7 @@ final class LauncherViewModel: ObservableObject {
             )
         ) {
             defer { self.launchingDescriptorID = nil }
+            await self.sweepOrphanedProcesses()
             try await self.launchGame(descriptor, runtime: runtime)
         }
     }
@@ -639,6 +641,73 @@ final class LauncherViewModel: ObservableObject {
             let leftovers = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
             await bottleProcessInspector.forceKill(leftovers)
         }
+    }
+
+    /// Images that mean a player session may be live: Steam and every game.
+    private static var playerImages: [String] {
+        ["steam.exe", "steamwebhelper.exe"]
+            + GameDescriptor.supported.flatMap(\.processImageNames)
+    }
+
+    /// Automatic counterpart to the Force Stop buttons. Removes processes in
+    /// this bottle that can no longer work, and nothing else:
+    /// - always: processes whose wineserver has gone;
+    /// - after a timed-out step only: leftover Wine housekeeping, when
+    ///   neither Steam nor a game is running.
+    /// Both conditions must hold on two looks a second apart, so a session
+    /// that is just starting is never mistaken for an orphan.
+    func sweepOrphanedProcesses(afterTimedOutStep: Bool = false) async {
+        guard let runtime else { return }
+        func candidates() async -> (orphans: [BottleProcess], housekeepingOnly: Bool) {
+            // If the process list cannot be read, assume a live session.
+            guard let everything = try? await bottleProcessInspector.runningProcesses(runtime: runtime),
+                  let processes = try? await bottleProcessInspector.processesInBottle(runtime: runtime)
+            else { return ([], false) }
+            let anyWineserver = everything.contains { process in
+                BottleProcessInspector.isWineserver(
+                    process,
+                    executablePath: BottleProcessInspector.executablePath(of: process.pid)
+                )
+            }
+            let orphans = OrphanSweepPolicy.serverlessOrphans(
+                processes,
+                anyWineserverRunning: anyWineserver
+            )
+            let housekeeping = afterTimedOutStep && OrphanSweepPolicy.isOnlyHousekeeping(
+                processes,
+                playerImages: Self.playerImages
+            )
+            return (orphans, housekeeping)
+        }
+
+        let first = await candidates()
+        guard !first.orphans.isEmpty || first.housekeepingOnly else { return }
+        try? await Task.sleep(for: .seconds(1))
+        let second = await candidates()
+
+        if !first.orphans.isEmpty, !second.orphans.isEmpty {
+            let firstIDs = Set(first.orphans.map(\.pid))
+            let stillThere = second.orphans.filter { firstIDs.contains($0.pid) }
+            guard !stillThere.isEmpty else { return }
+            await bottleProcessInspector.forceKill(stillThere)
+            addActivity(
+                "Cleaned up \(stillThere.count) leftover process\(stillThere.count == 1 ? "" : "es") from an earlier session.",
+                kind: .info
+            )
+        } else if first.housekeepingOnly, second.housekeepingOnly {
+            try? await bottleManager.shutdown(runtime: runtime, diagnostics: settings.enableDiagnostics)
+            let leftovers = (try? await bottleProcessInspector.processesInBottle(runtime: runtime)) ?? []
+            guard OrphanSweepPolicy.isOnlyHousekeeping(leftovers, playerImages: Self.playerImages) else {
+                refreshBottleProcesses()
+                return
+            }
+            await bottleProcessInspector.forceKill(leftovers)
+            addActivity(
+                "Stopped \(leftovers.count) background process\(leftovers.count == 1 ? "" : "es") left by the step that timed out.",
+                kind: .info
+            )
+        }
+        refreshBottleProcesses()
     }
 
     /// Refresh the on-demand process list shown in Launcher Settings.
@@ -976,6 +1045,11 @@ final class LauncherViewModel: ObservableObject {
             } catch {
                 if !Task.isCancelled {
                     present(error)
+                    if case .some(.timedOut) = error as? ProcessRunnerError {
+                        await sweepOrphanedProcesses(afterTimedOutStep: true)
+                    } else if case .some(.captureTimedOut) = error as? ProcessRunnerError {
+                        await sweepOrphanedProcesses(afterTimedOutStep: true)
+                    }
                 }
             }
             if operationID == currentOperationID {

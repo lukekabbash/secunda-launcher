@@ -943,6 +943,39 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+        let orphanServer = BottleProcess(pid: 10, ppid: 1, command: "/opt/rt/bin/wineserver")
+        let orphanBoot = BottleProcess(pid: 11, ppid: 1, command: "C:\\windows\\system32\\wineboot.exe --init")
+        let orphanExplorer = BottleProcess(pid: 12, ppid: 1, command: "C:\\windows\\system32\\explorer.exe /desktop")
+        let orphanSteam = BottleProcess(pid: 13, ppid: 1, command: "C:\\Program Files (x86)\\Steam\\steam.exe -silent")
+        let orphanGame = BottleProcess(pid: 14, ppid: 1, command: "C:\\Games\\t6zm.exe +set r_fullscreen 0")
+        let sweepImages = ["steam.exe", "steamwebhelper.exe"]
+            + GameDescriptor.supported.flatMap(\.processImageNames)
+        expect(
+            OrphanSweepPolicy.serverlessOrphans([orphanBoot, orphanGame], anyWineserverRunning: false)
+                == [orphanBoot, orphanGame]
+                && OrphanSweepPolicy.serverlessOrphans(
+                    [orphanBoot, orphanGame], anyWineserverRunning: true
+                ).isEmpty
+                && OrphanSweepPolicy.serverlessOrphans([], anyWineserverRunning: false).isEmpty,
+            "automatic sweep removes processes only when their wineserver is gone",
+            passes: &passes,
+            failures: &failures
+        )
+        expect(
+            OrphanSweepPolicy.isOnlyHousekeeping(
+                [orphanServer, orphanBoot, orphanExplorer], playerImages: sweepImages
+            )
+                && !OrphanSweepPolicy.isOnlyHousekeeping(
+                    [orphanServer, orphanBoot, orphanSteam], playerImages: sweepImages
+                )
+                && !OrphanSweepPolicy.isOnlyHousekeeping(
+                    [orphanServer, orphanExplorer, orphanGame], playerImages: sweepImages
+                )
+                && !OrphanSweepPolicy.isOnlyHousekeeping([], playerImages: sweepImages),
+            "timed-out step cleanup never touches Steam or a running game",
+            passes: &passes,
+            failures: &failures
+        )
         let classicProcess = BottleProcess(
             pid: 999,
             ppid: 1,
