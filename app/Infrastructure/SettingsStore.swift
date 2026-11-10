@@ -65,8 +65,26 @@ struct LauncherSettings: Codable, Equatable, Sendable {
     var games: [String: GameSettings] = [:]
     /// Selected default component per multi-component group (groupID → descriptorID).
     var groupDefaults: [String: String] = [:]
+    /// One-time changes to stored settings that have already run, so a
+    /// player's later choice is never overwritten again.
+    var appliedMigrations: Set<String> = Self.allMigrations
+
+    /// Black Ops II could only run windowed before 0.1.7, so a stored
+    /// "windowed" was never a choice. Move it to the fullscreen window once.
+    static let blackOps2FullscreenMigration = "bo2-fullscreen-window-default"
+    static let allMigrations: Set<String> = [blackOps2FullscreenMigration]
 
     init() {}
+
+    mutating func applyPendingMigrations() {
+        if !appliedMigrations.contains(Self.blackOps2FullscreenMigration) {
+            for id in ["bo2-campaign", "bo2-multiplayer", "bo2-zombies"]
+            where games[id]?.displayMode == .windowed {
+                games[id]?.displayMode = .borderlessFullscreen
+            }
+            appliedMigrations.insert(Self.blackOps2FullscreenMigration)
+        }
+    }
 
     /// Settings for one game, falling back to defaults for games that have
     /// never been configured.
@@ -89,6 +107,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         case activeFastSync
         case games
         case groupDefaults
+        case appliedMigrations
         // Legacy flat keys from the single-game settings file.
         case displayMode
         case launchInWindow
@@ -104,10 +123,14 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         useFastSync = try container.decodeIfPresent(Bool.self, forKey: .useFastSync) ?? true
         activeFastSync = try container.decodeIfPresent(Bool.self, forKey: .activeFastSync) ?? useFastSync
         groupDefaults = try container.decodeIfPresent([String: String].self, forKey: .groupDefaults) ?? [:]
+        // A file written before migrations were recorded has run none.
+        appliedMigrations = try container.decodeIfPresent(Set<String>.self, forKey: .appliedMigrations) ?? []
         if let games = try container.decodeIfPresent([String: GameSettings].self, forKey: .games) {
             self.games = games
+            applyPendingMigrations()
             return
         }
+        defer { applyPendingMigrations() }
 
         // Migrate the legacy flat file into Skyrim's per-game entry.
         var legacy = GameSettings()
@@ -130,6 +153,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         try container.encode(activeFastSync, forKey: .activeFastSync)
         try container.encode(games, forKey: .games)
         try container.encode(groupDefaults, forKey: .groupDefaults)
+        try container.encode(appliedMigrations.sorted(), forKey: .appliedMigrations)
     }
 }
 

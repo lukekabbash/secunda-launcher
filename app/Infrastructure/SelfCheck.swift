@@ -2285,6 +2285,27 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+        let preMigrationFile = Data("""
+            {"games":{"bo2-multiplayer":{"displayMode":"windowed"},"bo2-campaign":{"displayMode":"windowed"},"skyrim-se":{"displayMode":"windowed"}}}
+            """.utf8)
+        let migratedFile = Data("""
+            {"games":{"bo2-multiplayer":{"displayMode":"windowed"}},"appliedMigrations":["bo2-fullscreen-window-default"]}
+            """.utf8)
+        let bo2Migrated = try? JSONDecoder().decode(LauncherSettings.self, from: preMigrationFile)
+        let alreadyMigrated = try? JSONDecoder().decode(LauncherSettings.self, from: migratedFile)
+        let roundTripped = bo2Migrated.flatMap { try? JSONEncoder().encode($0) }
+            .flatMap { try? JSONDecoder().decode(LauncherSettings.self, from: $0) }
+        expect(
+            bo2Migrated?.games["bo2-multiplayer"]?.displayMode == DisplayMode.borderlessFullscreen
+                && bo2Migrated?.games["bo2-campaign"]?.displayMode == DisplayMode.borderlessFullscreen
+                && bo2Migrated?.games["skyrim-se"]?.displayMode == DisplayMode.windowed
+                && alreadyMigrated?.games["bo2-multiplayer"]?.displayMode == DisplayMode.windowed
+                && roundTripped?.appliedMigrations.contains(LauncherSettings.blackOps2FullscreenMigration) == true
+                && LauncherSettings().appliedMigrations == LauncherSettings.allMigrations,
+            "saved Black Ops II windowed settings move to the fullscreen window once, and a later choice sticks",
+            passes: &passes,
+            failures: &failures
+        )
         var bo2Settings = LauncherSettings().game(.blackOps2Zombies)
         bo2Settings.displayMode = .windowed
         bo2Settings.width = 2560
