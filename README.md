@@ -40,7 +40,7 @@ I have played these on my 2026 MacBook Air M5 with 24 GB of memory.
 | Fallout 4 | Played. |
 | Supreme Commander 2 | Played. |
 | Insurgency | Played. A bit laggy. |
-| Black Ops II | Campaign exits early. Multiplayer and Zombies still need gameplay acceptance. |
+| Black Ops II | Zombies boots and plays. Multiplayer and Campaign are untested since that fix; Campaign previously exited early. |
 | Battlefront II Classic, Supreme Commander, Supreme Commander: Forged Alliance, Angels Fall First, Fallout New Vegas, Portal 2, Half-Life 2, and Enderal Forgotten Stories SE | Experimental. |
 
 Enderal Forgotten Stories SE needs Skyrim Special Edition owned on the same Steam account.

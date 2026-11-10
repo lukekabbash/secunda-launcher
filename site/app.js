@@ -29,7 +29,7 @@ const GAMES = [
   { title: "Angels Fall First", status: "experimental", api: "DirectX 9",
     note: "Runs through DXVK and Vulkan instead of the default DirectX 9 path, set per game by its profile." },
   { title: "Call of Duty: Black Ops II", status: "partial", api: "DirectX 11",
-    note: "The campaign closes early on this setup. Multiplayer and Zombies haven't been tested end to end yet." },
+    note: "Zombies starts and plays. Multiplayer and the campaign haven't been re-tested yet; the campaign used to close early." },
 ];
 
 const STATUS_LABEL = { played: "Played", experimental: "Experimental", partial: "Partial" };

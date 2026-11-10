@@ -2215,7 +2215,7 @@ enum SelfCheck {
                 && tracedBO2MPEnvironment["SECUNDA_TRACE_EXECUTE_ENTRY"]
                     == "0x009B2DB0,0x009B2E80,0x009B2F50"
                 && tracedBO2Environment["SECUNDA_ROSETTA_GUARDED_EXECUTE_READS"] == "1"
-                && tracedBO2Environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] == "1"
+                && tracedBO2Environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] == nil
                 && tracedBO2Environment["SECUNDA_PREFER_IMAGE_BASE"] == "0x38000000"
                 && tracedBO2Environment["SECUNDA_PREFER_IMAGE_NAME"] == "steamclient.dll"
                 && tracedBO2Environment["WINEDEBUG"]
@@ -2227,7 +2227,7 @@ enum SelfCheck {
                 && quietBO2Environment["SECUNDA_TRACE_EXECUTE_ENTRY"] == nil
                 && quietBO2Environment["WINEDEBUG"] == nil
                 && quietBO2Environment["SECUNDA_ROSETTA_GUARDED_EXECUTE_READS"] == "1"
-                && quietBO2Environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] == "1"
+                && quietBO2Environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] == nil
                 && quietBO2Environment["SECUNDA_PREFER_IMAGE_BASE"] == "0x38000000"
                 && quietBO2Environment["SECUNDA_PREFER_IMAGE_NAME"] == "steamclient.dll"
                 && tracedNonBO2Environment["SECUNDA_TRACE_PROTECTED_TRANSFORM"] == nil

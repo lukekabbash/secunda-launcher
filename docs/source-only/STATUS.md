@@ -48,12 +48,23 @@ Updated: 2026-08-09
 
 ## Black Ops II extension status
 
-- Multiplayer (`202990`) and Zombies (`212910`) each survived a fresh 60-second process-health run using the cleaned source runtime and the original authenticated Steam prefix.
-- Both modes loaded the runtime's 32-bit `d3d11.dll`, `dxgi.dll`, `winemetal.dll`, the matching 64-bit `winemetal.so`, Apple's Metal driver, and the installed game's own `steam_api.dll`.
-- This proves Steam authorization, sustained process execution, and the intended PE32 Direct3D 11-to-Metal ownership path. It does **not** yet prove rendered menus, audio, input, online services, matchmaking, or gameplay because the Mac was locked during the unattended run.
-- Campaign (`202970`) completes Steam's executable-generation exchange, starts, and then exits after roughly three seconds with Windows status `0xC0000008` (`STATUS_INVALID_HANDLE`). A fully restarted fast-synchronization-off run failed the same way.
-- The remaining campaign boundary is below Secunda's launch orchestration: translated x86 execution accepts execute breakpoints, but Wine cannot set the data-watchpoint state this executable requests under the current Rosetta path. A page-protection experiment was too coarse and all temporary runtime instrumentation was removed; the staged source matches the official CodeWeavers source again.
-- Secunda does not patch, decrypt, replace, or bypass Steam-generated executables. Campaign should remain a partial compatibility result until the translated runtime has correct data-watchpoint/debug-context semantics.
+Updated 2026-11-10.
+
+- Zombies (`212910`) boots to its menu and has been played in an online match on a 2026 MacBook Air M5. Multiplayer (`202990`) and Campaign (`202970`) have not been re-tested since.
+- The long-standing black window was a macOS privacy abort, not a renderer or protection problem. The game opens the microphone at startup, the app declared no `NSMicrophoneUsageDescription`, and macOS aborted the requesting thread inside the game. Declaring the usage string fixed it.
+- The games run through the runtime's 32-bit `d3d11.dll`, `dxgi.dll` and `winemetal.dll` to Metal, launched by the user's own Steam client and ownership check.
+- Black Ops II uses a native-DPI session and a windowed `r_mode` chosen from the display. Fullscreen has not been re-tested since the privacy fix.
+- Campaign last exited after roughly three seconds with `0xC0000008` (`STATUS_INVALID_HANDLE`). That result predates the privacy fix and needs a fresh run before any conclusion.
+
+### What the runtime does for these executables
+
+An earlier version of this page said all runtime instrumentation had been removed and the staged source matched the CodeWeavers source. That was not true of the shipped runtime, and this section replaces it.
+
+- `patches/wine-secunda-rosetta-debug-registers.patch` and `tools/secunda-rosetta-debug-broker.c` emulate x86 debug registers, which Rosetta does not provide to translated programs. A native helper sets ARM watchpoints on the game's threads and reports hits in x86 form; execute breakpoints are imitated by withdrawing execute permission from the page. The launcher starts this for Black Ops II only.
+- `SECUNDA_ROSETTA_GUARDED_EXECUTE_READS` keeps such a page readable while execution is trapped, and `SECUNDA_PREFER_IMAGE_BASE`/`SECUNDA_PREFER_IMAGE_NAME` ask for `steamclient.dll` at the address the game expects.
+- The same patch contains a read fix-up keyed to specific code addresses in the Zombies and Multiplayer executables (`SECUNDA_ROSETTA_PROTECTED_HASH_COPY`). It handed the game's own integrity routine the real bytes of a page the emulation had made unreadable. The launcher no longer enables it: Zombies boots to its menu without it, and no retained log shows it ever firing. The code is still present in the patch and in the built runtime, inert unless the variable is set, and should be deleted at the next runtime rebuild.
+- With Diagnostics on, the launcher also sets trace variables (`SECUNDA_TRACE_*`) that log around the game's exit path. They observe; they do not change what the game sees.
+- Secunda does not modify, decrypt, replace or skip checks in Steam-generated executables, and does not supply games or accounts.
 
 ## Performance and stability
 
@@ -68,12 +79,12 @@ Updated: 2026-08-09
 - The app declares Game Mode eligibility, but the live translated child still showed Game Mode off in the measured HUD. Do not claim active Game Mode until macOS reports it.
 - One older synthetic journal-key experiment ended with `0xC0000005`; later normal gameplay/save/load/quit cycles remained stable. Preserve this as a historical stability datapoint.
 - The final local DMG is intentionally labeled TEST-ONLY unless signing/notarization credentials are supplied.
-- Black Ops II Multiplayer and Zombies still need an unlocked visual/audio/input/online acceptance pass. Campaign is not currently playable on this Rosetta-based runtime.
+- Black Ops II Zombies is playable; Multiplayer and Campaign need a fresh run, and none of the modes has had a full audio/input/controller acceptance pass.
 
 ## Next action
 
 1. Manually run the new Insurgency, Supreme Commander, Forged Alliance, Angels Fall First, and Battlefront II Classic profiles through rendered-menu, audio, input, gameplay, settings, and clean-stop acceptance before making compatibility claims.
-2. On the current unlocked Mac, run Black Ops II Multiplayer and Zombies through rendered-menu, audio, keyboard/mouse/controller, online-service, matchmaking/private-match, gameplay, and clean-stop acceptance.
-3. Revisit Campaign only when the translated runtime can preserve the requested x86 data-watchpoint/debug-context state; do not substitute an executable or DRM bypass.
+2. Re-run Black Ops II Multiplayer and Campaign now that the privacy abort is fixed, and take Zombies through audio, keyboard/mouse/controller, and clean-stop acceptance.
+3. Delete the address-specific read fix-up from the debug-register patch at the next runtime rebuild. Do not substitute an executable or DRM bypass for any mode that still fails.
 4. For broad sharing, sign and notarize the validated candidate with a Developer ID identity.
 5. Run the notarized, quarantined candidate through first-run Steam login, game download, Play, audio/input/gameplay, save/load, Stop, and uninstall acceptance on a separate clean Apple-Silicon Mac.

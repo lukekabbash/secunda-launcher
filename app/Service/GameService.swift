@@ -863,7 +863,6 @@ final class GameService {
         case "bo2-campaign", "bo2-multiplayer", "bo2-zombies":
             var environment = base
             environment["SECUNDA_ROSETTA_GUARDED_EXECUTE_READS"] = "1"
-            environment["SECUNDA_ROSETTA_PROTECTED_HASH_COPY"] = "1"
             environment["SECUNDA_PREFER_IMAGE_BASE"] = "0x38000000"
             environment["SECUNDA_PREFER_IMAGE_NAME"] = "steamclient.dll"
             // Steam injects its 32-bit overlay into every T6 executable even

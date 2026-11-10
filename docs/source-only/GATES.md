@@ -58,3 +58,5 @@ Date: 2026-08-08
 - Multiplayer and Zombies each passed a fresh 60-second process-health run and loaded the bundled 32-bit Direct3D 11-to-Metal chain. The locked unattended session could not accept rendering, audio, input, online services, matchmaking, or gameplay, so these modes are not yet end-to-end passes.
 - Campaign completed Steam's executable-generation exchange but exited after roughly three seconds with `0xC0000008` under both fast-synchronization modes. The remaining failure is in translated x86 debug-context/data-watchpoint handling below the launcher's ownership boundary.
 - All diagnostic Wine instrumentation was removed, and the staged source/runtime was returned to the official CodeWeavers source before the clean Multiplayer and Zombies runs.
+
+Correction, 2026-11-10: the last line above is not accurate for the runtime that shipped. It carries a debug-register emulation patch and a native helper for these executables; `STATUS.md` describes exactly what they do. Zombies now boots and plays after a macOS privacy fix (a missing microphone usage declaration), with the address-specific read fix-up disabled.
