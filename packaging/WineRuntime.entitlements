@@ -4,5 +4,10 @@
 <dict>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
+    <!-- Games open the microphone for voice chat at startup. Under the
+         hardened runtime the process is denied without this, and titles
+         such as Black Ops II exit. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
 </dict>
 </plist>
