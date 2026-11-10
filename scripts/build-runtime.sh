@@ -35,6 +35,7 @@ RUNTIME_PATCHES=(
     "$REPOSITORY_ROOT/patches/wine-secunda-compat-knobs.patch"
     "$REPOSITORY_ROOT/patches/wine-avrt-mmcss-priority.patch"
     "$REPOSITORY_ROOT/patches/wine-secunda-sdl-controller-bus.patch"
+    "$REPOSITORY_ROOT/patches/wine-secunda-process-names.patch"
 )
 
 cleanup() {

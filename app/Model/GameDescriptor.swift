@@ -882,4 +882,42 @@ extension GameDescriptor {
     static func descriptor(for id: String) -> GameDescriptor? {
         supported.first { $0.id == id }
     }
+
+    /// Environment variable the Secunda Wine runtime reads to name hosted
+    /// processes in the Dock and application menu
+    /// (patches/wine-secunda-process-names.patch).
+    static let hostedProcessNamesKey = "SECUNDA_PROCESS_NAMES"
+
+    /// The name macOS shows for this game's process. It becomes a file name
+    /// and a table value, so path and table separators are kept out of it.
+    var hostedProcessName: String {
+        title
+            .replacingOccurrences(of: ":", with: "")
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: "|", with: "-")
+    }
+
+    /// "image.exe=Name|…" for Steam and every catalog game. The runtime takes
+    /// the first match, so `preferred` wins where two titles share an image
+    /// (Skyrim and Enderal both run SkyrimSE.exe).
+    static func hostedProcessNames(preferring preferred: GameDescriptor? = nil) -> String {
+        var seen = Set<String>()
+        var entries: [String] = []
+        func add(_ image: String, _ name: String) {
+            guard !image.isEmpty, !image.contains("="), !image.contains("|"),
+                  seen.insert(image.lowercased()).inserted
+            else { return }
+            entries.append("\(image)=\(name)")
+        }
+        for descriptor in [preferred].compactMap({ $0 }) + supported {
+            add(descriptor.gameImageName, descriptor.hostedProcessName)
+            add(
+                URL(fileURLWithPath: descriptor.executableRelativePath).lastPathComponent,
+                descriptor.hostedProcessName
+            )
+        }
+        add("steam.exe", "Steam")
+        add("steamwebhelper.exe", "Steam")
+        return entries.joined(separator: "|")
+    }
 }

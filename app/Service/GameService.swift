@@ -841,6 +841,8 @@ final class GameService {
         var environment = base
         environment["SteamAppId"] = descriptor.steamAppID
         environment["SteamGameId"] = descriptor.steamAppID
+        environment[GameDescriptor.hostedProcessNamesKey] =
+            GameDescriptor.hostedProcessNames(preferring: descriptor)
         environment.merge(dxmtEnvironmentOverrides(for: descriptor)) { _, new in new }
         return environment
     }

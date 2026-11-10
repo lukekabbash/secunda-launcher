@@ -253,10 +253,20 @@ final class BottleProcessInspector {
     /// (bin/), and Windows processes report the unix loader three below
     /// (lib/wine/x86_64-unix/wine), so a short ancestor walk finds the
     /// provenance manifest without scanning the disk.
+    ///
+    /// Hosted programs run from a hard link named after them in a per-user
+    /// `winetemp-*` directory, so macOS shows their name instead of "wine".
+    /// The runtime leaves an `ntdll.so` symlink there pointing back at the
+    /// loader's real directory; follow it before walking.
     static func isInsideProvenancedRuntime(_ executablePath: String) -> Bool {
         var directory = URL(fileURLWithPath: executablePath)
             .resolvingSymlinksInPath().standardizedFileURL
             .deletingLastPathComponent()
+        if directory.lastPathComponent.hasPrefix("winetemp-") {
+            directory = directory.appendingPathComponent("ntdll.so")
+                .resolvingSymlinksInPath().standardizedFileURL
+                .deletingLastPathComponent()
+        }
         for _ in 0..<6 {
             let manifest = directory
                 .appendingPathComponent(SourceRuntimePolicy.provenanceRelativePath)

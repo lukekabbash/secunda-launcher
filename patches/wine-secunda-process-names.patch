@@ -1,0 +1,92 @@
+--- a/dlls/ntdll/unix/loader.c
++++ b/dlls/ntdll/unix/loader.c
+@@ -694,6 +694,42 @@
+ 
+ /* CW HACK 22144 */
+ #ifdef __APPLE__
++/* Secunda: the launcher publishes readable names for the programs it knows
++ * as SECUNDA_PROCESS_NAMES="image.exe=Display Name|other.exe=Other Name".
++ * Images are matched case-insensitively, with or without their extension;
++ * the first match wins.
++ */
++static char *secunda_process_display_name(const char *exe_name, size_t stem_len)
++{
++    const char *table = getenv("SECUNDA_PROCESS_NAMES");
++    size_t full_len = strlen(exe_name);
++
++    while (table && *table)
++    {
++        const char *entry_end = strchr(table, '|');
++        const char *equals;
++        size_t entry_len = entry_end ? (size_t)(entry_end - table) : strlen(table);
++
++        if ((equals = memchr(table, '=', entry_len)))
++        {
++            size_t key_len = equals - table;
++            size_t value_len = entry_len - key_len - 1;
++
++            if (value_len &&
++                ((key_len == full_len && !strncasecmp(table, exe_name, key_len)) ||
++                 (key_len == stem_len && !strncasecmp(table, exe_name, key_len))))
++            {
++                char *p, *ret = strndup(equals + 1, value_len);
++                /* The name becomes a file name: keep path separators out of it. */
++                for (p = ret; p && *p; p++) if (*p == '/' || *p == ':') *p = '-';
++                return ret;
++            }
++        }
++        table = entry_end ? entry_end + 1 : NULL;
++    }
++    return NULL;
++}
++
+ /* This is the same "exe path to display name" algorithm used in
+  * loader/main.c to determine the name used for the application menu (CW hack 13438).
+  *
+@@ -718,10 +754,12 @@
+     else
+         exe_name_len = strlen(exe_name);
+ 
+-    if (exe_name_len)
+-        ret = strdup(exe_name);
+-    else
++    /* Secunda: prefer the launcher's name, and otherwise show the program
++     * without its extension ("steam" rather than "steam.exe"). */
++    if (!exe_name_len)
+         ret = NULL;
++    else if (!(ret = secunda_process_display_name(exe_name, exe_name_len)))
++        ret = strndup(exe_name, exe_name_len);
+ 
+     free(exe_path_copy);
+     return ret;
+@@ -844,8 +882,17 @@
+      * When the preloader is not being used, WINEDLLPATH needs to be set correctly for
+      * the loader to find ntdll.so, so don't even attempt this unless WINEDLLPATH is set.
+      */
+-    if (getenv("WINEDLLPATH"))
++    /* Secunda: the loader is installed beside ntdll.so and the link directory
++     * carries an ntdll.so symlink, so the renamed loader finds its way home
++     * without WINEDLLPATH (which the launcher never sets). If the named link
++     * cannot be run, fall through to the loader itself. */
++    {
++        char *loader_path = strdup( argv[1] );
++
+         replace_wineloader_path_with_link( &(argv[1]), image_path );
++        execv( argv[1], argv + 1 );
++        argv[1] = loader_path;
++    }
+ #endif
+ 
+     execv( argv[1], argv + 1 );
+@@ -2708,6 +2755,11 @@
+     /* default to 32-bit loader to support 32-bit prefixes */
+     if (machine == IMAGE_FILE_MACHINE_AMD64) machine = IMAGE_FILE_MACHINE_I386;
+ 
++#ifdef __APPLE__
++    /* Secunda: name the first process after the program it was asked to run
++     * rather than after the "wine" wrapper that started it. */
++    if (argc > 1) loader_exec( new_argv, machine, argv[1] );
++#endif
+     loader_exec( new_argv, machine, argv[0] );
+     fatal_error( "could not exec the wine loader\n" );
+ }

@@ -135,6 +135,7 @@ final class RuntimeManager {
             "ROSETTA_ADVERTISE_AVX": "1",
             "SECUNDA_SOURCE_ONLY": "1",
             "SECUNDA_CEF_IN_PROCESS_GPU": "1",
+            GameDescriptor.hostedProcessNamesKey: GameDescriptor.hostedProcessNames(),
             "DXMT_LOG_LEVEL": diagnostics ? "info" : "none",
             "DXMT_SHADER_CACHE_PATH": paths.graphicsCacheDirectory.path
         ]

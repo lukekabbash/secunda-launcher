@@ -1074,6 +1074,55 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+        let linkRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("secunda-named-links-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: linkRoot) }
+        let namedLinkDirectory = linkRoot
+            .appendingPathComponent("winetemp-1-2-3-4", isDirectory: true)
+        let strayLinkDirectory = linkRoot
+            .appendingPathComponent("winetemp-5-6-7-8", isDirectory: true)
+        do {
+            for directory in [namedLinkDirectory, strayLinkDirectory] {
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: true
+                )
+                try Data().write(to: directory.appendingPathComponent("Steam"))
+            }
+            let unixLibrary = provenancedLoader
+                .deletingLastPathComponent().appendingPathComponent("ntdll.so")
+            try Data().write(to: unixLibrary)
+            try FileManager.default.createSymbolicLink(
+                at: namedLinkDirectory.appendingPathComponent("ntdll.so"),
+                withDestinationURL: unixLibrary
+            )
+        } catch {}
+        expect(
+            BottleProcessInspector.isInsideProvenancedRuntime(
+                namedLinkDirectory.appendingPathComponent("Steam").path
+            )
+                && !BottleProcessInspector.isInsideProvenancedRuntime(
+                    strayLinkDirectory.appendingPathComponent("Steam").path
+                ),
+            "provenance walk follows a named loader link back to its runtime",
+            passes: &passes,
+            failures: &failures
+        )
+        let processNames = GameDescriptor.hostedProcessNames()
+        let enderalNames = GameDescriptor.hostedProcessNames(preferring: .enderalSE)
+        expect(
+            processNames.contains("t6zm.exe=Call of Duty Black Ops II - Zombies")
+                && processNames.contains("steam.exe=Steam")
+                && processNames.hasPrefix("SkyrimSE.exe=The Elder Scrolls V Skyrim Special Edition|")
+                && enderalNames.hasPrefix("SkyrimSE.exe=Enderal Forgotten Stories (Special Edition)|")
+                && !processNames.contains(":") && !processNames.contains("/")
+                && GameService.gameEnvironment(base: [:], descriptor: .enderalSE)[
+                    GameDescriptor.hostedProcessNamesKey
+                ] == enderalNames,
+            "hosted process names give each catalog image its game title",
+            passes: &passes,
+            failures: &failures
+        )
         try? FileManager.default.removeItem(at: provenancedRoot)
         expect(
             BottleProcessInspector.matchesImages(
