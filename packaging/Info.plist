@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.6</string>
+	<string>0.1.7</string>
 	<key>CFBundleVersion</key>
-	<string>7</string>
+	<string>8</string>
 	<key>GCSupportsGameMode</key>
 	<true/>
 	<key>LSApplicationCategoryType</key>
@@ -30,10 +30,10 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Games that support voice chat open the microphone when they start. Secunda Launcher itself never records audio.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 LK Digital Solutions LLC. MIT License. Secunda Launcher is an unofficial community project.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Games that support voice chat open the microphone when they start. Secunda Launcher itself never records audio.</string>
 	<key>SUAllowsAutomaticUpdates</key>
 	<false/>
 	<key>SUAutomaticallyUpdate</key>
