@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LauncherRootView: View {
     @ObservedObject var model: LauncherViewModel
+    @EnvironmentObject private var updater: AppUpdater
 
     var body: some View {
         ZStack {
@@ -97,6 +98,19 @@ struct LauncherRootView: View {
                         .tracking(0.6)
                         .foregroundStyle(SecundaTheme.secondaryText.opacity(0.8))
                     Spacer()
+                    if let version = updater.status.availableVersion {
+                        Button {
+                            updater.checkForUpdates()
+                        } label: {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(SecundaTheme.frost)
+                        }
+                        .buttonStyle(SecundaIconButtonStyle())
+                        .help("Secunda \(version) is available. Click to update.")
+                        .accessibilityLabel("Update to Secunda \(version)")
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    }
                     Button {
                         select(.settings)
                     } label: {
@@ -112,6 +126,7 @@ struct LauncherRootView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
+                .animation(.easeOut(duration: 0.25), value: updater.status)
             }
         }
         .padding(.top, 34)

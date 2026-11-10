@@ -33,6 +33,12 @@ struct SecundaLauncherApp: App {
             await model?.closeGameSpaceForUpdate()
         }
         model.updater = updater
+        #if DEBUG
+        // Design preview: open straight to Settings in an unpackaged debug build.
+        if ProcessInfo.processInfo.environment["SECUNDA_PREVIEW_SETTINGS"] != nil {
+            model.selection = .settings
+        }
+        #endif
         _model = StateObject(wrappedValue: model)
         _updater = StateObject(wrappedValue: updater)
     }
@@ -40,6 +46,7 @@ struct SecundaLauncherApp: App {
     var body: some Scene {
         WindowGroup {
             LauncherRootView(model: model)
+                .environmentObject(updater)
                 .frame(minWidth: 960, minHeight: 640)
                 .preferredColorScheme(.dark)
                 .onAppear { appDelegate.updater = updater }

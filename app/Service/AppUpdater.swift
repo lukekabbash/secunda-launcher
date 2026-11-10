@@ -13,10 +13,35 @@ import Sparkle
 @MainActor
 final class AppUpdater: NSObject, ObservableObject {
     @Published private(set) var canCheckForUpdates = false
+    /// What the last finished check found. Drives the sidebar indicator and
+    /// the update row in Settings.
+    @Published private(set) var status: Status = .unknown
+    @Published private(set) var lastCheckDate: Date?
+
+    enum Status: Equatable {
+        /// No check has finished since Secunda opened.
+        case unknown
+        case upToDate
+        case available(version: String)
+
+        var availableVersion: String? {
+            if case .available(let version) = self { return version }
+            return nil
+        }
+    }
+
+    /// Whether Secunda checks on its own once a day.
+    var checksAutomatically: Bool {
+        get { controller?.updater.automaticallyChecksForUpdates ?? false }
+        set {
+            objectWillChange.send()
+            controller?.updater.automaticallyChecksForUpdates = newValue
+        }
+    }
 
     /// False in `swift run` and other unpackaged builds, which have no feed
     /// URL or public key. Sparkle is never started without both.
-    let isAvailable: Bool
+    private(set) var isAvailable: Bool
 
     /// Returns true when Steam or a game is running in the game space.
     var isGameSpaceActive: () async -> Bool = { false }
@@ -33,13 +58,25 @@ final class AppUpdater: NSObject, ObservableObject {
     override init() {
         isAvailable = Self.hasFeedConfiguration(Bundle.main)
         super.init()
+        #if DEBUG
+        // Design preview for unpackaged debug builds, which have no feed:
+        // SECUNDA_PREVIEW_UPDATE=0.9.9 shows the "available" state, and
+        // SECUNDA_PREVIEW_UPDATE=none shows "up to date".
+        if !isAvailable, let preview = ProcessInfo.processInfo.environment["SECUNDA_PREVIEW_UPDATE"] {
+            isAvailable = true
+            status = preview == "none" ? .upToDate : .available(version: preview)
+            lastCheckDate = Date().addingTimeInterval(-900)
+            return
+        }
+        #endif
         guard isAvailable else { return }
         let controller = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: self,
-            userDriverDelegate: nil
+            userDriverDelegate: self
         )
         self.controller = controller
+        lastCheckDate = controller.updater.lastUpdateCheckDate
         cancellable = controller.updater.publisher(for: \.canCheckForUpdates)
             .receive(on: RunLoop.main)
             .sink { [weak self] value in self?.canCheckForUpdates = value }
@@ -82,7 +119,56 @@ final class AppUpdater: NSObject, ObservableObject {
     }
 }
 
+/// A scheduled check that finds an update lights the indicator beside the
+/// Settings button instead of opening a window over whatever the player is
+/// doing. Clicking the indicator, or checking by hand, opens Sparkle's
+/// update window as usual.
+extension AppUpdater: SPUStandardUserDriverDelegate {
+    nonisolated var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    nonisolated func standardUserDriverShouldHandleShowingScheduledUpdate(
+        _ update: SUAppcastItem,
+        andInImmediateFocus immediateFocus: Bool
+    ) -> Bool {
+        false
+    }
+
+    nonisolated func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        let version = update.displayVersionString
+        MainActor.assumeIsolated {
+            self.status = .available(version: version)
+        }
+    }
+}
+
 extension AppUpdater: SPUUpdaterDelegate {
+    nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        let version = item.displayVersionString
+        MainActor.assumeIsolated {
+            self.status = .available(version: version)
+        }
+    }
+
+    nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        MainActor.assumeIsolated {
+            self.status = .upToDate
+        }
+    }
+
+    nonisolated func updater(
+        _ updater: SPUUpdater,
+        didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
+        error: Error?
+    ) {
+        MainActor.assumeIsolated {
+            self.lastCheckDate = self.controller?.updater.lastUpdateCheckDate
+        }
+    }
+
     nonisolated func updater(
         _ updater: SPUUpdater,
         shouldPostponeRelaunchForUpdate item: SUAppcastItem,

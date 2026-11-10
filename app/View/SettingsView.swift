@@ -4,8 +4,91 @@ import SwiftUI
 /// audio options live on each game's own page in the library.
 struct SettingsView: View {
     @ObservedObject var model: LauncherViewModel
+    @EnvironmentObject private var updater: AppUpdater
     @State private var copied = false
     @State private var showsForceStopAllConfirmation = false
+
+    private var updateTitle: String {
+        switch updater.status {
+        case .available(let version): "Secunda \(version) is available"
+        case .upToDate: "Secunda is up to date"
+        case .unknown: "Updates"
+        }
+    }
+
+    private var updateDetail: String {
+        let schedule = updater.checksAutomatically ? "Checks once a day" : "Automatic checks are off"
+        guard let date = updater.lastCheckDate else { return schedule }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        let checked = formatter.localizedString(for: date, relativeTo: Date())
+        return "Last checked \(checked) · \(schedule)"
+    }
+
+    private var updateRow: some View {
+        let hasUpdate = updater.status.availableVersion != nil
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                Image(systemName: hasUpdate ? "arrow.down.circle.fill" : "checkmark.circle")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(hasUpdate ? SecundaTheme.frost : SecundaTheme.secondaryText)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(updateTitle)
+                        .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
+                        .foregroundStyle(SecundaTheme.text)
+                    Text(updateDetail)
+                        .font(.caption)
+                        .foregroundStyle(SecundaTheme.secondaryText)
+                }
+                Spacer(minLength: 12)
+                if hasUpdate {
+                    Button {
+                        updater.checkForUpdates()
+                    } label: {
+                        Label("Update", systemImage: "arrow.down.to.line")
+                    }
+                    .buttonStyle(SecundaActionButtonStyle(prominent: true))
+                    .help("See what's new, then download and install")
+                } else {
+                    Button {
+                        updater.checkForUpdates()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(SecundaIconButtonStyle())
+                    .help("Check for updates now")
+                    .accessibilityLabel("Check for updates")
+                    .disabled(!updater.canCheckForUpdates)
+                }
+            }
+            Toggle(isOn: Binding(
+                get: { updater.checksAutomatically },
+                set: { updater.checksAutomatically = $0 }
+            )) {
+                Text("Check for updates automatically")
+                    .font(.caption)
+                    .foregroundStyle(SecundaTheme.secondaryText)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .tint(SecundaTheme.frost)
+        }
+        .padding(14)
+        .frame(maxWidth: 560, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: SecundaTheme.Radius.md, style: .continuous)
+                .strokeBorder(
+                    hasUpdate ? SecundaTheme.frost.opacity(0.45) : SecundaTheme.hairline,
+                    lineWidth: 1
+                )
+        }
+        .animation(.easeOut(duration: 0.2), value: updater.status)
+    }
 
     var body: some View {
         ScrollView {
@@ -15,6 +98,12 @@ struct SettingsView: View {
                     title: "Settings",
                     detail: "These options apply to Secunda itself. Display and audio for each game live on that game’s page."
                 )
+
+                if updater.isAvailable {
+                    FlatSection(title: "Updates", detail: AppVersion.label) {
+                        updateRow
+                    }
+                }
 
                 FlatSection(title: "Performance", detail: "This Mac") {
                     VStack(alignment: .leading, spacing: 10) {
@@ -161,12 +250,6 @@ struct SettingsView: View {
 
                 FlatSection(title: "About", detail: AppVersion.label) {
                     VStack(alignment: .leading, spacing: 8) {
-                        if let updater = model.updater, updater.isAvailable {
-                            Button("Check for Updates…") {
-                                updater.checkForUpdates()
-                            }
-                            .padding(.bottom, 6)
-                        }
                         Label("Unofficial launcher", systemImage: "checkmark.shield")
                             .font(.system(size: SecundaTheme.FontSize.body, weight: .medium))
                         Text("Secunda is an unofficial community project, unaffiliated with Valve, Bethesda, or any game publisher. You need your own Steam copy of each game. Secunda never asks for a Steam password and never ships Steam, game files, or account data.")
