@@ -28,8 +28,8 @@ const GAMES = [
     note: "The 2005 classic with its own display profile. Ready to try; reports on GitHub help it move up." },
   { title: "Angels Fall First", status: "experimental", api: "DirectX 9",
     note: "Runs through DXVK and Vulkan instead of the default DirectX 9 path, set per game by its profile." },
-  { title: "Call of Duty: Black Ops II", status: "partial", api: "DirectX 11",
-    note: "Zombies starts and plays. Multiplayer and the campaign haven't been re-tested yet; the campaign used to close early." },
+  { title: "Call of Duty: Black Ops II", status: "played", api: "DirectX 11",
+    note: "Zombies and Multiplayer have been played online. Start each mode from Secunda. The campaign hasn't been played yet." },
 ];
 
 const STATUS_LABEL = { played: "Played", experimental: "Experimental", partial: "Partial" };
@@ -141,7 +141,13 @@ function initGames() {
   new ResizeObserver(fitMore).observe(grid);
   for (const counter of $$("[data-count]")) {
     const kind = counter.dataset.count;
-    counter.textContent = kind === "all" ? GAMES.length : GAMES.filter((g) => g.status === kind).length;
+    const count = kind === "all" ? GAMES.length : GAMES.filter((g) => g.status === kind).length;
+    counter.textContent = count;
+    // A status no game currently has gets no filter and no legend entry.
+    if (count === 0) {
+      counter.closest(".chip").hidden = true;
+      for (const entry of $$('[data-legend="' + kind + '"]')) entry.remove();
+    }
   }
   for (const chip of $$(".chip")) {
     chip.addEventListener("click", () => {

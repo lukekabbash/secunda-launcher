@@ -315,7 +315,10 @@ enum SelfCheck {
             .filter { $0.libraryExperience == .experimental }
             .map(\.id)
         expect(
-            playedIDs == ["skyrim-se", "fallout-4", "supcom2", "insurgency"]
+            playedIDs == [
+                "skyrim-se", "fallout-4", "supcom2", "insurgency",
+                "bo2-multiplayer", "bo2-zombies"
+            ]
                 && experimentalIDs == [
                     "enderal-se",
                     "fallout-new-vegas",
@@ -325,12 +328,10 @@ enum SelfCheck {
                     "portal-2",
                     "half-life-2",
                     "angels-fall-first",
-                    "bo2-campaign",
-                    "bo2-multiplayer",
-                    "bo2-zombies"
+                    "bo2-campaign"
                 ]
                 && GameGroup.played.map(\.id)
-                    == ["skyrim-se", "fallout-4", "supcom2", "insurgency"]
+                    == ["skyrim-se", "fallout-4", "supcom2", "insurgency", "black-ops-2"]
                 && GameGroup.experimental.map(\.id) == [
                     "enderal-se",
                     "fallout-new-vegas",
@@ -338,15 +339,19 @@ enum SelfCheck {
                     "battlefront-2-classic",
                     "portal-2",
                     "half-life-2",
-                    "angels-fall-first",
-                    "black-ops-2"
+                    "angels-fall-first"
                 ]
+                // A group is listed under Played once any of its modes has
+                // been played; each mode's own page keeps its own label.
                 && GameGroup.all.allSatisfy { group in
-                    let fromComponents = group.components.allSatisfy({
+                    let fromComponents = group.components.contains(where: {
                         $0.libraryExperience == .played
                     }) ? LibraryExperience.played : .experimental
                     return group.libraryExperience == fromComponents
                 }
+                && GameDescriptor.blackOps2Zombies.libraryExperience == .played
+                && GameDescriptor.blackOps2MP.libraryExperience == .played
+                && GameDescriptor.blackOps2SP.libraryExperience == .experimental
                 && GameDescriptor.insurgency.libraryExperience == .played
                 && GameDescriptor.falloutNewVegas.libraryExperience == .experimental
                 && GameDescriptor.portal2.libraryExperience == .experimental

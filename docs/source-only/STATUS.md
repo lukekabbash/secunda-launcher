@@ -79,11 +79,11 @@ An earlier version of this page said all runtime instrumentation had been remove
 - The app declares Game Mode eligibility, but the live translated child still showed Game Mode off in the measured HUD. Do not claim active Game Mode until macOS reports it.
 - One older synthetic journal-key experiment ended with `0xC0000005`; later normal gameplay/save/load/quit cycles remained stable. Preserve this as a historical stability datapoint.
 - A local DMG is labeled TEST-ONLY unless signing and notarization credentials are supplied.
-- Black Ops II Zombies is playable; Multiplayer and Campaign need a fresh run, and none of the modes has had a full audio/input/controller acceptance pass.
+- Black Ops II Zombies and Multiplayer have been played online and are listed as Played. Campaign has not been run since the privacy fix, and none of the modes has had a full audio/input/controller acceptance pass. Opening Multiplayer from inside the Zombies menu stalls at "Awaiting challenge"; start each mode from Secunda.
 
 ## Next action
 
 1. Manually run the new Insurgency, Supreme Commander, Forged Alliance, Angels Fall First, and Battlefront II Classic profiles through rendered-menu, audio, input, gameplay, settings, and clean-stop acceptance before making compatibility claims.
-2. Re-run Black Ops II Multiplayer and Campaign now that the privacy abort is fixed, and take Zombies through audio, keyboard/mouse/controller, and clean-stop acceptance.
+2. Run Black Ops II Campaign now that the privacy abort is fixed, and take Zombies and Multiplayer through audio, keyboard/mouse/controller, and clean-stop acceptance.
 3. Do not substitute an executable or DRM bypass for any mode that still fails.
 4. Run the notarized, quarantined candidate through first-run Steam login, game download, Play, audio/input/gameplay, save/load, Stop, and uninstall acceptance on a separate clean Apple-Silicon Mac.

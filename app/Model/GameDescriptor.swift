@@ -633,7 +633,8 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         tagline: String,
         symbol: String,
         steamAppID: String,
-        executable: String
+        executable: String,
+        libraryExperience: LibraryExperience = .experimental
     ) -> GameDescriptor {
         GameDescriptor(
             id: id,
@@ -672,7 +673,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             usesScreenCoveringBorderlessSurface: false,
             appliesAspectCorrectMouseLook: false,
             usesNativeVoiceAudioFix: false,
-            libraryExperience: .experimental
+            libraryExperience: libraryExperience
         )
     }
 
@@ -680,7 +681,7 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "bo2-campaign",
         title: "Call of Duty: Black Ops II",
         shortTitle: "Black Ops II",
-        tagline: "Campaign exits early.",
+        tagline: "Not played yet. An earlier build closed early.",
         symbol: "scope",
         steamAppID: "202970",
         executable: "t6sp.exe"
@@ -690,20 +691,22 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         id: "bo2-multiplayer",
         title: "Call of Duty: Black Ops II - Multiplayer",
         shortTitle: "BO2 Multiplayer",
-        tagline: "Needs gameplay acceptance.",
+        tagline: "I have played this on Apple silicon.",
         symbol: "person.3.fill",
         steamAppID: "202990",
-        executable: "t6mp.exe"
+        executable: "t6mp.exe",
+        libraryExperience: .played
     )
 
     static let blackOps2Zombies = blackOps2(
         id: "bo2-zombies",
         title: "Call of Duty: Black Ops II - Zombies",
         shortTitle: "BO2 Zombies",
-        tagline: "Needs gameplay acceptance.",
+        tagline: "I have played this on Apple silicon.",
         symbol: "figure.walk.motion",
         steamAppID: "212910",
-        executable: "t6zm.exe"
+        executable: "t6zm.exe",
+        libraryExperience: .played
     )
 
     static let supported: [GameDescriptor] = [
@@ -844,7 +847,7 @@ struct GameGroup: Identifiable, Equatable, Sendable {
             shortTitle: "Black Ops II",
             symbol: "scope",
             componentIDs: ["bo2-campaign", "bo2-multiplayer", "bo2-zombies"],
-            libraryExperience: .experimental
+            libraryExperience: .played
         )
     ]
 
