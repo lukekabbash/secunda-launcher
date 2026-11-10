@@ -220,7 +220,8 @@ struct GameLaunchProfile: Equatable, Sendable {
     }
 
     var managesVerticalSync: Bool {
-        (fixed + trailing).contains {
+        let displayAtoms = display?.supportedModes.flatMap { display?.template(for: $0) ?? [] } ?? []
+        return (fixed + trailing + displayAtoms).contains {
             if case .verticalSync = $0 { return true }
             return false
         }
@@ -416,7 +417,11 @@ extension GameDescriptor {
                     exclusive: nil,
                     windowed: [
                         .literal("+set"), .literal("r_fullscreen"), .literal("0"),
-                        .literal("+set"), .literal("r_mode"), .treyarchMode
+                        .literal("+set"), .literal("r_mode"), .treyarchMode,
+                        // The game's "Sync Every Frame". Off by default
+                        // here: it costs frame rate under Rosetta.
+                        .literal("+set"), .literal("r_vsync"),
+                        .verticalSync(on: "1", off: "0")
                     ]
                 ),
                 requiresVisibleWindow: true
@@ -520,6 +525,11 @@ extension GameDescriptor {
                 || launchProfile.managesFieldOfView
                 || iniSources.contains { if case .fieldOfView = $0 { return true }; return false }
         )
+    }
+
+    /// Vertical sync for a game that has never been configured.
+    var preferredInitialVerticalSync: Bool {
+        !launchProfile.supportsAutomaticWindowSize
     }
 
     var preferredInitialDisplayMode: DisplayMode {

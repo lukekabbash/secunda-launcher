@@ -74,6 +74,7 @@ struct LauncherSettings: Codable, Equatable, Sendable {
         if let stored = games[descriptor.id] { return stored }
         var fresh = GameSettings()
         fresh.displayMode = descriptor.preferredInitialDisplayMode
+        fresh.verticalSync = descriptor.preferredInitialVerticalSync
         fresh.fieldOfView = descriptor.defaultFieldOfView
         return fresh
     }
