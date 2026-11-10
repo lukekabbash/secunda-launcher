@@ -2277,6 +2277,13 @@ enum SelfCheck {
                 && TreyarchDisplayMode.accepted(fittingWidth: 1710, height: 1107).last?.argument
                     == "1440x900"
                 && TreyarchDisplayMode.accepted(fittingWidth: 800, height: 500).count == 1
+                && TreyarchDisplayMode.largest(fittingWidth: 1710, height: 1040).argument == "1440x900"
+                && TreyarchDisplayMode.largest(fittingWidth: 1440, height: 870).argument == "1280x800"
+                && GameDescriptor.blackOps2Zombies.launchProfile.supportsAutomaticWindowSize
+                && !GameDescriptor.skyrimSE.launchProfile.supportsAutomaticWindowSize
+                && GameService.automaticWindowSizeSettings(
+                    bo2Settings, descriptor: .skyrimSE, displayGeometry: .unknown
+                ) == bo2Settings
                 && [GameDescriptor.blackOps2SP, .blackOps2MP, .blackOps2Zombies].allSatisfy {
                     $0.prefersNativeSessionDPI
                         && !GameService.sessionRetinaMode(for: $0, displayGeometry: .unknown)

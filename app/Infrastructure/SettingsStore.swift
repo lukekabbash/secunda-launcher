@@ -15,6 +15,9 @@ struct GameSettings: Codable, Equatable, Sendable {
     var verticalSync = true
     var fieldOfView = 95
     var nativeVoiceAudio = true
+    /// Let the launcher pick the window size from the display. Only titles
+    /// whose profile supports it read this; choosing a size turns it off.
+    var automaticWindowSize = true
     /// Chosen quality options, keyed by QualityOption id → choice label.
     /// Absent entries mean "Game default" (write nothing).
     var quality: [String: String] = [:]
@@ -30,6 +33,7 @@ struct GameSettings: Codable, Equatable, Sendable {
         case verticalSync
         case fieldOfView
         case nativeVoiceAudio
+        case automaticWindowSize
         case quality
         case tuning
     }
@@ -42,6 +46,8 @@ struct GameSettings: Codable, Equatable, Sendable {
         verticalSync = try container.decodeIfPresent(Bool.self, forKey: .verticalSync) ?? verticalSync
         fieldOfView = try container.decodeIfPresent(Int.self, forKey: .fieldOfView) ?? fieldOfView
         nativeVoiceAudio = try container.decodeIfPresent(Bool.self, forKey: .nativeVoiceAudio) ?? nativeVoiceAudio
+        automaticWindowSize = try container.decodeIfPresent(Bool.self, forKey: .automaticWindowSize)
+            ?? automaticWindowSize
         quality = try container.decodeIfPresent([String: String].self, forKey: .quality) ?? quality
         tuning = try container.decodeIfPresent([String: String].self, forKey: .tuning) ?? tuning
     }

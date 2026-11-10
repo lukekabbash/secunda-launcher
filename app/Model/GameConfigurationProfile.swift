@@ -56,6 +56,13 @@ struct TreyarchDisplayMode: Equatable, Sendable {
         return fitting.isEmpty ? [accepted[0]] : fitting
     }
 
+    /// The largest accepted mode that fits inside a desktop area, for the
+    /// automatic window size.
+    static func largest(fittingWidth width: Int, height: Int) -> TreyarchDisplayMode {
+        accepted(fittingWidth: width, height: height)
+            .max { $0.width * $0.height < $1.width * $1.height } ?? accepted[0]
+    }
+
     /// Exact match, otherwise the largest accepted mode that fits inside the
     /// request. A request smaller than every mode uses the nearest one.
     static func fitting(width: Int, height: Int) -> TreyarchDisplayMode {
@@ -200,6 +207,12 @@ struct GameLaunchProfile: Equatable, Sendable {
         return atoms.contains(.resolution)
             || atoms.contains(.treyarchMode)
             || (atoms.contains(.width) && atoms.contains(.height))
+    }
+
+    /// The window size is one of the game's own `r_mode` values, so the
+    /// launcher can choose the largest one that fits the display.
+    var supportsAutomaticWindowSize: Bool {
+        display?.windowed?.contains(.treyarchMode) == true
     }
 
     var managesFieldOfView: Bool {

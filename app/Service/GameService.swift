@@ -566,7 +566,11 @@ final class GameService {
             displayGeometry: displayGeometry
         )
         let coordinateSettings = try backingPixelDisplaySettings(
-            settings,
+            automaticWindowSizeSettings(
+                settings,
+                descriptor: descriptor,
+                displayGeometry: displayGeometry
+            ),
             descriptor: descriptor,
             displayGeometry: displayGeometry,
             retinaMode: retinaMode
@@ -991,6 +995,27 @@ final class GameService {
     /// borderless sessions use a client that fits windowed and shares the
     /// safe fullscreen aspect; ordinary windows keep the selected aspect and
     /// shrink only when their decorated frame would exceed the work area.
+    /// Titles that take one of a fixed list of window sizes get the largest
+    /// one that fits the usable desktop, unless the player chose a size.
+    static func automaticWindowSizeSettings(
+        _ settings: GameSettings,
+        descriptor: GameDescriptor,
+        displayGeometry: HostDisplayGeometry
+    ) -> GameSettings {
+        guard settings.automaticWindowSize,
+              descriptor.launchProfile.supportsAutomaticWindowSize,
+              displayGeometry.windowedContentPoints.isUsable
+        else { return settings }
+        let mode = TreyarchDisplayMode.largest(
+            fittingWidth: displayGeometry.windowedContentPoints.width,
+            height: displayGeometry.windowedContentPoints.height
+        )
+        var sized = settings
+        sized.width = mode.width
+        sized.height = mode.height
+        return sized
+    }
+
     static func desktopFittedSettings(
         _ settings: GameSettings,
         descriptor: GameDescriptor,

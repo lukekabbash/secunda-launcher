@@ -774,12 +774,23 @@ struct GameDetailView: View {
                     return fixed.id
                 }
                 let settings = model.gameSettings(for: descriptor)
+                if descriptor.launchProfile.supportsAutomaticWindowSize,
+                   settings.automaticWindowSize {
+                    return DisplayResolutionOption.automatic.id
+                }
                 return "\(settings.width)x\(settings.height)"
             },
             set: { value in
                 let parts = value.split(separator: "x").compactMap { Int($0) }
                 guard parts.count == 2 else { return }
                 var updated = model.gameSettings(for: descriptor)
+                if descriptor.launchProfile.supportsAutomaticWindowSize {
+                    updated.automaticWindowSize = value == DisplayResolutionOption.automatic.id
+                    if updated.automaticWindowSize {
+                        model.updateGameSettings(updated, for: descriptor)
+                        return
+                    }
+                }
                 updated.width = parts[0]
                 updated.height = parts[1]
                 model.updateGameSettings(updated, for: descriptor)
@@ -826,7 +837,7 @@ struct GameDetailView: View {
             || descriptor.id == "bo2-multiplayer"
             || descriptor.id == "bo2-zombies" {
             let frame = displayScreen?.frame.size ?? .zero
-            return TreyarchDisplayMode.accepted(
+            return [.automatic] + TreyarchDisplayMode.accepted(
                 fittingWidth: Int(frame.width),
                 height: Int(frame.height)
             ).map {

@@ -7,7 +7,11 @@ struct DisplayResolutionOption: Identifiable, Equatable, Sendable {
 
     var id: String { "\(width)x\(height)" }
 
+    /// Stands for "let the launcher choose" in a resolution picker.
+    static let automatic = DisplayResolutionOption(width: 0, height: 0, note: nil)
+
     var label: String {
+        if self == Self.automatic { return "Automatic (fits this display)" }
         let size = "\(width) × \(height)"
         return note.map { "\(size)  (\($0))" } ?? size
     }
