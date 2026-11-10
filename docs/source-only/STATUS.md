@@ -62,7 +62,7 @@ An earlier version of this page said all runtime instrumentation had been remove
 
 - `patches/wine-secunda-rosetta-debug-registers.patch` and `tools/secunda-rosetta-debug-broker.c` emulate x86 debug registers, which Rosetta does not provide to translated programs. A native helper sets ARM watchpoints on the game's threads and reports hits in x86 form; execute breakpoints are imitated by withdrawing execute permission from the page. The launcher starts this for Black Ops II only.
 - `SECUNDA_ROSETTA_GUARDED_EXECUTE_READS` keeps such a page readable while execution is trapped, and `SECUNDA_PREFER_IMAGE_BASE`/`SECUNDA_PREFER_IMAGE_NAME` ask for `steamclient.dll` at the address the game expects.
-- An earlier revision of that patch also carried a read fix-up keyed to specific code addresses in the Zombies and Multiplayer executables (`SECUNDA_ROSETTA_PROTECTED_HASH_COPY`). It has been deleted from the patch, along with its smoke test: Zombies and Multiplayer run without it, and no retained log shows it ever firing. Runtimes built before the deletion (up to and including 0.1.6) still contain the code; it does nothing there because the launcher never sets the variable.
+- An earlier revision of that patch also carried a read fix-up keyed to specific code addresses in the Zombies and Multiplayer executables (`SECUNDA_ROSETTA_PROTECTED_HASH_COPY`). It has been deleted from the patch, along with its smoke test: Zombies and Multiplayer run without it, and no retained log shows it ever firing. The 0.1.6 runtime is built from the trimmed patch and does not contain it; runtimes from 0.1.5 and earlier carry the code, inert, because no launcher release ever set the variable.
 - With Diagnostics on, the launcher also sets trace variables (`SECUNDA_TRACE_*`) that log around the game's exit path. They observe; they do not change what the game sees.
 - Secunda does not modify, decrypt, replace or skip checks in Steam-generated executables, and does not supply games or accounts.
 
@@ -75,16 +75,15 @@ An earlier version of this page said all runtime instrumentation had been remove
 
 ## Current caveats
 
-- The current app is ad-hoc signed for local testing. A recipient-ready release still requires Developer ID signing, notarization, and quarantined clean-Mac acceptance.
+- 0.1.6 is signed with a Developer ID and notarized. Black Ops II Zombies was started on that signed build on the development Mac; quarantined clean-Mac acceptance has not been done. Local `package-app.sh` builds remain ad-hoc signed.
 - The app declares Game Mode eligibility, but the live translated child still showed Game Mode off in the measured HUD. Do not claim active Game Mode until macOS reports it.
 - One older synthetic journal-key experiment ended with `0xC0000005`; later normal gameplay/save/load/quit cycles remained stable. Preserve this as a historical stability datapoint.
-- The final local DMG is intentionally labeled TEST-ONLY unless signing/notarization credentials are supplied.
+- A local DMG is labeled TEST-ONLY unless signing and notarization credentials are supplied.
 - Black Ops II Zombies is playable; Multiplayer and Campaign need a fresh run, and none of the modes has had a full audio/input/controller acceptance pass.
 
 ## Next action
 
 1. Manually run the new Insurgency, Supreme Commander, Forged Alliance, Angels Fall First, and Battlefront II Classic profiles through rendered-menu, audio, input, gameplay, settings, and clean-stop acceptance before making compatibility claims.
 2. Re-run Black Ops II Multiplayer and Campaign now that the privacy abort is fixed, and take Zombies through audio, keyboard/mouse/controller, and clean-stop acceptance.
-3. Delete the address-specific read fix-up from the debug-register patch at the next runtime rebuild. Do not substitute an executable or DRM bypass for any mode that still fails.
-4. For broad sharing, sign and notarize the validated candidate with a Developer ID identity.
-5. Run the notarized, quarantined candidate through first-run Steam login, game download, Play, audio/input/gameplay, save/load, Stop, and uninstall acceptance on a separate clean Apple-Silicon Mac.
+3. Do not substitute an executable or DRM bypass for any mode that still fails.
+4. Run the notarized, quarantined candidate through first-run Steam login, game download, Play, audio/input/gameplay, save/load, Stop, and uninstall acceptance on a separate clean Apple-Silicon Mac.

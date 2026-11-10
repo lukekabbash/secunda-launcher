@@ -24,9 +24,9 @@ A Finder-launchable app is produced after the source runtime exists at `Runtime/
 open "dist/Secunda Launcher.app"
 ```
 
-This local build is ad-hoc signed and labeled TEST-ONLY. macOS may warn on first open. Keep macOS security settings as they are until a Developer ID–signed, notarized build is available.
+A build you package yourself is ad-hoc signed and labeled TEST-ONLY, so macOS may warn on first open. Keep macOS security settings as they are.
 
-A ready-to-open app for tagged releases is on the [Releases](https://github.com/lukekabbash/secunda-launcher/releases) page.
+A ready-to-open app, signed with a Developer ID and notarized by Apple, is on the [Releases](https://github.com/lukekabbash/secunda-launcher/releases) page.
 
 The app creates its own private Windows prefix. Steam handles sign-in, ownership, and installation. Title status is below and in `docs/source-only/GATES.md`.
 
