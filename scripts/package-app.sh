@@ -202,6 +202,13 @@ fi
 if [[ "$RUNTIME_MODE" == "1" ]]; then
     "$SCRIPT_DIR/stage-runtime-notices.sh" "$RESOURCES/runtime"
     sign_runtime_code "$RESOURCES/runtime"
+    # A Developer ID signature changes the bytes of the pinned dependency
+    # libraries, so the completion stamp written at build time no longer
+    # matches. Re-verify them and record the signed checksums.
+    if [[ "$SIGNING_IDENTITY" != "-" ]]; then
+        "$SCRIPT_DIR/verify-runtime-dependencies.sh" "$RESOURCES/runtime" \
+            "${SECUNDA_DEPLOYMENT_TARGET:-15.0}" --write-stamp
+    fi
     "$SCRIPT_DIR/create-runtime-integrity.sh" "$RESOURCES/runtime"
 fi
 sign_sparkle_framework "$FRAMEWORKS/Sparkle.framework"

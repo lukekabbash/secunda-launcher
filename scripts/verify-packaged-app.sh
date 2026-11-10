@@ -86,7 +86,10 @@ if [[ -n "$outer_team_identifier" && "$outer_team_identifier" != "not set" ]]; t
     for wine_worker in \
         "$RUNTIME_ROOT/bin/wine" \
         "$RUNTIME_ROOT/lib/wine/x86_64-unix/wine"; do
-        if ! codesign -dv --verbose=4 "$wine_worker" 2>&1 | grep -q 'flags=.*runtime'; then
+        # Capture first: with pipefail, grep -q closing the pipe early makes
+        # codesign die of SIGPIPE and the check fail on a correctly signed file.
+        worker_signature=$(codesign -dv --verbose=4 "$wine_worker" 2>&1 || true)
+        if [[ "$worker_signature" != *flags=*runtime* ]]; then
             echo "Developer-ID Wine worker is missing hardened runtime: $wine_worker" >&2
             exit 1
         fi
