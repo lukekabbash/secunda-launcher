@@ -1,9 +1,10 @@
 --- a/dlls/ntdll/unix/loader.c
 +++ b/dlls/ntdll/unix/loader.c
-@@ -694,6 +694,43 @@
+@@ -694,6 +694,44 @@
  
  /* CW HACK 22144 */
  #ifdef __APPLE__
++#include <sys/clonefile.h>
 +/* Secunda: the launcher publishes readable names for the programs it knows
 + * as SECUNDA_PROCESS_NAMES="image.exe=Display Name|other.exe=Other Name".
 + * Images are matched case-insensitively and without their extension, so
@@ -44,7 +45,7 @@
  /* This is the same "exe path to display name" algorithm used in
   * loader/main.c to determine the name used for the application menu (CW hack 13438).
   *
-@@ -718,10 +755,12 @@
+@@ -718,10 +756,12 @@
      else
          exe_name_len = strlen(exe_name);
  
@@ -60,7 +61,24 @@
  
      free(exe_path_copy);
      return ret;
-@@ -844,8 +883,17 @@
+@@ -783,6 +823,16 @@
+ 
+     /* If the link already exists, use it (if it's in this dir, it points to the right place). */
+     if (!stat(linkpath, &st))
++        return linkpath;
++
++    /* Secunda: give every name its own file. LaunchServices identifies a
++     * program by its file, so hard links to one loader all take the name of
++     * whichever was seen first and a game started by Steam shows as "Steam".
++     * An APFS clone is a separate file that shares the loader's blocks and
++     * keeps its code signature. Another process may win the race to create
++     * it, which is just as good.
++     */
++    if (!clonefile(wineloader_path, linkpath, 0) || !stat(linkpath, &st))
+         return linkpath;
+ 
+     /* Try a hard link first, to avoid the little "alias" arrow that the Dock puts on the icon.
+@@ -844,8 +894,17 @@
       * When the preloader is not being used, WINEDLLPATH needs to be set correctly for
       * the loader to find ntdll.so, so don't even attempt this unless WINEDLLPATH is set.
       */
@@ -79,7 +97,7 @@
  #endif
  
      execv( argv[1], argv + 1 );
-@@ -2708,6 +2756,11 @@
+@@ -2708,6 +2767,11 @@
      /* default to 32-bit loader to support 32-bit prefixes */
      if (machine == IMAGE_FILE_MACHINE_AMD64) machine = IMAGE_FILE_MACHINE_I386;
  

@@ -145,7 +145,7 @@
     },
     {
       "file": "patches/wine-secunda-process-names.patch",
-      "sha256": "826655a1765b6806a8cbed3a84f45dd9be792615aa5832fcfbc76ac102d5fe36"
+      "sha256": "a4aec09762b0a323dfda79dbd4e0d87d05d7d67e2124fd56e1b8832755e0bb78"
     },
     {
       "file": "patches/dxmt-v0.80-destroyed-object-release.patch",
