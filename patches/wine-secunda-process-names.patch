@@ -1,18 +1,17 @@
 --- a/dlls/ntdll/unix/loader.c
 +++ b/dlls/ntdll/unix/loader.c
-@@ -694,6 +694,42 @@
+@@ -694,6 +694,43 @@
  
  /* CW HACK 22144 */
  #ifdef __APPLE__
 +/* Secunda: the launcher publishes readable names for the programs it knows
 + * as SECUNDA_PROCESS_NAMES="image.exe=Display Name|other.exe=Other Name".
-+ * Images are matched case-insensitively, with or without their extension;
-+ * the first match wins.
++ * Images are matched case-insensitively and without their extension, so
++ * "wine notepad" and "notepad.exe" find the same entry; the first match wins.
 + */
 +static char *secunda_process_display_name(const char *exe_name, size_t stem_len)
 +{
 +    const char *table = getenv("SECUNDA_PROCESS_NAMES");
-+    size_t full_len = strlen(exe_name);
 +
 +    while (table && *table)
 +    {
@@ -24,10 +23,12 @@
 +        {
 +            size_t key_len = equals - table;
 +            size_t value_len = entry_len - key_len - 1;
++            size_t key_stem_len = key_len;
 +
-+            if (value_len &&
-+                ((key_len == full_len && !strncasecmp(table, exe_name, key_len)) ||
-+                 (key_len == stem_len && !strncasecmp(table, exe_name, key_len))))
++            while (key_stem_len > 1 && table[key_stem_len - 1] != '.') key_stem_len--;
++            key_stem_len = key_stem_len > 1 ? key_stem_len - 1 : key_len;
++
++            if (value_len && key_stem_len == stem_len && !strncasecmp(table, exe_name, stem_len))
 +            {
 +                char *p, *ret = strndup(equals + 1, value_len);
 +                /* The name becomes a file name: keep path separators out of it. */
@@ -43,7 +44,7 @@
  /* This is the same "exe path to display name" algorithm used in
   * loader/main.c to determine the name used for the application menu (CW hack 13438).
   *
-@@ -718,10 +754,12 @@
+@@ -718,10 +755,12 @@
      else
          exe_name_len = strlen(exe_name);
  
@@ -59,7 +60,7 @@
  
      free(exe_path_copy);
      return ret;
-@@ -844,8 +882,17 @@
+@@ -844,8 +883,17 @@
       * When the preloader is not being used, WINEDLLPATH needs to be set correctly for
       * the loader to find ntdll.so, so don't even attempt this unless WINEDLLPATH is set.
       */
@@ -78,7 +79,7 @@
  #endif
  
      execv( argv[1], argv + 1 );
-@@ -2708,6 +2755,11 @@
+@@ -2708,6 +2756,11 @@
      /* default to 32-bit loader to support 32-bit prefixes */
      if (machine == IMAGE_FILE_MACHINE_AMD64) machine = IMAGE_FILE_MACHINE_I386;
  

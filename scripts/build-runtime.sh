@@ -165,7 +165,17 @@ cd "$BUILD_ROOT_ALIAS"
     --without-usb \
     BISON="$BISON_ROOT/bin/bison" \
     CC="/usr/bin/clang -arch x86_64" \
-    CXX="/usr/bin/clang++ -arch x86_64"
+    CXX="/usr/bin/clang++ -arch x86_64" \
+    ac_cv_func_pipe2=no
+
+# The macOS 27 SDK declares pipe2(), which older systems do not have. With a
+# 15.0 deployment target it links as a weak import and is a null pointer on
+# macOS 15 and 26, so every Wine process would crash while connecting to the
+# server. Wine falls back to pipe() plus fcntl() without it.
+if grep -q '#define HAVE_PIPE2' include/config.h; then
+    echo "configure enabled pipe2(), which is missing on the deployment target." >&2
+    exit 1
+fi
 
 grep -q '#define SONAME_LIBFREETYPE' include/config.h
 grep -q '#define SONAME_LIBGNUTLS' include/config.h
