@@ -405,7 +405,7 @@ extension GameDescriptor {
                 requiresVisibleWindow: true
             )
         case "bo2-campaign", "bo2-multiplayer", "bo2-zombies":
-            // Windowed is the only mode verified so far. Command-line +set
+            // Fullscreen window and windowed are both verified. Command-line +set
             // beats the encrypted .cgp configs and is read before the
             // renderer starts, so the window opens at this size. An r_mode
             // outside the game's own list is ignored in favor of the saved

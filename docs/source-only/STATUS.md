@@ -53,7 +53,7 @@ Updated 2026-11-10.
 - Zombies (`212910`) boots to its menu and has been played in an online match on a 2026 MacBook Air M5. Multiplayer (`202990`) and Campaign (`202970`) have not been re-tested since.
 - The long-standing black window was a macOS privacy abort, not a renderer or protection problem. The game opens the microphone at startup, the app declared no `NSMicrophoneUsageDescription`, and macOS aborted the requesting thread inside the game. Declaring the usage string fixed it.
 - The games run through the runtime's 32-bit `d3d11.dll`, `dxgi.dll` and `winemetal.dll` to Metal, launched by the user's own Steam client and ownership check.
-- Black Ops II uses a native-DPI session and a windowed `r_mode` chosen from the display. Fullscreen has not been re-tested since the privacy fix.
+- Black Ops II uses a native-DPI session and launches as a fullscreen window (`r_fullscreen 2`) by default, with windowed (`r_fullscreen 0`) available; both were verified in Zombies and Multiplayer. The render size is an `r_mode` chosen from the display. Exclusive fullscreen (`r_fullscreen 1`) is not offered. Campaign was not run: on the development Mac its executable is missing and Steam needs to verify the install.
 - Campaign last exited after roughly three seconds with `0xC0000008` (`STATUS_INVALID_HANDLE`). That result predates the privacy fix and needs a fresh run before any conclusion.
 
 ### What the runtime does for these executables
