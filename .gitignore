@@ -15,3 +15,31 @@ sources/
 
 # Managed bottles, downloaded installers, logs, and user data never belong in Git.
 Secunda Data/
+
+# Editor, OS, and tool droppings.
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+DerivedData/
+.claude/
+
+# Local secrets and signing material. Sparkle's private key lives in the
+# login keychain, never in the repository.
+.env
+.env.*
+*.pem
+*.p12
+*.key
+
+# Release artifacts and logs produced by local runs.
+*.dmg
+*.dmg.sha256
+*.log
+*.ips
+
+# Website tooling output, if a deploy tool is ever pointed at site/.
+node_modules/
+.vercel/
+.netlify/
