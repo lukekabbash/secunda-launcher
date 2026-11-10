@@ -174,6 +174,12 @@ struct SettingsView: View {
                             .foregroundStyle(SecundaTheme.secondaryText)
                             .lineSpacing(3)
                             .frame(maxWidth: 560, alignment: .leading)
+                        HStack(spacing: 18) {
+                            Link("Terms of Use", destination: URL(string: "https://github.com/lukekabbash/secunda-launcher/blob/source-only-secunda/TERMS.md")!)
+                            Link("Privacy Policy", destination: URL(string: "https://github.com/lukekabbash/secunda-launcher/blob/source-only-secunda/PRIVACY.md")!)
+                        }
+                        .font(.caption)
+                        .padding(.top, 4)
                     }
                 }
             }

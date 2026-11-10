@@ -158,6 +158,10 @@ All mutable player data stays beneath:
 
 That directory contains the managed Windows prefix, Steam installation/session, installed games, saves, backups, caches, and logs. Removing Secunda.app does not silently delete it; archive wanted saves before removing the managed data directory.
 
+## Terms and privacy
+
+Secunda collects nothing and reports to no server of ours. See the [Privacy Policy](PRIVACY.md) and the [Terms of Use](TERMS.md).
+
 ## License
 
 Secunda's own code is released under the [MIT License](LICENSE). Copyright (c) 2026 LK Digital Solutions LLC.
