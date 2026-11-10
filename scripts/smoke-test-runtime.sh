@@ -119,15 +119,6 @@ compile_d3d11_smoke i386-windows "$BUILD_ROOT/d3d11-smoke-x86.exe"
 "$WINEGCC" \
     "${WINEGCC_PREFIX[@]}" \
     -b i386-windows \
-    "$REPOSITORY_ROOT/tools/protected-hash-copy-smoke.c" \
-    -o "$BUILD_ROOT/protected-hash-copy-smoke-x86.exe" \
-    -Wl,--image-base,0x10000000 \
-    -lkernel32 \
-    -lmsvcrt
-
-"$WINEGCC" \
-    "${WINEGCC_PREFIX[@]}" \
-    -b i386-windows \
     "$REPOSITORY_ROOT/tools/exit-import-trace-smoke.c" \
     -o "$BUILD_ROOT/exit-import-trace-smoke-x86.exe" \
     -Wl,--image-base,0x10000000 \
@@ -279,12 +270,6 @@ run_bounded "CEG-shaped 32-bit debug transition" env \
     "${COMMON_ENV[@]}" \
     SECUNDA_DEBUG_RELAY_TRACE=1 \
     "$WINE" "$BUILD_ROOT/debug-register-ceg-transition-smoke-x86.exe"
-run_bounded "protected 32-bit hash copy" env \
-    "${COMMON_ENV[@]}" \
-    SECUNDA_ROSETTA_PROTECTED_HASH_COPY=1 \
-    SECUNDA_ROSETTA_PROTECTED_HASH_COPY_SMOKE=1 \
-    SECUNDA_TRACE_PROTECTED_TRANSFORM=1 \
-    "$WINE" "$BUILD_ROOT/protected-hash-copy-smoke-x86.exe"
 run_exit_import_observer
 run_execute_entry_observer
 

@@ -96,7 +96,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
  #endif
  
  #include "ntstatus.h"
-@@ -84,6 +86,17 @@
+@@ -84,6 +86,15 @@
  /* CW Hack 24256 */
  #include <sys/sysctl.h>
  static BOOL is_rosetta2;
@@ -109,12 +109,10 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
 +static volatile LONG i386_execute_entry_state;
 +static const TEB *i386_execute_entry_owner;
 +static BOOL preserve_i386_guarded_execute_reads;
-+static BOOL emulate_i386_protected_hash_copy_reads;
-+static BOOL emulate_i386_protected_hash_copy_smoke;
  
  /* CW Hack 23427 */
  static BOOL sequoia_or_later = FALSE;
-@@ -93,6 +106,22 @@
+@@ -93,6 +104,19 @@
  static USHORT cs64_sel;  /* selector for %cs in 64-bit mode */
  static USHORT ds64_sel;  /* selector for %ds/%es/%ss in 64-bit mode */
  static USHORT fs32_sel;  /* selector for %fs in 32-bit mode */
@@ -130,14 +128,11 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
 +static int handle_i386_execute_page_fault( ucontext_t *ucontext,
 +                                           EXCEPTION_RECORD *rec,
 +                                           struct xcontext *context );
-+static BOOL emulate_i386_protected_hash_copy( ucontext_t *ucontext,
-+                                              const EXCEPTION_RECORD *rec,
-+                                              const CONTEXT *context );
 +#endif
  
  /***********************************************************************
   * signal context platform-specific definitions
-@@ -508,6 +537,17 @@
+@@ -508,6 +532,17 @@
      void                **instrumentation_callback; /* 0330 */
      DWORD                 fs;            /* 0338 WOW TEB selector */
      DWORD                 mxcsr;         /* 033c Unix-side mxcsr register */
@@ -155,7 +150,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
  };
  
  C_ASSERT( sizeof(struct amd64_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
-@@ -1118,6 +1158,19 @@
+@@ -1118,6 +1153,19 @@
      DWORD flags = context->ContextFlags & ~CONTEXT_AMD64;
      BOOL self = (handle == GetCurrentThread());
      struct syscall_frame *frame = get_syscall_frame();
@@ -175,7 +170,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
  
      if ((flags & CONTEXT_XSTATE) && xstate_extended_features)
      {
-@@ -1153,7 +1206,13 @@
+@@ -1153,7 +1201,13 @@
              ret = STATUS_SUCCESS;
          }
  #endif
@@ -190,7 +185,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
          if (flags & CONTEXT_DEBUG_REGISTERS)
          {
              amd64_thread_data()->dr0 = context->Dr0;
-@@ -1207,6 +1266,9 @@
+@@ -1207,6 +1261,9 @@
      }
  
      frame->restore_flags |= flags & ~CONTEXT_INTEGER;
@@ -200,7 +195,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
      return STATUS_SUCCESS;
  }
  
-@@ -1414,6 +1476,10 @@
+@@ -1414,6 +1471,10 @@
          wow_frame->Ebp    = context->Ebp;
          wow_frame->Eip    = context->Eip;
          wow_frame->EFlags = context->EFlags;
@@ -211,7 +206,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
          wow_frame->SegCs  = context->SegCs;
          wow_frame->SegSs  = context->SegSs;
          cpu->Flags |= WOW64_CPURESERVED_FLAG_RESET_STATE;
-@@ -1433,6 +1499,28 @@
+@@ -1433,6 +1494,28 @@
          wow_frame->Dr3 = context->Dr3;
          wow_frame->Dr6 = context->Dr6;
          wow_frame->Dr7 = context->Dr7;
@@ -240,7 +235,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
      }
      if (flags & CONTEXT_I386_EXTENDED_REGISTERS)
      {
-@@ -2490,6 +2578,50 @@
+@@ -2490,6 +2573,50 @@
  }
  
  
@@ -291,7 +286,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
  /**********************************************************************
   *		segv_handler
   *
-@@ -2542,6 +2674,37 @@
+@@ -2542,6 +2669,32 @@
          rec.NumberParameters = 2;
          rec.ExceptionInformation[0] = (ERROR_sig(ucontext) >> 1) & 0x09;
          rec.ExceptionInformation[1] = (ULONG_PTR)siginfo->si_addr;
@@ -307,11 +302,6 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
 +                     rec.ExceptionInformation[0], (DWORD)rec.ExceptionInformation[1],
 +                     (DWORD)context.c.Rip, (DWORD)context.c.Rsi,
 +                     (DWORD)context.c.Rdi, (DWORD)context.c.Rcx );
-+        if (emulate_i386_protected_hash_copy( ucontext, &rec, &context.c ))
-+        {
-+            leave_handler( ucontext );
-+            return;
-+        }
 +        if (is_rosetta2 &&
 +            rec.ExceptionInformation[0] == EXCEPTION_EXECUTE_FAULT)
 +        {
@@ -329,7 +319,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
          if (!virtual_handle_fault( &rec, (void *)RSP_sig(ucontext) ) || check_invalid_gsbase( ucontext ))
          {
              leave_handler( ucontext );
-@@ -2582,6 +2745,9 @@
+@@ -2582,6 +2735,9 @@
          break;
      }
      if (handle_syscall_fault( ucontext, &rec, &context.c )) return;
@@ -339,7 +329,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
      setup_raise_exception( ucontext, &rec, &context );
  }
  
-@@ -2591,19 +2757,1277 @@
+@@ -2591,19 +2747,1133 @@
   *
   * Handler for SIGTRAP.
   */
@@ -462,150 +452,6 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
 +    WARN_(seh)( "Unable to set Rosetta x86 execute-breakpoint page %p protection %#x: %s\n",
 +                (void *)page, protection, strerror( errno ) );
 +    return FALSE;
-+}
-+
-+static __thread DWORD_PTR i386_protected_hash_copy_page;
-+
-+static BOOL read_i386_protected_hash_memory( DWORD address, void *destination,
-+                                             SIZE_T size, int *original_protection )
-+{
-+    if ((address & (page_size - 1)) + size > page_size ||
-+        !query_i386_execute_page_protection( address, original_protection ) ||
-+        *original_protection != PROT_NONE ||
-+        !set_i386_execute_page_protection( address, PROT_READ ))
-+        return FALSE;
-+
-+    memcpy( destination, (const void *)(ULONG_PTR)address, size );
-+    if (set_i386_execute_page_protection( address, *original_protection )) return TRUE;
-+
-+    ERR_(seh)( "Unable to restore protected hash page at %08x\n", address );
-+    return FALSE;
-+}
-+
-+static BOOL emulate_i386_protected_hash_tail( ucontext_t *ucontext,
-+                                              const EXCEPTION_RECORD *rec,
-+                                              const CONTEXT *context )
-+{
-+    const DWORD zombies_tail_copy = 0x00a6c944;
-+    const DWORD multiplayer_tail_copy = 0x00a72d34;
-+    const DWORD smoke_tail_copy = 0x10030000;
-+    const BYTE expected_instruction[] = {0x8b, 0x44, 0x8e, 0xfc};
-+    DWORD source_address, destination_address, value;
-+    int source_protection, destination_protection;
-+    BYTE instruction[ARRAY_SIZE(expected_instruction)];
-+
-+    source_address = (DWORD)context->Rsi + (DWORD)context->Rcx * sizeof(DWORD) -
-+                     sizeof(DWORD);
-+    destination_address = (DWORD)context->Rdi +
-+                          (DWORD)context->Rcx * sizeof(DWORD) - sizeof(DWORD);
-+    if (!emulate_i386_protected_hash_copy_reads || !is_rosetta2 ||
-+        context->SegCs != cs32_sel ||
-+        !((DWORD)context->Rip == zombies_tail_copy ||
-+          (DWORD)context->Rip == multiplayer_tail_copy ||
-+          (emulate_i386_protected_hash_copy_smoke &&
-+           (DWORD)context->Rip == smoke_tail_copy)) ||
-+        (DWORD)context->Rcx != 1 ||
-+        i386_protected_hash_copy_page != i386_execute_page( source_address ) ||
-+        rec->ExceptionInformation[0] != EXCEPTION_READ_FAULT ||
-+        (DWORD)rec->ExceptionInformation[1] != source_address ||
-+        (context->EFlags & 0x400) ||
-+        virtual_uninterrupted_read_memory( (const void *)(ULONG_PTR)context->Rip,
-+                                           instruction, sizeof(instruction) )
-+            != sizeof(instruction) ||
-+        memcmp( instruction, expected_instruction, sizeof(instruction) ) ||
-+        !query_i386_execute_page_protection( destination_address,
-+                                             &destination_protection ) ||
-+        !(destination_protection & PROT_WRITE) ||
-+        !read_i386_protected_hash_memory( source_address, &value, sizeof(value),
-+                                          &source_protection ))
-+        return FALSE;
-+
-+    RAX_sig(ucontext) = value;
-+    RIP_sig(ucontext) += sizeof(instruction);
-+    i386_protected_hash_copy_page = 0;
-+    if (trace_i386_protected_transform)
-+        fprintf( stderr,
-+                 "SECUNDA_PROTECTED_COPY_EMULATED tid=%p phase=tail eip=%08x "
-+                 "source=%08x destination=%08x bytes=%lu source_protection=%x\n",
-+                 NtCurrentTeb()->ClientId.UniqueThread, (DWORD)context->Rip,
-+                 source_address, destination_address, (unsigned long)sizeof(value),
-+                 source_protection );
-+    return TRUE;
-+}
-+
-+/* A translated protected-code check copies bounded hash blocks from a
-+   temporarily inaccessible page. Preserve the guest instruction's exact
-+   register semantics without widening access beyond each individual copy. */
-+static BOOL emulate_i386_protected_hash_copy( ucontext_t *ucontext,
-+                                              const EXCEPTION_RECORD *rec,
-+                                              const CONTEXT *context )
-+{
-+    const DWORD zombies_initial_copy = 0x00a6c847;
-+    const DWORD multiplayer_initial_copy = 0x00a72c37;
-+    const DWORD zombies_block_copy = 0x0041515f;
-+    const DWORD multiplayer_block_copy = 0x0050d81f;
-+    const DWORD smoke_initial_copy = 0x10010000;
-+    const DWORD smoke_block_copy = 0x10020000;
-+    DWORD_PTR source_page;
-+    SIZE_T dword_count, copy_size;
-+    BOOL initial_copy, block_copy;
-+    BYTE instruction[2];
-+    DWORD copy[16];
-+    int source_protection, destination_protection;
-+    NTSTATUS status;
-+
-+    if (emulate_i386_protected_hash_tail( ucontext, rec, context )) return TRUE;
-+
-+    dword_count = (DWORD)context->Rcx;
-+    copy_size = dword_count * sizeof(DWORD);
-+    source_page = i386_execute_page( context->Rsi );
-+    initial_copy = ((DWORD)context->Rip == zombies_initial_copy ||
-+                    (DWORD)context->Rip == multiplayer_initial_copy ||
-+                    (emulate_i386_protected_hash_copy_smoke &&
-+                     (DWORD)context->Rip == smoke_initial_copy)) &&
-+                   dword_count == 15;
-+    block_copy = ((DWORD)context->Rip == zombies_block_copy ||
-+                  (DWORD)context->Rip == multiplayer_block_copy ||
-+                  (emulate_i386_protected_hash_copy_smoke &&
-+                   (DWORD)context->Rip == smoke_block_copy)) &&
-+                 dword_count == ARRAY_SIZE(copy) &&
-+                 i386_protected_hash_copy_page == source_page;
-+
-+    if (!emulate_i386_protected_hash_copy_reads || !is_rosetta2 ||
-+        context->SegCs != cs32_sel ||
-+        (!initial_copy && !block_copy) ||
-+        rec->ExceptionInformation[0] != EXCEPTION_READ_FAULT ||
-+        (DWORD)rec->ExceptionInformation[1] != (DWORD)context->Rsi ||
-+        (context->EFlags & 0x400) ||
-+        virtual_uninterrupted_read_memory( (const void *)(ULONG_PTR)context->Rip,
-+                                           instruction, sizeof(instruction) )
-+            != sizeof(instruction) ||
-+        instruction[0] != 0xf3 || instruction[1] != 0xa5 ||
-+        !query_i386_execute_page_protection( context->Rdi, &destination_protection ) ||
-+        !(destination_protection & PROT_WRITE) ||
-+        !read_i386_protected_hash_memory( (DWORD)context->Rsi, copy, copy_size,
-+                                          &source_protection ))
-+        return FALSE;
-+
-+    status = virtual_uninterrupted_write_memory(
-+        (void *)(ULONG_PTR)context->Rdi, copy, copy_size );
-+    if (status) return FALSE;
-+
-+    RIP_sig(ucontext) += sizeof(instruction);
-+    RSI_sig(ucontext) += copy_size;
-+    RDI_sig(ucontext) += copy_size;
-+    RCX_sig(ucontext) = 0;
-+    if (initial_copy) i386_protected_hash_copy_page = source_page;
-+    if (trace_i386_protected_transform)
-+        fprintf( stderr,
-+                 "SECUNDA_PROTECTED_COPY_EMULATED tid=%p phase=%s eip=%08x "
-+                 "source=%08x destination=%08x bytes=%lu source_protection=%x\n",
-+                 NtCurrentTeb()->ClientId.UniqueThread,
-+                 initial_copy ? "initial" : "block", (DWORD)context->Rip,
-+                 (DWORD)context->Rsi,
-+                 (DWORD)context->Rdi,
-+                 (unsigned long)copy_size, source_protection );
-+    return TRUE;
 +}
 +
 +static int i386_execute_guard_protection( int protection )
@@ -1618,7 +1464,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
      case TRAP_x86_TRCTRAP:
          rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
          break;
-@@ -2942,7 +4366,18 @@
+@@ -2942,7 +4212,18 @@
  void signal_free_thread( TEB *teb )
  {
      struct amd64_thread_data *thread_data = (struct amd64_thread_data *)&teb->GdiTebBatch;
@@ -1637,7 +1483,7 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
      if (teb->WowTebOffset && !fs32_sel) ldt_free_entry( thread_data->fs );
  }
  
-@@ -3010,7 +4445,41 @@
+@@ -3010,7 +4291,36 @@
          else
              is_rosetta2 = ret;
      }
@@ -1670,16 +1516,11 @@ diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
 +    }
 +    preserve_i386_guarded_execute_reads =
 +        is_rosetta2 && getenv( "SECUNDA_ROSETTA_GUARDED_EXECUTE_READS" );
-+    emulate_i386_protected_hash_copy_reads =
-+        is_rosetta2 && getenv( "SECUNDA_ROSETTA_PROTECTED_HASH_COPY" );
-+    emulate_i386_protected_hash_copy_smoke =
-+        emulate_i386_protected_hash_copy_reads &&
-+        getenv( "SECUNDA_ROSETTA_PROTECTED_HASH_COPY_SMOKE" );
 +
      /* CW Hack 23427: __builtin_available presumably isn't signal-safe. */
      if (__builtin_available( macOS 15.0, * ))
          sequoia_or_later = TRUE;
-@@ -3031,6 +4500,15 @@
+@@ -3031,6 +4341,15 @@
      if (sigaction( SIGUSR1, &sig_act, NULL ) == -1) goto error;
      sig_act.sa_sigaction = trap_handler;
      if (sigaction( SIGTRAP, &sig_act, NULL ) == -1) goto error;
