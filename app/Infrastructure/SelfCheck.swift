@@ -2286,10 +2286,16 @@ enum SelfCheck {
             failures: &failures
         )
         var bo2Settings = LauncherSettings().game(.blackOps2Zombies)
+        bo2Settings.displayMode = .windowed
         bo2Settings.width = 2560
         bo2Settings.height = 1600
-        var staleBorderlessBO2 = bo2Settings
-        staleBorderlessBO2.displayMode = .borderlessFullscreen
+        var borderlessBO2 = bo2Settings
+        borderlessBO2.displayMode = .borderlessFullscreen
+        var staleExclusiveBO2 = bo2Settings
+        staleExclusiveBO2.displayMode = .exclusiveFullscreen
+        let bo2BorderlessArguments = [
+            "+set", "r_fullscreen", "2", "+set", "r_mode", "2560x1600", "+set", "r_vsync", "0"
+        ]
         let bo2WindowedArguments = [
             "+set", "r_fullscreen", "0", "+set", "r_mode", "2560x1600", "+set", "r_vsync", "0"
         ]
@@ -2301,13 +2307,15 @@ enum SelfCheck {
         ]
         expect(
             [GameDescriptor.blackOps2SP, .blackOps2MP, .blackOps2Zombies].allSatisfy {
-                $0.supportedDisplayModes == [.windowed]
-                    && $0.preferredInitialDisplayMode == .windowed
+                $0.supportedDisplayModes == [.borderlessFullscreen, .windowed]
+                    && $0.preferredInitialDisplayMode == .borderlessFullscreen
                     && $0.managedDisplayCapabilities.resolution
                     && GameService.gameArguments(descriptor: $0, settings: bo2Settings)
                         == bo2WindowedArguments
-                    && GameService.gameArguments(descriptor: $0, settings: staleBorderlessBO2)
-                        == bo2WindowedArguments
+                    && GameService.gameArguments(descriptor: $0, settings: borderlessBO2)
+                        == bo2BorderlessArguments
+                    && GameService.gameArguments(descriptor: $0, settings: staleExclusiveBO2)
+                        == bo2BorderlessArguments
                     && GameService.gameArguments(descriptor: $0, settings: rejectedMode)
                         == snappedArguments
             }
@@ -2329,9 +2337,9 @@ enum SelfCheck {
                     $0.prefersNativeSessionDPI
                         && !GameService.sessionRetinaMode(for: $0, displayGeometry: .unknown)
                 }
-                && LauncherSettings().game(.blackOps2Zombies).displayMode == .windowed
+                && LauncherSettings().game(.blackOps2Zombies).displayMode == .borderlessFullscreen
                 && GameDescriptor.skyrimSE.preferredInitialDisplayMode == .borderlessFullscreen,
-            "BO2 always launches windowed at an accepted r_mode, even from stale fullscreen settings",
+            "BO2 launches as a fullscreen window by default, windowed on request, at an accepted r_mode",
             passes: &passes,
             failures: &failures
         )

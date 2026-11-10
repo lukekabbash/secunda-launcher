@@ -411,18 +411,23 @@ extension GameDescriptor {
             // outside the game's own list is ignored in favor of the saved
             // one. Nothing may follow the +set pairs: Steam hands unknown
             // trailing commands to its own console, not to the game.
+            // r_fullscreen takes the game's own window modes: 0 window,
+            // 1 fullscreen, 2 fullscreen window.
+            func treyarch(_ fullscreen: String) -> [LaunchArgumentAtom] {
+                [
+                    .literal("+set"), .literal("r_fullscreen"), .literal(fullscreen),
+                    .literal("+set"), .literal("r_mode"), .treyarchMode,
+                    // The game's "Sync Every Frame". Off by default
+                    // here: it costs frame rate under Rosetta.
+                    .literal("+set"), .literal("r_vsync"),
+                    .verticalSync(on: "1", off: "0")
+                ]
+            }
             return GameLaunchProfile(
                 display: DisplayArgumentTemplates(
-                    borderless: nil,
+                    borderless: treyarch("2"),
                     exclusive: nil,
-                    windowed: [
-                        .literal("+set"), .literal("r_fullscreen"), .literal("0"),
-                        .literal("+set"), .literal("r_mode"), .treyarchMode,
-                        // The game's "Sync Every Frame". Off by default
-                        // here: it costs frame rate under Rosetta.
-                        .literal("+set"), .literal("r_vsync"),
-                        .verticalSync(on: "1", off: "0")
-                    ]
+                    windowed: treyarch("0")
                 ),
                 requiresVisibleWindow: true
             )
