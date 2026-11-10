@@ -129,7 +129,7 @@
     },
     {
       "file": "patches/wine-secunda-rosetta-debug-registers.patch",
-      "sha256": "32a7dd17f9b851eddfdcb3eae05b17d42a8d2a308dec636716496eb337f61570"
+      "sha256": "cfdbc34857a44a901b458097bf70c333b31d899ecdba2dcffd458fe488483aee"
     },
     {
       "file": "patches/wine-secunda-compat-knobs.patch",
