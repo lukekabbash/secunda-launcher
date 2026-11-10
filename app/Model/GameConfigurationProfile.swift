@@ -8,8 +8,8 @@ enum LaunchArgumentAtom: Equatable, Sendable {
     case height
     /// Width and height as one "WxH" value (IW-engine r_mode syntax).
     case resolution
-    /// T6 `r_mode` value. Arbitrary sizes are rejected and the game then
-    /// presents nothing, so this snaps to a mode the executable accepts.
+    /// T6 `r_mode` value. Arbitrary sizes are rejected and the game keeps
+    /// its saved mode, so this snaps to a mode the executable accepts.
     case treyarchMode
     case fieldOfView
     case verticalSync(on: String, off: String)
@@ -28,8 +28,9 @@ enum LaunchArgumentAtom: Equatable, Sendable {
 }
 
 /// Resolutions Black Ops II accepts for `r_mode` through Wine's Mac driver.
-/// A 16:9 size such as 1920x1080 is outside the domain: the game logs the
-/// rejection and leaves a black window at its fallback size.
+/// The game builds its list from the display's modes, which are 16:10 on a
+/// Mac, so a 16:9 size such as 1920x1080 is rejected and the saved mode is
+/// used instead. Sizes larger than the display are not offered.
 struct TreyarchDisplayMode: Equatable, Sendable {
     let width: Int
     let height: Int
@@ -46,6 +47,14 @@ struct TreyarchDisplayMode: Equatable, Sendable {
     ]
 
     var argument: String { "\(width)x\(height)" }
+
+    /// Accepted modes that fit a display of the given point size. The
+    /// smallest mode is always kept so the list is never empty.
+    static func accepted(fittingWidth width: Int, height: Int) -> [TreyarchDisplayMode] {
+        guard width > 0, height > 0 else { return accepted }
+        let fitting = accepted.filter { $0.width <= width && $0.height <= height }
+        return fitting.isEmpty ? [accepted[0]] : fitting
+    }
 
     /// Exact match, otherwise the largest accepted mode that fits inside the
     /// request. A request smaller than every mode uses the nearest one.
@@ -382,21 +391,19 @@ extension GameDescriptor {
                 requiresVisibleWindow: true
             )
         case "bo2-campaign", "bo2-multiplayer", "bo2-zombies":
-            // T6's own fullscreen path never presents a frame here: the main
-            // thread polls its renderer handshake forever behind a black
-            // window. `+set r_fullscreen 0` is queued until a video restart,
-            // and an r_mode outside the game's list is ignored, so the window
-            // stays at the fallback size and never draws. Command-line +set
-            // beats the encrypted .cgp configs; +vid_restart applies both on
-            // this launch.
+            // Windowed is the only mode verified so far. Command-line +set
+            // beats the encrypted .cgp configs and is read before the
+            // renderer starts, so the window opens at this size. An r_mode
+            // outside the game's own list is ignored in favor of the saved
+            // one. Nothing may follow the +set pairs: Steam hands unknown
+            // trailing commands to its own console, not to the game.
             return GameLaunchProfile(
                 display: DisplayArgumentTemplates(
                     borderless: nil,
                     exclusive: nil,
                     windowed: [
                         .literal("+set"), .literal("r_fullscreen"), .literal("0"),
-                        .literal("+set"), .literal("r_mode"), .treyarchMode,
-                        .literal("+vid_restart")
+                        .literal("+set"), .literal("r_mode"), .treyarchMode
                     ]
                 ),
                 requiresVisibleWindow: true

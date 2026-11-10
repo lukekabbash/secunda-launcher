@@ -663,7 +663,12 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             artworkFallbackAppID: "202970",
             preferredMaxFrameRate: nil,
             customIniValues: [:],
-            prefersNativeSessionDPI: false,
+            // A Retina session halves the window: r_mode 1280x800 opens at
+            // 640x400 points, and a comfortably sized window costs four times
+            // the pixels. At native DPI the mode is the window's point size
+            // and macOS scales it up, which is both larger and much cheaper
+            // to render under Rosetta.
+            prefersNativeSessionDPI: true,
             usesScreenCoveringBorderlessSurface: false,
             appliesAspectCorrectMouseLook: false,
             usesNativeVoiceAudioFix: false,

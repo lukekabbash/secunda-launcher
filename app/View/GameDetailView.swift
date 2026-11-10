@@ -825,7 +825,11 @@ struct GameDetailView: View {
         if descriptor.id == "bo2-campaign"
             || descriptor.id == "bo2-multiplayer"
             || descriptor.id == "bo2-zombies" {
-            return TreyarchDisplayMode.accepted.map {
+            let frame = displayScreen?.frame.size ?? .zero
+            return TreyarchDisplayMode.accepted(
+                fittingWidth: Int(frame.width),
+                height: Int(frame.height)
+            ).map {
                 DisplayResolutionOption(width: $0.width, height: $0.height, note: nil)
             }
         }

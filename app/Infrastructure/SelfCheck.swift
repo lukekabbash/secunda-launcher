@@ -2204,13 +2204,13 @@ enum SelfCheck {
         var staleBorderlessBO2 = bo2Settings
         staleBorderlessBO2.displayMode = .borderlessFullscreen
         let bo2WindowedArguments = [
-            "+set", "r_fullscreen", "0", "+set", "r_mode", "2560x1600", "+vid_restart"
+            "+set", "r_fullscreen", "0", "+set", "r_mode", "2560x1600"
         ]
         var rejectedMode = bo2Settings
         rejectedMode.width = 1920
         rejectedMode.height = 1080
         let snappedArguments = [
-            "+set", "r_fullscreen", "0", "+set", "r_mode", "1440x900", "+vid_restart"
+            "+set", "r_fullscreen", "0", "+set", "r_mode", "1440x900"
         ]
         expect(
             [GameDescriptor.blackOps2SP, .blackOps2MP, .blackOps2Zombies].allSatisfy {
@@ -2225,6 +2225,13 @@ enum SelfCheck {
                         == snappedArguments
             }
                 && TreyarchDisplayMode.fitting(width: 1280, height: 800).argument == "1280x800"
+                && TreyarchDisplayMode.accepted(fittingWidth: 1710, height: 1107).last?.argument
+                    == "1440x900"
+                && TreyarchDisplayMode.accepted(fittingWidth: 800, height: 500).count == 1
+                && [GameDescriptor.blackOps2SP, .blackOps2MP, .blackOps2Zombies].allSatisfy {
+                    $0.prefersNativeSessionDPI
+                        && !GameService.sessionRetinaMode(for: $0, displayGeometry: .unknown)
+                }
                 && LauncherSettings().game(.blackOps2Zombies).displayMode == .windowed
                 && GameDescriptor.skyrimSE.preferredInitialDisplayMode == .borderlessFullscreen,
             "BO2 always launches windowed at an accepted r_mode, even from stale fullscreen settings",
