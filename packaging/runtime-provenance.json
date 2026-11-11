@@ -154,6 +154,10 @@
     {
       "file": "patches/dxmt-v0.80-metal-atomic-fetch-add.patch",
       "sha256": "595f323a578ced4ef11c8139ab1fd238711da97e4755e05fb8244688d3955754"
+    },
+    {
+      "file": "patches/dxmt-v0.80-precise-math-switch.patch",
+      "sha256": "638268026b24a8d3dbe219935423fe37d2bbb774b2a9b04938b7212f2bb5ce2e"
     }
   ]
 }

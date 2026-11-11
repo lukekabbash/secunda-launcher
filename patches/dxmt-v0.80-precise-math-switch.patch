@@ -1,0 +1,49 @@
+diff --git a/src/airconv/nt/dxbc_converter_base.cpp b/src/airconv/nt/dxbc_converter_base.cpp
+index 0a39a13..fca8c7d 100644
+--- a/src/airconv/nt/dxbc_converter_base.cpp
++++ b/src/airconv/nt/dxbc_converter_base.cpp
+@@ -1,4 +1,5 @@
+ #include "dxbc_converter_base.hpp"
++#include <cstdlib>
+ #include "../dxbc_converter.hpp"
+ #include "air_builder.hpp"
+ #include "llvm/IR/Constants.h"
+@@ -2934,9 +2935,22 @@ Converter::CreateGEPInt32WithBoundCheck(AtomicBufferResourceHandle &Buffer, llvm
+   );
+ }
+ 
++// Secunda: DXMT_AIRCONV_PRECISE=1 translates every shader without fast-math
++// flags, as if each instruction carried the precise modifier. Skyrim SE's
++// exterior shadows show a camera-following dark patch under the default
++// reassociation and approximations.
++static bool
++PreciseMathRequested() {
++  static const bool requested = [] {
++    const char *value = std::getenv("DXMT_AIRCONV_PRECISE");
++    return value && value[0] == '1';
++  }();
++  return requested;
++}
++
+ std::unique_ptr<llvm::IRBuilder<>::FastMathFlagGuard>
+ Converter::UseFastMath(bool OptOut) {
+-  if (OptOut)
++  if (OptOut || PreciseMathRequested())
+     return nullptr;
+   auto Guard = std::make_unique<llvm::IRBuilder<>::FastMathFlagGuard>(ir);
+   llvm::FastMathFlags FMF;
+diff --git a/src/dxmt/dxmt_shader_cache.cpp b/src/dxmt/dxmt_shader_cache.cpp
+index 7b04986..8a7bc4b 100644
+--- a/src/dxmt/dxmt_shader_cache.cpp
++++ b/src/dxmt/dxmt_shader_cache.cpp
+@@ -28,7 +28,9 @@ ShaderCache::ShaderCache(WMTMetalVersion metal_version) {
+   } else {
+     path = str::format("dxmt/", env::getExeName(), "/");
+   }
+-  path += str::format("shaders_", (unsigned int)metal_version, ".db");
++  // Precise translation produces different shaders: keep them apart.
++  path += str::format(env::getEnvVar("DXMT_AIRCONV_PRECISE") == "1" ? "shaders_precise_" : "shaders_",
++                      (unsigned int)metal_version, ".db");
+   scache_writer_ = WMT::CacheWriter::alloc_init(path.c_str(), kDXMTShaderCacheVersion);
+   scache_reader_ = WMT::CacheReader::alloc_init(path.c_str(), kDXMTShaderCacheVersion);
+ }
