@@ -204,6 +204,9 @@ chmod 0755 "$RUNTIME_STAGE"
 mkdir -p "$RUNTIME_STAGE/lib"
 ditto "$DEPS_ROOT/lib" "$RUNTIME_STAGE/lib"
 "$REPOSITORY_ROOT/scripts/fetch-dxmt.sh" "$RUNTIME_STAGE"
+# Stock DXMT v0.80 aborts Skyrim SE at startup ("Pure virtual function
+# called"). Replace its 64-bit d3d11.dll with the patched build.
+"$REPOSITORY_ROOT/scripts/build-patched-dxmt.sh" "$RUNTIME_STAGE"
 "$REPOSITORY_ROOT/scripts/fetch-vulkan-stack.sh" "$RUNTIME_STAGE"
 mkdir -p "$RUNTIME_STAGE/share/secunda"
 cp "$REPOSITORY_ROOT/packaging/runtime-provenance.json" \

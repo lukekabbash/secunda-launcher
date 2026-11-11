@@ -132,6 +132,15 @@ for graphics_file in \
     fi
 done
 
+# Stock DXMT v0.80's 64-bit d3d11.dll aborts Skyrim SE at startup. A runtime
+# must carry the patched build from scripts/build-patched-dxmt.sh.
+stock_dxmt_d3d11_sha256=7ca382af0eb32d8a432f6efb14d594fefb45673663be1f7e6682254bff885c47
+if [[ $(/usr/bin/shasum -a 256 "$RUNTIME_ROOT/lib/wine/x86_64-windows/d3d11.dll" | /usr/bin/awk '{print $1}') \
+    == "$stock_dxmt_d3d11_sha256" ]]; then
+    echo "Runtime carries stock DXMT v0.80 d3d11.dll, which crashes Skyrim SE. Run scripts/build-patched-dxmt.sh." >&2
+    (( deployment_failure_count += 1 ))
+fi
+
 if [[ $(file -b "$RUNTIME_ROOT/share/dxvk/x64/d3d9.dll") != *x86-64* ]]; then
     echo "DXVK 64-bit Direct3D 9 bridge has the wrong architecture." >&2
     (( deployment_failure_count += 1 ))
