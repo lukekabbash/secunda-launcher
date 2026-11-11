@@ -1,10 +1,10 @@
 {
-  "version": "0.1.7",
-  "build": 8,
-  "published": "2026-11-11T03:23:54Z",
+  "version": "0.1.8",
+  "build": 9,
+  "published": "2026-11-11T20:32:18Z",
   "minimumSystemVersion": "15.0",
-  "downloadURL": "https://github.com/lukekabbash/secunda-launcher/releases/download/secunda-0.1.7/Secunda-Launcher-0.1.7.dmg",
-  "sizeBytes": 350614588,
-  "sha256": "6f5dc596c38de9855bae8a7a760cf1482558aa587dbc3c99236daab5b33175eb",
+  "downloadURL": "https://github.com/lukekabbash/secunda-launcher/releases/download/secunda-0.1.8/Secunda-Launcher-0.1.8.dmg",
+  "sizeBytes": 354026333,
+  "sha256": "c5b951c2ef73edc5ad66f3ace1e08cb5783f58b1e9d63a5f546cf6a144ddf83c",
   "testOnly": false
 }
