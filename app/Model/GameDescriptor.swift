@@ -40,12 +40,22 @@ struct QualityOption: Identifiable, Equatable, Sendable {
     let title: String
     let caption: String?
     let choices: [QualityChoice]
+    /// The choice applied when the player has not picked one. Usually
+    /// "Game default" (write nothing); a title can default to a fix instead.
+    let defaultChoiceLabel: String
 
-    init(id: String, title: String, caption: String? = nil, choices: [QualityChoice]) {
+    init(
+        id: String,
+        title: String,
+        caption: String? = nil,
+        choices: [QualityChoice],
+        defaultChoiceLabel: String = QualityOption.gameDefaultLabel
+    ) {
         self.id = id
         self.title = title
         self.caption = caption
         self.choices = choices
+        self.defaultChoiceLabel = defaultChoiceLabel
     }
 
     static let gameDefaultLabel = "Game default"
@@ -202,19 +212,26 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         qualityOptions.first { $0.id == id }
     }
 
+    static let shadowOffCompatibilityLabel = "Off (compatibility)"
+
     /// Shared Creation Engine options valid in both Skyrim SE and Fallout 4.
     /// A title may expose the zero-distance shadow workaround without adding
     /// it to every game that happens to use the same profile format.
     private static func creationEngineOptions(
         includesShadowOffCompatibility: Bool = false
     ) -> [QualityOption] {
-        var shadowDistanceChoices: [QualityChoice] = [
-            .init(label: QualityOption.gameDefaultLabel, values: [:])
-        ]
+        // Any nonzero exterior shadow distance draws a dark patch that
+        // follows the camera in Skyrim under DXMT, including the game's own
+        // value (docs/source-only/SKYRIM_SHADOW_WORKAROUND.md). Titles with
+        // the workaround therefore default to it and do not offer "Game
+        // default"; the nonzero distances stay available as an opt-in.
+        var shadowDistanceChoices: [QualityChoice] = []
         if includesShadowOffCompatibility {
             shadowDistanceChoices.append(
-                .init(label: "Off (compatibility)", values: ["fShadowDistance": "0.0000"])
+                .init(label: shadowOffCompatibilityLabel, values: ["fShadowDistance": "0.0000"])
             )
+        } else {
+            shadowDistanceChoices.append(.init(label: QualityOption.gameDefaultLabel, values: [:]))
         }
         shadowDistanceChoices += [
             .init(label: "Short", values: ["fShadowDistance": "2500.0000"]),
@@ -248,9 +265,12 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
                 id: "shadow-distance",
                 title: "Shadow distance",
                 caption: includesShadowOffCompatibility
-                    ? "How far away the world casts shadows. Compatibility mode prevents camera-following dark patches by disabling exterior shadows."
+                    ? "Off keeps a dark patch from following the camera outdoors by turning off outdoor shadows. Other distances bring that patch back."
                     : "How far away the world still casts shadows.",
-                choices: shadowDistanceChoices
+                choices: shadowDistanceChoices,
+                defaultChoiceLabel: includesShadowOffCompatibility
+                    ? shadowOffCompatibilityLabel
+                    : QualityOption.gameDefaultLabel
             ),
             QualityOption(
                 id: "anisotropy",

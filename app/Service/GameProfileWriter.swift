@@ -640,9 +640,10 @@ struct GameProfileWriter {
         descriptor: GameDescriptor
     ) -> [String: String] {
         var values: [String: String] = [:]
-        for (optionID, chosenLabel) in settings.quality {
-            guard let option = descriptor.qualityOption(for: optionID),
-                  let choice = option.choices.first(where: { $0.label == chosenLabel })
+        for option in descriptor.qualityOptions {
+            let chosenLabel = settings.quality[option.id] ?? option.defaultChoiceLabel
+            guard let choice = option.choices.first(where: { $0.label == chosenLabel })
+                ?? option.choices.first(where: { $0.label == option.defaultChoiceLabel })
             else { continue }
             values.merge(choice.values) { _, new in new }
         }

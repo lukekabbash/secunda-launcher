@@ -2008,8 +2008,14 @@ enum SelfCheck {
             failures: &failures
         )
         expect(
-            GameProfileWriter.qualityValues(settings: GameSettings(), descriptor: .skyrimSE).isEmpty,
-            "default quality writes nothing",
+            GameProfileWriter.qualityValues(settings: GameSettings(), descriptor: .fallout4).isEmpty
+                && GameProfileWriter.qualityValues(settings: GameSettings(), descriptor: .skyrimSE)
+                    == ["fShadowDistance": "0.0000"]
+                && GameProfileWriter.qualityValues(settings: GameSettings(), descriptor: .enderalSE)
+                    == ["fShadowDistance": "0.0000"]
+                && GameDescriptor.skyrimSE.qualityOption(for: "shadow-distance")?.choices
+                    .contains(where: { $0.label == QualityOption.gameDefaultLabel }) == false,
+            "default quality writes nothing, except Skyrim's shadow fix, which is always on unless the player picks a distance",
             passes: &passes,
             failures: &failures
         )

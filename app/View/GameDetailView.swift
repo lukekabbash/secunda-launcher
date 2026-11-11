@@ -567,12 +567,14 @@ struct GameDetailView: View {
     private func qualityBinding(_ option: QualityOption) -> Binding<String> {
         Binding(
             get: {
-                model.gameSettings(for: descriptor).quality[option.id]
-                    ?? QualityOption.gameDefaultLabel
+                let stored = model.gameSettings(for: descriptor).quality[option.id]
+                return option.choices.contains(where: { $0.label == stored })
+                    ? stored ?? option.defaultChoiceLabel
+                    : option.defaultChoiceLabel
             },
             set: { newLabel in
                 var updated = model.gameSettings(for: descriptor)
-                if newLabel == QualityOption.gameDefaultLabel {
+                if newLabel == option.defaultChoiceLabel {
                     updated.quality.removeValue(forKey: option.id)
                 } else {
                     updated.quality[option.id] = newLabel
