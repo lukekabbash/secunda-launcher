@@ -2049,37 +2049,6 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
-        var skyrimOutdoorShadows = GameSettings()
-        skyrimOutdoorShadows.quality = ["shadow-distance": "On, medium (experimental)"]
-        var falloutShadows = GameSettings()
-        falloutShadows.quality = ["shadow-distance": "Medium"]
-        let preciseBase = ["PATH": "/usr/bin"]
-        expect(
-            GameDescriptor.skyrimSE.usesPreciseShaderMath(settings: skyrimOutdoorShadows)
-                && !GameDescriptor.skyrimSE.usesPreciseShaderMath(settings: GameSettings())
-                && !GameDescriptor.fallout4.usesPreciseShaderMath(settings: falloutShadows)
-                && GameProfileWriter.qualityValues(settings: skyrimOutdoorShadows, descriptor: .skyrimSE)
-                    == ["fShadowDistance": "4000.0000"]
-                && GameService.sessionEnvironment(
-                    base: preciseBase, descriptor: .skyrimSE, diagnostics: false,
-                    settings: skyrimOutdoorShadows
-                )[GameService.preciseShaderMathKey] == "1"
-                && GameService.sessionEnvironment(
-                    base: preciseBase, descriptor: .skyrimSE, diagnostics: false,
-                    settings: GameSettings()
-                ) == preciseBase
-                && GameService.sessionEnvironment(
-                    base: preciseBase, descriptor: .skyrimSE, diagnostics: false,
-                    settings: skyrimOutdoorShadows
-                )[RuntimeManager.sessionFingerprintKey]
-                    != GameService.sessionEnvironment(
-                        base: preciseBase, descriptor: .skyrimSE, diagnostics: false,
-                        settings: GameSettings()
-                    )[RuntimeManager.sessionFingerprintKey],
-            "Skyrim outdoor shadows turn on precise shader math for that launch only",
-            passes: &passes,
-            failures: &failures
-        )
         var skyrimShadowCompatibility = GameSettings()
         skyrimShadowCompatibility.quality = ["shadow-distance": "Off (compatibility)"]
         let skyrimShadowValues = GameProfileWriter.qualityValues(

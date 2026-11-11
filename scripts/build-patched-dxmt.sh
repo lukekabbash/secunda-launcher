@@ -14,13 +14,8 @@
 #
 #   scripts/build-patched-dxmt.sh [RUNTIME_ROOT]
 #
-# patches/dxmt-v0.80-precise-math-switch.patch adds DXMT_AIRCONV_PRECISE=1,
-# which translates shaders without fast-math flags. Secunda sets it only for
-# Skyrim's experimental outdoor shadows.
-#
-# RUNTIME_ROOT defaults to ./Runtime/wine. lib/wine/x86_64-windows/d3d11.dll
-# and lib/wine/x86_64-unix/winemetal.so are replaced. The version marker
-# stays 0.80.
+# RUNTIME_ROOT defaults to ./Runtime/wine. Only lib/wine/x86_64-windows/d3d11.dll
+# is replaced. The version marker stays 0.80.
 set -euo pipefail
 
 SCRIPT_DIR=${0:A:h}
@@ -32,7 +27,6 @@ LLVM="$CACHE/toolchains/llvm-darwin"
 DXMT="$CACHE/dxmt"
 DESTROYED_PATCH="$REPOSITORY_ROOT/patches/dxmt-v0.80-destroyed-object-release.patch"
 METAL_PATCH="$REPOSITORY_ROOT/patches/dxmt-v0.80-metal-atomic-fetch-add.patch"
-PRECISE_PATCH="$REPOSITORY_ROOT/patches/dxmt-v0.80-precise-math-switch.patch"
 
 if [[ ! -f "$RUNTIME_ROOT/lib/wine/x86_64-windows/d3d11.dll" ]]; then
     echo "Runtime is missing lib/wine/x86_64-windows/d3d11.dll: $RUNTIME_ROOT" >&2
@@ -75,12 +69,6 @@ fi
 if grep -q "__metal_atomic_fetch_add_explicit" "$DXMT/src/airconv/shaders/air_tessellation.metal"; then
     git -C "$DXMT" apply "$METAL_PATCH"
 fi
-if ! grep -q "DXMT_AIRCONV_PRECISE" "$DXMT/src/airconv/nt/dxbc_converter_base.cpp"; then
-    git -C "$DXMT" apply "$PRECISE_PATCH"
-fi
-# The native helper (winemetal.so) carries the shader converter, so it is
-# rebuilt too, and must load on the runtime's macOS 15 floor.
-export MACOSX_DEPLOYMENT_TARGET=${SECUNDA_DEPLOYMENT_TARGET:-15.0}
 
 export PATH="$MINGW/bin:$PATH"
 if [[ ! -f "$DXMT/build/build.ninja" ]]; then
@@ -108,13 +96,5 @@ if [[ ! -f "$built" ]]; then
     exit 1
 fi
 install -m 0644 "$built" "$RUNTIME_ROOT/lib/wine/x86_64-windows/d3d11.dll"
-built_helper="$DXMT/install/x86_64-unix/winemetal.so"
-helper_floor=$(vtool -show-build "$built_helper" | awk '/minos/{print $2; exit}')
-if [[ "$helper_floor" != "$MACOSX_DEPLOYMENT_TARGET" ]]; then
-    echo "winemetal.so targets macOS $helper_floor, expected $MACOSX_DEPLOYMENT_TARGET. Rebuild it after:" >&2
-    echo "  ninja -C \"$DXMT/build\" -t clean src/winemetal/unix/winemetal.so" >&2
-    exit 1
-fi
-install -m 0755 "$built_helper" "$RUNTIME_ROOT/lib/wine/x86_64-unix/winemetal.so"
 echo "0.80" > "$RUNTIME_ROOT/lib/wine/.secunda-dxmt-version"
 echo "Installed patched DXMT v0.80 d3d11.dll into $RUNTIME_ROOT"

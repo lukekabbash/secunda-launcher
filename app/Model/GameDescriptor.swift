@@ -214,21 +214,6 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
 
     static let shadowOffCompatibilityLabel = "Off (compatibility)"
 
-    /// Titles whose outdoor shadows default to off because of the
-    /// camera-following patch, and offer the experimental fix instead.
-    var offersExperimentalOutdoorShadows: Bool {
-        qualityOption(for: "shadow-distance")?.defaultChoiceLabel == Self.shadowOffCompatibilityLabel
-    }
-
-    /// Outdoor shadows are on, so this launch needs precise shader math.
-    func usesPreciseShaderMath(settings: GameSettings) -> Bool {
-        guard offersExperimentalOutdoorShadows,
-              let distance = GameProfileWriter.qualityValues(settings: settings, descriptor: self)["fShadowDistance"],
-              let value = Double(distance)
-        else { return false }
-        return value > 0
-    }
-
     /// Shared Creation Engine options valid in both Skyrim SE and Fallout 4.
     /// A title may expose the zero-distance shadow workaround without adding
     /// it to every game that happens to use the same profile format.
@@ -248,15 +233,10 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
         } else {
             shadowDistanceChoices.append(.init(label: QualityOption.gameDefaultLabel, values: [:]))
         }
-        // With the workaround, a nonzero distance also turns on precise
-        // shader translation (GameService.sessionEnvironment), the
-        // experimental fix for that patch.
-        let suffix = includesShadowOffCompatibility ? " (experimental)" : ""
-        let prefix = includesShadowOffCompatibility ? "On, " : ""
         shadowDistanceChoices += [
-            .init(label: "\(prefix)\(includesShadowOffCompatibility ? "short" : "Short")\(suffix)", values: ["fShadowDistance": "2500.0000"]),
-            .init(label: "\(prefix)\(includesShadowOffCompatibility ? "medium" : "Medium")\(suffix)", values: ["fShadowDistance": "4000.0000"]),
-            .init(label: "\(prefix)\(includesShadowOffCompatibility ? "long" : "Long")\(suffix)", values: ["fShadowDistance": "8000.0000"])
+            .init(label: "Short", values: ["fShadowDistance": "2500.0000"]),
+            .init(label: "Medium", values: ["fShadowDistance": "4000.0000"]),
+            .init(label: "Long", values: ["fShadowDistance": "8000.0000"])
         ]
 
         return [
@@ -283,9 +263,9 @@ struct GameDescriptor: Identifiable, Equatable, Sendable {
             ),
             QualityOption(
                 id: "shadow-distance",
-                title: includesShadowOffCompatibility ? "Outdoor shadows" : "Shadow distance",
+                title: "Shadow distance",
                 caption: includesShadowOffCompatibility
-                    ? "Off avoids a dark patch that follows the camera outdoors. On turns outdoor shadows back on with an experimental graphics fix for that patch; it may cost some frame rate."
+                    ? "Off keeps a dark patch from following the camera outdoors by turning off outdoor shadows. Other distances bring that patch back."
                     : "How far away the world still casts shadows.",
                 choices: shadowDistanceChoices,
                 defaultChoiceLabel: includesShadowOffCompatibility

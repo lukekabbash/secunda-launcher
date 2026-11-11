@@ -242,8 +242,7 @@ final class GameService {
                 )
             ),
             descriptor: descriptor,
-            diagnostics: diagnostics,
-            settings: settings
+            diagnostics: diagnostics
         )
         try await ensureTrustedSessionEnvironment(
             runtime: runtime,
@@ -271,8 +270,7 @@ final class GameService {
                     )
                 ),
                 descriptor: descriptor,
-                diagnostics: diagnostics,
-                settings: settings
+                diagnostics: diagnostics
             )
             if refreshedEnvironment[RuntimeManager.sessionFingerprintKey]
                 != sessionEnvironment[RuntimeManager.sessionFingerprintKey] {
@@ -856,23 +854,11 @@ final class GameService {
     /// A protected child inherits process-latched compatibility state from
     /// its parent. Apply the narrow translated-code policy before that shared
     /// session begins, then restamp the complete environment.
-    /// Environment variable read by Secunda's DXMT build: translate shaders
-    /// without fast-math flags (patches/dxmt-v0.80-precise-math-switch.patch).
-    static let preciseShaderMathKey = "DXMT_AIRCONV_PRECISE"
-
     static func sessionEnvironment(
         base: [String: String],
         descriptor: GameDescriptor,
-        diagnostics: Bool,
-        settings: GameSettings? = nil
+        diagnostics: Bool
     ) -> [String: String] {
-        if let settings, descriptor.usesPreciseShaderMath(settings: settings) {
-            var environment = base
-            environment[preciseShaderMathKey] = "1"
-            environment[RuntimeManager.sessionFingerprintKey] =
-                RuntimeManager.sessionFingerprint(environment: environment)
-            return environment
-        }
         switch descriptor.id {
         case "bo2-campaign", "bo2-multiplayer", "bo2-zombies":
             var environment = base
