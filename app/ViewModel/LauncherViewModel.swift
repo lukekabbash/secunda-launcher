@@ -17,6 +17,7 @@ final class LauncherViewModel: ObservableObject {
     @Published private(set) var launchingDescriptorID: String?
 
     let paths: SecundaPaths
+    private lazy var performanceLog = GamePerformanceLog(logsDirectory: paths.logsDirectory)
     private let settingsStore: SettingsStore
     private let runtimeManager: RuntimeManager
     private let bottleManager: BottleManager
@@ -720,6 +721,10 @@ final class LauncherViewModel: ObservableObject {
         Task {
             let processes = (try? await bottleProcessInspector.runningProcesses(runtime: runtime)) ?? []
             bottleProcesses = processes
+            // Always on: one kernel read per game every few seconds, kept
+            // in a small rotating local file. Tying it to Diagnostics would
+            // measure the slower, verbose-logging configuration instead.
+            performanceLog.record(processes)
             if let activeSessionDescriptorID,
                let descriptor = GameDescriptor.descriptor(for: activeSessionDescriptorID),
                !Self.processes(processes, match: descriptor) {

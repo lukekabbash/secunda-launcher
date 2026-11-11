@@ -2019,6 +2019,36 @@ enum SelfCheck {
             passes: &passes,
             failures: &failures
         )
+        let counterBefore = GameProcessCounters(
+            cpuNanoseconds: 1_000_000_000, faults: 100, contextSwitches: 50,
+            machCalls: 10, unixCalls: 20, threads: 40, residentBytes: 800 * 1_048_576
+        )
+        var counterAfter = counterBefore
+        counterAfter.cpuNanoseconds += 7_500_000_000
+        counterAfter.faults += 25_000
+        counterAfter.contextSwitches += 5_000
+        let performanceLine = GamePerformanceLog.line(
+            gameID: "bo2-zombies", pid: 7, interval: 5,
+            previous: counterBefore, current: counterAfter, date: Date(timeIntervalSince1970: 0)
+        )
+        expect(
+            performanceLine?.contains("game=bo2-zombies pid=7 cpu=150% faults/s=5000 switches/s=1000") == true
+                && performanceLine?.contains("rss=800MiB") == true
+                && GamePerformanceLog.line(
+                    gameID: "x", pid: 1, interval: 0.1,
+                    previous: counterBefore, current: counterAfter, date: Date()
+                ) == nil
+                && GamePerformanceLog.game(for: BottleProcess(
+                    pid: 1, ppid: 1, command: "C:\\Games\\Black Ops II\\t6mp.exe +set r_mode 1440x900"
+                ))?.id == "bo2-multiplayer"
+                && GamePerformanceLog.game(for: BottleProcess(
+                    pid: 1, ppid: 1, command: "C:\\windows\\system32\\explorer.exe"
+                )) == nil
+                && GameProcessCounters.read(pid: ProcessInfo.processInfo.processIdentifier) != nil,
+            "game performance log reports per-second rates for catalog games only",
+            passes: &passes,
+            failures: &failures
+        )
         var skyrimOutdoorShadows = GameSettings()
         skyrimOutdoorShadows.quality = ["shadow-distance": "On, medium (experimental)"]
         var falloutShadows = GameSettings()
